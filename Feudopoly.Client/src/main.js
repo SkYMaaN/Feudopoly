@@ -1,3 +1,4 @@
+import { Start } from './scenes/Start.js';
 import { Board } from './scenes/Board.js';
 
 const config = {
@@ -10,13 +11,13 @@ const config = {
     backgroundColor: '#000000',
     pixelArt: false,
     scene: [
+        Start,
         Board
     ],
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-}
+};
 
 new Phaser.Game(config);
-            
