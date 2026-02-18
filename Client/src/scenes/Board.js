@@ -90,7 +90,7 @@ export class Board extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.diceHintText = this.add.text(0, 150, 'Нажми в любом месте, чтобы остановить', {
+        this.diceHintText = this.add.text(0, 150, 'Press anywhere to stop.', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             color: '#f5f5f5',
@@ -129,7 +129,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.turnSubtitleText = this.add.text(0, -15, 'Твой ход! Нажми кнопку, чтобы начать ролл', {
+        this.turnSubtitleText = this.add.text(0, -15, 'Your turn! Press the button to start rolling.', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '38px',
             color: '#ffffff',
@@ -142,7 +142,7 @@ export class Board extends Phaser.Scene {
             .setStrokeStyle(6, 0xffffff, 1)
             .setInteractive({ useHandCursor: true });
 
-        this.rollButtonText = this.add.text(0, 120, 'КЛИК ДЛЯ РОЛЛА', {
+        this.rollButtonText = this.add.text(0, 120, 'Roll!', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '42px',
             color: '#ffffff',
@@ -165,7 +165,7 @@ export class Board extends Phaser.Scene {
         this.activeTurnIndex = index % this.players.length;
         const current = this.players[this.activeTurnIndex];
 
-        this.turnTitleText.setText(`ХОД ИГРОКА ${current.userId + 1}`);
+        this.turnTitleText.setText(`PLAYER'S ${current.userId + 1} TURN`);
         this.turnOverlay.setVisible(true);
         this.turnOverlay.setAlpha(1);
 
@@ -191,14 +191,14 @@ export class Board extends Phaser.Scene {
         this.diceContainer.setAlpha(0);
         this.diceContainer.setAngle(0);
         this.diceValueText.setText(String(this.rollValue));
-        this.diceHintText.setText('Нажми в любом месте, чтобы остановить');
+        this.diceHintText.setText('Press anywhere to stop.');
         this.diceTimerText.setText('30');
 
         this.tweens.add({
             targets: this.diceContainer,
             alpha: 1,
             scale: 1,
-            duration: 220,
+            duration: 620,
             ease: 'Back.Out'
         });
 
@@ -216,8 +216,8 @@ export class Board extends Phaser.Scene {
 
                 this.tweens.add({
                     targets: this.diceContainer,
-                    angle: Phaser.Math.Between(-16, 16),
-                    duration: 70,
+                    angle: Phaser.Math.Between(-12, 12),
+                    duration: 100,
                     yoyo: true,
                     ease: 'Sine.InOut'
                 });
@@ -253,8 +253,8 @@ export class Board extends Phaser.Scene {
         }
 
         this.diceHintText.setText(reason === 'timeout'
-            ? `Время вышло! Выпало: ${this.rollValue}`
-            : `Выпало: ${this.rollValue}`);
+            ? `Time is spent! The bones have spoken: ${this.rollValue}`
+            : `The bones have spoken: ${this.rollValue}`);
 
         this.time.delayedCall(300, () => {
             this.tweens.add({

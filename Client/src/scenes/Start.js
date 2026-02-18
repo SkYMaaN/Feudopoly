@@ -41,8 +41,8 @@ export class Start extends Phaser.Scene {
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        const startButtonShadow = this.add.rectangle(width / 2 + 6, height / 2 + 166, 470, 118, 0x2a1708, 0.8);
-        const startButton = this.add.rectangle(width / 2, height / 2 + 160, 470, 118, 0x6f4b23, 1)
+        const startButtonShadow = this.add.rectangle(width / 2 + 6, height / 2 + 166, 600, 118, 0x2a1708, 0.8);
+        const startButton = this.add.rectangle(width / 2, height / 2 + 160, 600, 118, 0x6f4b23, 1)
             .setStrokeStyle(8, 0xc89b58, 1)
             .setInteractive({ useHandCursor: true });
 
