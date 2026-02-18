@@ -25,6 +25,7 @@ export class Board extends Phaser.Scene {
 
         this.addBoard();
         this.buildCells();
+        this.addMedievalAtmosphere();
 
         for (let i = 0; i < this.maxPlayers; i++) {
             this.addPlayer(i);
