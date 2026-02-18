@@ -36,6 +36,23 @@ export class Board extends Phaser.Scene {
         this.startTurn(0);
     }
 
+    addMedievalAtmosphere() {
+        const { width, height } = this.scale.gameSize;
+
+        const vignette = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.2)
+            .setDepth(20)
+            .setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+        this.tweens.add({
+            targets: vignette,
+            alpha: { from: 0.15, to: 0.25 },
+            duration: 2400,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
+    }
+
     addPlayer(userId) {
         if (this.players.length >= this.maxPlayers) {
             console.warn(`Session is full! Player '${userId}' was kicked.`);
