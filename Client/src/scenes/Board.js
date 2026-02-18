@@ -190,7 +190,7 @@ export class Board extends Phaser.Scene {
         this.diceContainer.setScale(0.2);
         this.diceContainer.setAlpha(0);
         this.diceContainer.setAngle(0);
-        this.diceValueText.setText(String(this.rollValue));
+        this.diceValueText.setText('');
         this.diceHintText.setText('Press anywhere to stop.');
         this.diceTimerText.setText('30');
 
@@ -209,7 +209,6 @@ export class Board extends Phaser.Scene {
             loop: true,
             callback: () => {
                 this.rollValue = Phaser.Math.Between(1, 6);
-                this.diceValueText.setText(String(this.rollValue));
 
                 const leftSec = Math.max(0, Math.ceil((30000 - (this.time.now - this.rollStartMs)) / 1000));
                 this.diceTimerText.setText(`${leftSec}`);
@@ -252,6 +251,7 @@ export class Board extends Phaser.Scene {
             this.stopRollHandler = null;
         }
 
+        this.diceValueText.setText(String(this.rollValue));
         this.diceHintText.setText(reason === 'timeout'
             ? `Time is spent! The bones have spoken: ${this.rollValue}`
             : `The bones have spoken: ${this.rollValue}`);
