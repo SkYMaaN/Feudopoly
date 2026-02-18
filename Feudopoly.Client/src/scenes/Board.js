@@ -23,8 +23,6 @@ export class Board extends Phaser.Scene {
         this.lastRollValue = 0;
         this.isRolling = false;
 
-        this.connectionConfig = this.getConnectionConfig();
-
         this.addBoard();
         this.buildCells();
         this.addMedievalAtmosphere();
@@ -35,23 +33,17 @@ export class Board extends Phaser.Scene {
         this.registerHubEvents();
 
         try {
-            await gameHubClient.connect(this.connectionConfig.serverUrl);
-            await gameHubClient.joinGame(this.connectionConfig.sessionId, this.connectionConfig.displayName);
-            this.setStatus(`Connected to ${this.connectionConfig.sessionId}.`);
+            this.sessionId = crypto.randomUUID();
+            const testDisplayName = "HeroZero123";
+            console.log("Generated session id: " + this.sessionId);
+
+            await gameHubClient.connect();
+            await gameHubClient.joinGame(this.sessionId, testDisplayName);
+            this.setStatus(`Connected to ${this.sessionId}.`);
         } catch (error) {
             console.error(error);
             this.setStatus(`SignalR error: ${error.message ?? 'Unknown error'}`);
         }
-    }
-
-    getConnectionConfig() {
-        const params = new URLSearchParams(window.location.search);
-
-        return {
-            serverUrl: params.get('server') ?? 'http://localhost:5079',
-            sessionId: params.get('session') ?? 'default-session',
-            displayName: params.get('name') ?? `Knight-${Math.floor(Math.random() * 900 + 100)}`
-        };
     }
 
     registerHubEvents() {
@@ -177,7 +169,7 @@ export class Board extends Phaser.Scene {
 
         try {
             this.turnOverlay.setVisible(false);
-            await gameHubClient.rollDice(this.connectionConfig.sessionId);
+            await gameHubClient.rollDice(this.sessionId);
         } catch (error) {
             console.error(error);
             this.setStatus(`Roll failed: ${error.message ?? 'Unknown error'}`);

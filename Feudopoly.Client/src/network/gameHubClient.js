@@ -1,4 +1,5 @@
 const HUB_PATH = '/hubs/game';
+const ServerBaseUrl = "https://localhost:7049";
 
 export class GameHubClient {
     constructor() {
@@ -13,7 +14,8 @@ export class GameHubClient {
         };
     }
 
-    async connect(serverBaseUrl) {
+    async connect() {
+
         if (!window.signalR) {
             throw new Error('SignalR script is not loaded.');
         }
@@ -22,13 +24,18 @@ export class GameHubClient {
             return;
         }
 
-        const hubUrl = `${serverBaseUrl.replace(/\/$/, '')}${HUB_PATH}`;
+        const hubUrl = `${ServerBaseUrl}${HUB_PATH}`;
+
+        console.log("Hub Url: " + hubUrl);
 
         this.connection = new signalR.HubConnectionBuilder()
             .withUrl(hubUrl)
             .withAutomaticReconnect([0, 2000, 5000, 10000])
             .configureLogging(signalR.LogLevel.Warning)
             .build();
+
+        // FOR DEBUG!
+        this.connection.serverTimeoutInMilliseconds = 1000 * 60 * 30;
 
         this.connection.on('Joined', (playerId, state) => {
             this.emit('joined', { playerId, state });
