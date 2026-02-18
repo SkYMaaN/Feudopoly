@@ -54,17 +54,6 @@ export class Board extends Phaser.Scene {
         this.applyStackOffsets(startPosition);
     }
 
-
-    addMedievalAtmosphere() {
-        const { width, height } = this.scale.gameSize;
-
-        this.add.rectangle(width / 2, height / 2, width, height, 0x2a1a0a, 0.16).setDepth(5);
-
-        const frame = this.add.rectangle(width / 2, height / 2, width - 24, height - 24);
-        frame.setStrokeStyle(12, 0x6b4a24, 0.9);
-        frame.setDepth(15);
-    }
-
     createDiceUI() {
         const { width, height } = this.scale.gameSize;
 
@@ -72,32 +61,32 @@ export class Board extends Phaser.Scene {
         this.diceContainer.setDepth(1000);
         this.diceContainer.setVisible(false);
 
-        const shadow = this.add.rectangle(10, 10, 260, 260, 0x000000, 0.4);
-        const bg = this.add.rectangle(0, 0, 260, 260, 0xd4bc93, 0.98);
-        const border = this.add.rectangle(0, 0, 260, 260);
-        border.setStrokeStyle(12, 0x5a3a1b, 1);
+        const shadow = this.add.rectangle(8, 8, 220, 220, 0x000000, 0.35);
+        const bg = this.add.rectangle(0, 0, 220, 220, 0xffffff, 0.97);
+        const border = this.add.rectangle(0, 0, 220, 220);
+        border.setStrokeStyle(10, 0x202020, 1);
 
         this.diceValueText = this.add.text(0, 0, '1', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '132px',
-            color: '#3a230d',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '120px',
+            color: '#111111',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.diceHintText = this.add.text(0, 180, 'Click anywhere to stop', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '28px',
-            color: '#f4e6cd',
-            stroke: '#2d1708',
+        this.diceHintText = this.add.text(0, 150, 'Нажми в любом месте, чтобы остановить', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '30px',
+            color: '#f5f5f5',
+            stroke: '#000000',
             strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceTimerText = this.add.text(0, 228, '30', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '28px',
-            color: '#f4e6cd',
-            stroke: '#2d1708',
+        this.diceTimerText = this.add.text(0, 198, '30', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '26px',
+            color: '#ffffff',
+            stroke: '#000000',
             strokeThickness: 5,
             align: 'center'
         }).setOrigin(0.5);
@@ -111,39 +100,35 @@ export class Board extends Phaser.Scene {
         this.turnOverlay = this.add.container(width / 2, height / 2);
         this.turnOverlay.setDepth(900);
 
-        const dim = this.add.rectangle(0, 0, width, height, 0x140d04, 0.78).setOrigin(0.5);
-
-        const panelShadow = this.add.rectangle(8, 8, 980, 500, 0x000000, 0.45);
-        const panel = this.add.rectangle(0, 0, 980, 500, 0x2d1f11, 0.94);
-        panel.setStrokeStyle(10, 0x8d6a3b, 1);
+        const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0.5);
 
         this.turnTitleText = this.add.text(0, -110, '', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '78px',
-            color: '#e8d2a9',
-            stroke: '#3a230c',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '74px',
+            color: '#ffe066',
+            stroke: '#000000',
             strokeThickness: 10,
             fontStyle: 'bold',
             align: 'center'
         }).setOrigin(0.5);
 
-        this.turnSubtitleText = this.add.text(0, -15, 'Your turn! Ring the bell and roll the die', {
-            fontFamily: 'Georgia, serif',
+        this.turnSubtitleText = this.add.text(0, -15, 'Твой ход! Нажми кнопку, чтобы начать ролл', {
+            fontFamily: 'Arial, sans-serif',
             fontSize: '38px',
-            color: '#ddc79e',
-            stroke: '#2d1708',
+            color: '#ffffff',
+            stroke: '#000000',
             strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5);
 
-        this.rollButton = this.add.rectangle(0, 130, 500, 118, 0x6f4b23, 1)
-            .setStrokeStyle(8, 0xc89b58, 1)
+        this.rollButton = this.add.rectangle(0, 120, 460, 110, 0x3a86ff, 1)
+            .setStrokeStyle(6, 0xffffff, 1)
             .setInteractive({ useHandCursor: true });
 
-        this.rollButtonText = this.add.text(0, 130, 'RING BELL TO ROLL', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '40px',
-            color: '#f4e6cd',
+        this.rollButtonText = this.add.text(0, 120, 'КЛИК ДЛЯ РОЛЛА', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '42px',
+            color: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
@@ -156,14 +141,14 @@ export class Board extends Phaser.Scene {
             this.startDiceRoll();
         });
 
-        this.turnOverlay.add([dim, panelShadow, panel, this.turnTitleText, this.turnSubtitleText, this.rollButton, this.rollButtonText]);
+        this.turnOverlay.add([dim, this.turnTitleText, this.turnSubtitleText, this.rollButton, this.rollButtonText]);
     }
 
     startTurn(index) {
         this.activeTurnIndex = index % this.players.length;
         const current = this.players[this.activeTurnIndex];
 
-        this.turnTitleText.setText(`LORD ${current.userId + 1} TURN`);
+        this.turnTitleText.setText(`ХОД ИГРОКА ${current.userId + 1}`);
         this.turnOverlay.setVisible(true);
         this.turnOverlay.setAlpha(1);
 
@@ -189,7 +174,7 @@ export class Board extends Phaser.Scene {
         this.diceContainer.setAlpha(0);
         this.diceContainer.setAngle(0);
         this.diceValueText.setText(String(this.rollValue));
-        this.diceHintText.setText('Click anywhere to stop');
+        this.diceHintText.setText('Нажми в любом месте, чтобы остановить');
         this.diceTimerText.setText('30');
 
         this.tweens.add({
@@ -251,8 +236,8 @@ export class Board extends Phaser.Scene {
         }
 
         this.diceHintText.setText(reason === 'timeout'
-            ? `The sands ran dry! You rolled: ${this.rollValue}`
-            : `Fortune grants: ${this.rollValue}`);
+            ? `Время вышло! Выпало: ${this.rollValue}`
+            : `Выпало: ${this.rollValue}`);
 
         this.time.delayedCall(300, () => {
             this.tweens.add({
