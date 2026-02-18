@@ -1,8 +1,7 @@
-// "Every great game begins with a single scene. Let's make this one unforgettable!"
+import { gameHubClient } from '../network/gameHubClient.js';
+
 export class Board extends Phaser.Scene {
     maxPlayers = 4;
-    columns = 9;
-    rows = 6;
     startCellIndex = 21;
 
     constructor() {
@@ -15,25 +14,301 @@ export class Board extends Phaser.Scene {
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
     }
 
-    create() {
+    async create() {
         this.stepSfx = this.sound.add('stepSfx', { volume: 0.1 });
 
-        this.players = []; // {userId, sprite, currentPosition, isAlive}
+        this.players = [];
+        this.localPlayerId = null;
+        this.activeTurnPlayerId = null;
+        this.lastRollValue = 0;
         this.isRolling = false;
-        this.activeTurnIndex = 0;
-        this.rollValue = 1;
+
+        this.connectionConfig = this.getConnectionConfig();
 
         this.addBoard();
         this.buildCells();
         this.addMedievalAtmosphere();
-
-        for (let i = 0; i < this.maxPlayers; i++) {
-            this.addPlayer(i);
-        }
-
         this.createDiceUI();
         this.createTurnUI();
-        this.startTurn(0);
+        this.createStatusText();
+
+        this.registerHubEvents();
+
+        try {
+            await gameHubClient.connect(this.connectionConfig.serverUrl);
+            await gameHubClient.joinGame(this.connectionConfig.sessionId, this.connectionConfig.displayName);
+            this.setStatus(`Connected to ${this.connectionConfig.sessionId}.`);
+        } catch (error) {
+            console.error(error);
+            this.setStatus(`SignalR error: ${error.message ?? 'Unknown error'}`);
+        }
+    }
+
+    getConnectionConfig() {
+        const params = new URLSearchParams(window.location.search);
+
+        return {
+            serverUrl: params.get('server') ?? 'http://localhost:5079',
+            sessionId: params.get('session') ?? 'default-session',
+            displayName: params.get('name') ?? `Knight-${Math.floor(Math.random() * 900 + 100)}`
+        };
+    }
+
+    registerHubEvents() {
+        this.unsubscribeHandlers = [
+            gameHubClient.on('joined', ({ playerId, state }) => {
+                this.localPlayerId = String(playerId);
+                this.applyState(state);
+            }),
+            gameHubClient.on('stateUpdated', (state) => {
+                this.applyState(state);
+            }),
+            gameHubClient.on('diceRolled', (payload) => {
+                this.playDiceResult(payload);
+            }),
+            gameHubClient.on('error', (error) => {
+                this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
+            })
+        ];
+    }
+
+    createStatusText() {
+        const { width } = this.scale.gameSize;
+
+        this.statusText = this.add.text(width / 2, 28, 'Connecting to server...', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '28px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 6
+        }).setOrigin(0.5).setDepth(1100);
+    }
+
+    setStatus(text) {
+        this.statusText?.setText(text);
+    }
+
+    applyState(state) {
+        if (!state || !Array.isArray(state.players)) {
+            return;
+        }
+
+        const incomingIds = new Set(state.players.map(player => String(player.playerId)));
+
+        this.players
+            .filter(player => !incomingIds.has(String(player.playerId)))
+            .forEach(player => {
+                player.sprite.destroy();
+            });
+
+        this.players = this.players.filter(player => incomingIds.has(String(player.playerId)));
+
+        state.players.forEach((playerState, index) => {
+            const playerId = String(playerState.playerId);
+            let player = this.players.find(item => item.playerId === playerId);
+
+            if (!player) {
+                player = this.createPlayer(playerId, playerState.displayName, playerState.position);
+                this.players.push(player);
+            }
+
+            player.displayName = playerState.displayName;
+            player.currentPosition = playerState.position;
+            player.isConnected = playerState.isConnected;
+
+            if (!this.isRolling) {
+                const destination = this.cells[player.currentPosition];
+                player.sprite.setPosition(destination.x, destination.y);
+            }
+
+            this.applyStackOffsets(player.currentPosition);
+        });
+
+        this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
+        this.lastRollValue = state.lastRollValue ?? 0;
+
+        this.refreshTurnUI();
+    }
+
+    createPlayer(playerId, displayName, startPosition) {
+        const cell = this.cells[startPosition] ?? this.cells[0];
+
+        const sprite = this.add.sprite(cell.x, cell.y, 'token')
+            .setOrigin(0.5)
+            .setScale(0.05);
+
+        return {
+            playerId,
+            displayName,
+            sprite,
+            currentPosition: startPosition,
+            isConnected: true
+        };
+    }
+
+    refreshTurnUI() {
+        if (this.players.length === 0) {
+            this.turnOverlay.setVisible(false);
+            return;
+        }
+
+        const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
+        const isLocalTurn = current?.playerId === this.localPlayerId;
+
+        this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
+        this.turnSubtitleText.setText(isLocalTurn
+            ? 'Your turn! Press Roll to cast the dice.'
+            : 'Waiting for opponent move...');
+
+        this.rollButton.disableInteractive();
+        this.rollButton.setFillStyle(isLocalTurn ? 0x3a86ff : 0x555555, 1);
+
+        if (isLocalTurn) {
+            this.rollButton.setInteractive({ useHandCursor: true });
+        }
+
+        this.turnOverlay.setVisible(true);
+    }
+
+    async requestRoll() {
+        if (this.isRolling) {
+            return;
+        }
+
+        try {
+            this.turnOverlay.setVisible(false);
+            await gameHubClient.rollDice(this.connectionConfig.sessionId);
+        } catch (error) {
+            console.error(error);
+            this.setStatus(`Roll failed: ${error.message ?? 'Unknown error'}`);
+            this.turnOverlay.setVisible(true);
+        }
+    }
+
+    playDiceResult(payload) {
+        const player = this.players.find(item => item.playerId === String(payload.playerId));
+        if (!player) {
+            return;
+        }
+
+        this.isRolling = true;
+
+        const steps = this.calculateSteps(player.currentPosition, payload.newPosition);
+        this.showDice(payload.rollValue);
+
+        this.time.delayedCall(420, () => {
+            this.movePlayer(player.playerId, steps, payload.newPosition, () => {
+                this.hideDice();
+                this.isRolling = false;
+                this.refreshTurnUI();
+            });
+        });
+    }
+
+    calculateSteps(from, to) {
+        const total = this.cells.length;
+        if (to >= from) {
+            return to - from;
+        }
+
+        return total - from + to;
+    }
+
+    showDice(rollValue) {
+        this.diceContainer.setVisible(true);
+        this.diceContainer.setScale(0.2);
+        this.diceContainer.setAlpha(0);
+        this.diceValueText.setText(String(rollValue));
+        this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
+        this.diceTimerText.setText('');
+
+        this.tweens.add({
+            targets: this.diceContainer,
+            alpha: 1,
+            scale: 1,
+            duration: 380,
+            ease: 'Back.Out'
+        });
+    }
+
+    hideDice() {
+        this.tweens.add({
+            targets: this.diceContainer,
+            alpha: 0,
+            scale: 0.6,
+            duration: 260,
+            onComplete: () => this.diceContainer.setVisible(false)
+        });
+    }
+
+    applyStackOffsets(cellIndex) {
+        const stack = this.players.filter(player => player.currentPosition === cellIndex);
+        const base = this.cells[cellIndex];
+
+        const d = 72;
+        stack.forEach((player, n) => {
+            const col = n % 2;
+            const row = Math.floor(n / 2);
+            if (row >= 2) {
+                return;
+            }
+
+            const dx = col * d - d / 2;
+            const dy = row * d - d / 2;
+
+            this.tweens.add({
+                targets: player.sprite,
+                x: base.x + dx,
+                y: base.y + dy,
+                duration: 260
+            });
+        });
+    }
+
+    movePlayer(playerId, steps, finalPosition, onComplete) {
+        const player = this.players.find(item => item.playerId === playerId);
+        if (!player) {
+            onComplete?.();
+            return;
+        }
+
+        if (steps <= 0) {
+            player.currentPosition = finalPosition;
+            this.applyStackOffsets(player.currentPosition);
+            onComplete?.();
+            return;
+        }
+
+        const total = this.cells.length;
+
+        const moveOne = () => {
+            player.currentPosition = (player.currentPosition + 1) % total;
+            const point = this.cells[player.currentPosition];
+
+            this.stepSfx?.play();
+
+            this.tweens.add({
+                targets: player.sprite,
+                x: point.x,
+                y: point.y,
+                duration: 300,
+                onComplete: () => {
+                    this.applyStackOffsets(player.currentPosition);
+
+                    steps -= 1;
+                    if (steps > 0) {
+                        moveOne();
+                        return;
+                    }
+
+                    player.currentPosition = finalPosition;
+                    this.applyStackOffsets(player.currentPosition);
+                    onComplete?.();
+                }
+            });
+        };
+
+        moveOne();
     }
 
     addMedievalAtmosphere() {
@@ -51,24 +326,6 @@ export class Board extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.InOut'
         });
-    }
-
-    addPlayer(userId) {
-        if (this.players.length >= this.maxPlayers) {
-            console.warn(`Session is full! Player '${userId}' was kicked.`);
-            return;
-        }
-
-        const startPosition = 0;
-
-        const sprite = this.add.sprite(this.cells[startPosition].x, this.cells[startPosition].y, 'token')
-            .setOrigin(0.5)
-            .setScale(0.05)
-            .setInteractive();
-
-        this.players.push({ userId, sprite, currentPosition: startPosition, isAlive: true });
-
-        this.applyStackOffsets(startPosition);
     }
 
     createDiceUI() {
@@ -90,7 +347,7 @@ export class Board extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.diceHintText = this.add.text(0, 150, 'Press anywhere to stop.', {
+        this.diceHintText = this.add.text(0, 150, 'Waiting for dice result...', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             color: '#f5f5f5',
@@ -99,7 +356,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceTimerText = this.add.text(0, 198, '30', {
+        this.diceTimerText = this.add.text(0, 198, '', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '26px',
             color: '#ffffff',
@@ -129,7 +386,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.turnSubtitleText = this.add.text(0, -15, 'Your turn! Press the button to start rolling.', {
+        this.turnSubtitleText = this.add.text(0, -15, 'Waiting for players...', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '38px',
             color: '#ffffff',
@@ -150,275 +407,60 @@ export class Board extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.rollButton.on('pointerdown', () => {
-            if (this.isRolling) {
-                return;
-            }
-
-            this.turnOverlay.setVisible(false);
-            this.startDiceRoll();
+            this.requestRoll();
         });
 
         this.turnOverlay.add([dim, this.turnTitleText, this.turnSubtitleText, this.rollButton, this.rollButtonText]);
     }
 
-    startTurn(index) {
-        this.activeTurnIndex = index % this.players.length;
-        const current = this.players[this.activeTurnIndex];
-
-        this.turnTitleText.setText(`PLAYER'S ${current.userId + 1} TURN`);
-        this.turnOverlay.setVisible(true);
-        this.turnOverlay.setAlpha(1);
-
-        this.tweens.killTweensOf(this.turnTitleText);
-        this.turnTitleText.setScale(0.7);
-
-        this.tweens.add({
-            targets: this.turnTitleText,
-            scale: 1.08,
-            duration: 600,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.InOut'
-        });
-    }
-
-    startDiceRoll() {
-        this.isRolling = true;
-        this.rollValue = Phaser.Math.Between(1, 6);
-
-        this.diceContainer.setVisible(true);
-        this.diceContainer.setScale(0.2);
-        this.diceContainer.setAlpha(0);
-        this.diceContainer.setAngle(0);
-        this.diceValueText.setText('');
-        this.diceHintText.setText('Press anywhere to stop.');
-        this.diceTimerText.setText('30');
-
-        this.tweens.add({
-            targets: this.diceContainer,
-            alpha: 1,
-            scale: 1,
-            duration: 620,
-            ease: 'Back.Out'
-        });
-
-        this.rollStartMs = this.time.now;
-
-        this.rollLoopTimer = this.time.addEvent({
-            delay: 80,
-            loop: true,
-            callback: () => {
-                this.rollValue = Phaser.Math.Between(1, 6);
-
-                const leftSec = Math.max(0, Math.ceil((30000 - (this.time.now - this.rollStartMs)) / 1000));
-                this.diceTimerText.setText(`${leftSec}`);
-
-                this.tweens.add({
-                    targets: this.diceContainer,
-                    angle: Phaser.Math.Between(-12, 12),
-                    duration: 100,
-                    yoyo: true,
-                    ease: 'Sine.InOut'
-                });
-            }
-        });
-
-        this.rollTimeout = this.time.delayedCall(30000, () => {
-            this.stopDiceRoll('timeout');
-        });
-
-        this.stopRollHandler = () => {
-            this.stopDiceRoll('click');
-        };
-
-        this.time.delayedCall(140, () => {
-            this.input.once('pointerdown', this.stopRollHandler, this);
-        });
-    }
-
-    stopDiceRoll(reason) {
-        if (!this.isRolling) {
-            return;
-        }
-
-        this.isRolling = false;
-
-        this.rollLoopTimer?.remove(false);
-        this.rollTimeout?.remove(false);
-
-        if (this.stopRollHandler) {
-            this.input.off('pointerdown', this.stopRollHandler, this);
-            this.stopRollHandler = null;
-        }
-
-        this.diceValueText.setText(String(this.rollValue));
-        this.diceHintText.setText(reason === 'timeout'
-            ? `Time is spent! The bones have spoken: ${this.rollValue}`
-            : `The bones have spoken: ${this.rollValue}`);
-
-        this.time.delayedCall(300, () => {
-            this.tweens.add({
-                targets: this.diceContainer,
-                alpha: 0,
-                scale: 0.5,
-                duration: 200,
-                onComplete: () => {
-                    this.diceContainer.setVisible(false);
-
-                    const currentUserId = this.players[this.activeTurnIndex].userId;
-                    this.movePlayer(currentUserId, this.rollValue, () => {
-                        const nextTurn = (this.activeTurnIndex + 1) % this.players.length;
-                        this.startTurn(nextTurn);
-                    });
-                }
-            });
-        });
-    }
-
-    applyStackOffsets(cellIndex) {
-        const stack = this.players.filter(p => p.currentPosition === cellIndex);
-        const base = this.cells[cellIndex];
-
-        const d = 72;
-        const cols = 2;
-        const rows = 2;
-
-        stack.forEach((player, n) => {
-            const col = n % cols;
-            const row = Math.floor(n / cols);
-
-            if (row >= rows) return;
-
-            const dx = col * d - d / 2;
-            const dy = row * d - d / 2;
-
-
-            this.tweens.add({
-                targets: player.sprite,
-                x: base.x + dx,
-                y: base.y + dy,
-                duration: 360,
-            });
-        });
-    }
-
-
-    movePlayer(userId, steps, onComplete) {
-        if (steps <= 0 || steps > this.cells.length) {
-            console.error('Wrong distance!');
-            return;
-        }
-
-        const player = this.players.find(t => t.userId === userId);
-        if (!player) {
-            return;
-        }
-
-        const n = this.cells.length;
-
-        const moveOne = () => {
-            player.currentPosition = (player.currentPosition + 1) % n;
-            const newPosition = this.cells[player.currentPosition];
-
-            this.stepSfx?.play();
-
-            this.tweens.add({
-                targets: player.sprite,
-                x: newPosition.x,
-                y: newPosition.y,
-                duration: 500,
-                onComplete: () => {
-                    this.applyStackOffsets(player.currentPosition);
-
-                    steps--;
-                    if (steps > 0) {
-                        moveOne();
-                    } else {
-                        onComplete?.();
-                    }
-                }
-            });
-        };
-
-        //recursion!
-        if (steps > 0) {
-            moveOne();
-        }
-    }
-
     addBoard() {
         const { width, height } = this.scale.gameSize;
 
-        const tex = this.textures.get('board').getSourceImage(); // 1536x1024
+        const tex = this.textures.get('board').getSourceImage();
 
         this.board = this.add.image(width / 2, height / 2, 'board')
             .setOrigin(0.5);
 
-        // единый коэффициент (сохраняем пропорции)
         const scale = Math.min(width / tex.width, height / tex.height);
         this.board.setScale(scale);
     }
 
     buildCells() {
-        // 1) границы доски на экране
-        const b = this.board.getBounds();
+        const bounds = this.board.getBounds();
 
-        // 2) размер исходной текстуры
         const tex = this.textures.get('board').getSourceImage();
-        const texW = tex.width;   // 1536
-        const texH = tex.height;  // 1024
+        const texW = tex.width;
+        const texH = tex.height;
 
-        // 3) перевод из координат текстуры -> в мир
-        const toWorldX = (tx) => b.x + (tx / texW) * b.width;
-        const toWorldY = (ty) => b.y + (ty / texH) * b.height;
+        const toWorldX = (tx) => bounds.x + (tx / texW) * bounds.width;
+        const toWorldY = (ty) => bounds.y + (ty / texH) * bounds.height;
 
-        // 4) линии разметки (в пикселях ТЕКСТУРЫ 1536x1024)
-        // Подогнать 1 раз — дальше всё будет идеально при любом масштабе.
         const xLines = [60, 221, 370, 525, 681, 838, 995, 1150, 1307, 1475];
         const yLines = [20, 56, 217, 361, 505, 648, 791, 935];
 
         const centers = [];
 
-        // верхний ряд (включая углы)
         const topY = (yLines[1] + yLines[2]) / 2;
         for (let i = 0; i < xLines.length - 1; i++) {
             centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: topY });
         }
 
-        // правый столбец (без углов)
         const rightX = (xLines[xLines.length - 2] + xLines[xLines.length - 1]) / 2;
         for (let i = 2; i < yLines.length - 2; i++) {
             centers.push({ tx: rightX, ty: (yLines[i] + yLines[i + 1]) / 2 });
         }
 
-        // нижний ряд (включая углы), справа -> налево
         const bottomY = (yLines[yLines.length - 2] + yLines[yLines.length - 1]) / 2;
         for (let i = xLines.length - 2; i >= 0; i--) {
             centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: bottomY });
         }
 
-        // левый столбец (без углов), снизу -> вверх
         const leftX = (xLines[0] + xLines[1]) / 2;
         for (let i = yLines.length - 3; i >= 2; i--) {
             centers.push({ tx: leftX, ty: (yLines[i] + yLines[i + 1]) / 2 });
         }
 
-        // 5) сохраняем и рисуем
-        const cells = centers.map(p => ({ x: toWorldX(p.tx), y: toWorldY(p.ty) }));
-
+        const cells = centers.map(point => ({ x: toWorldX(point.tx), y: toWorldY(point.ty) }));
         this.cells = cells.slice(this.startCellIndex).concat(cells.slice(0, this.startCellIndex));
-
-        // debug: точки
-        //const g = this.add.graphics().lineStyle(2, 0xff0000, 1);
-        //this.cells.forEach(p => g.strokeCircle(p.x, p.y, 10));
-
-        // пример: поставить фишки в эти центры
-        // this.cells.forEach(p => this.add.sprite(p.x, p.y, 'token').setScale(0.05));
-    }
-
-    drawDebugPoints(x, y) {
-        const g = this.add.graphics();
-        g.lineStyle(2, 0xff0000, 1);
-        g.strokeCircle(x, y, 16);
     }
 }
