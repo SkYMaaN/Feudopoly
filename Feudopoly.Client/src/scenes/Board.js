@@ -22,6 +22,13 @@ export class Board extends Phaser.Scene {
         this.activeTurnPlayerId = null;
         this.lastRollValue = 0;
         this.isRolling = false;
+        this.pendingRollPayload = null;
+        this.diceShakeTween = null;
+        this.diceFaceTimer = null;
+        this.diceRevealTimer = null;
+        this.diceCountdownTimer = null;
+        this.diceSecondsLeft = 0;
+        this.diceRevealHandler = null;
 
         this.addBoard();
         this.buildCells();
@@ -187,24 +194,94 @@ export class Board extends Phaser.Scene {
         }
 
         this.isRolling = true;
+        this.pendingRollPayload = payload;
 
-        let isRevealed = false;
-        let secondsLeft = 30;
-        let diceShakeTween = null;
-        let diceFaceTimer = null;
-        let diceRevealTimer = null;
-        let diceCountdownTimer = null;
-        let diceRevealHandler = null;
+        this.showDiceSuspense();
+    }
 
-        const updateDiceCountdownText = () => {
-            this.diceTimerText.setText(`Auto reveal in ${secondsLeft}s`);
-        };
+    showDiceSuspense() {
+        this.clearDiceTimers();
 
-        const clearDiceSuspense = () => {
-            if (diceRevealHandler) {
-                this.input.off('pointerdown', diceRevealHandler);
-                diceRevealHandler = null;
+        this.diceContainer.setVisible(true);
+        this.diceContainer.setScale(0.2);
+        this.diceContainer.setAlpha(0);
+        this.diceValueText.setText('1');
+        this.diceHintText.setText('Shaking dice... Tap anywhere to reveal!');
+
+        this.diceSecondsLeft = 30;
+        this.updateDiceCountdownText();
+
+        this.diceFaceTimer = this.time.addEvent({
+            delay: 90,
+            loop: true,
+            callback: () => {
+                this.diceValueText.setText(String(Phaser.Math.Between(1, 6)));
             }
+        });
+
+        this.diceCountdownTimer = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                this.diceSecondsLeft = Math.max(0, this.diceSecondsLeft - 1);
+                this.updateDiceCountdownText();
+            }
+        });
+
+        this.diceRevealTimer = this.time.delayedCall(30000, () => {
+            this.revealDiceResult();
+        });
+
+        this.diceRevealHandler = () => this.revealDiceResult();
+        this.input.on('pointerdown', this.diceRevealHandler);
+
+        this.diceShakeTween = this.tweens.add({
+            targets: this.diceContainer,
+            alpha: 1,
+            scale: 1,
+            duration: 380,
+            ease: 'Back.Out',
+            onComplete: () => {
+                this.diceShakeTween = this.tweens.add({
+                    targets: this.diceContainer,
+                    angle: { from: -8, to: 8 },
+                    duration: 120,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.InOut'
+                });
+            }
+        });
+    }
+
+    updateDiceCountdownText() {
+        this.diceTimerText.setText(`Auto reveal in ${this.diceSecondsLeft}s`);
+    }
+
+    revealDiceResult() {
+        if (!this.pendingRollPayload) {
+            return;
+        }
+
+        const payload = this.pendingRollPayload;
+        const player = this.players.find(item => item.playerId === String(payload.playerId));
+        if (!player) {
+            this.pendingRollPayload = null;
+            this.clearDiceTimers();
+            this.hideDice();
+            this.isRolling = false;
+            this.refreshTurnUI();
+            return;
+        }
+
+        this.clearDiceTimers();
+        this.diceContainer.setAngle(0);
+        this.diceValueText.setText(String(payload.rollValue));
+        this.diceHintText.setText(`The bones have spoken: ${payload.rollValue}`);
+        this.diceTimerText.setText('');
+
+        const steps = this.calculateSteps(player.currentPosition, payload.newPosition);
+        this.pendingRollPayload = null;
 
             diceShakeTween?.stop();
             diceShakeTween = null;
@@ -247,65 +324,9 @@ export class Board extends Phaser.Scene {
             });
         };
 
-        this.diceContainer.setVisible(true);
-        this.diceContainer.setScale(0.2);
-        this.diceContainer.setAlpha(0);
-        this.diceContainer.setAngle(0);
-        this.diceValueText.setText('1');
-        this.diceHintText.setText('Shaking dice... Tap anywhere to reveal!');
-        updateDiceCountdownText();
-
-        diceFaceTimer = this.time.addEvent({
-            delay: 90,
-            loop: true,
-            callback: () => {
-                this.diceValueText.setText(String(Phaser.Math.Between(1, 6)));
-            }
-        });
-
-        diceCountdownTimer = this.time.addEvent({
-            delay: 1000,
-            loop: true,
-            callback: () => {
-                secondsLeft = Math.max(0, secondsLeft - 1);
-                updateDiceCountdownText();
-            }
-        });
-
-        diceRevealTimer = this.time.delayedCall(30000, revealDiceResult);
-
-        diceRevealHandler = () => revealDiceResult();
-        this.input.on('pointerdown', diceRevealHandler);
-
-        diceShakeTween = this.tweens.add({
-            targets: this.diceContainer,
-            alpha: 1,
-            scale: 1,
-            duration: 380,
-            ease: 'Back.Out',
-            onComplete: () => {
-                diceShakeTween = this.tweens.add({
-                    targets: this.diceContainer,
-                    angle: { from: -8, to: 8 },
-                    duration: 120,
-                    yoyo: true,
-                    repeat: -1,
-                    ease: 'Sine.InOut'
-                });
-            }
-        });
-    }
-
-    calculateSteps(from, to) {
-        const total = this.cells.length;
-        if (to >= from) {
-            return to - from;
-        }
-
-        return total - from + to;
-    }
-
     hideDice() {
+        this.clearDiceTimers();
+
         this.tweens.add({
             targets: this.diceContainer,
             alpha: 0,
@@ -314,6 +335,22 @@ export class Board extends Phaser.Scene {
             duration: 260,
             onComplete: () => this.diceContainer.setVisible(false)
         });
+    }
+
+    clearDiceTimers() {
+        if (this.diceRevealHandler) {
+            this.input.off('pointerdown', this.diceRevealHandler);
+            this.diceRevealHandler = null;
+        }
+
+        this.diceShakeTween?.stop();
+        this.diceShakeTween = null;
+        this.diceFaceTimer?.remove();
+        this.diceFaceTimer = null;
+        this.diceRevealTimer?.remove();
+        this.diceRevealTimer = null;
+        this.diceCountdownTimer?.remove();
+        this.diceCountdownTimer = null;
     }
 
     applyStackOffsets(cellIndex) {
