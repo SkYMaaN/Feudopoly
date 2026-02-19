@@ -14,7 +14,7 @@ export class Board extends Phaser.Scene {
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
     }
 
-    async create() {
+    async create(data) {
         this.stepSfx = this.sound.add('stepSfx', { volume: 0.1 });
 
         this.players = [];
@@ -33,9 +33,12 @@ export class Board extends Phaser.Scene {
         this.registerHubEvents();
 
         try {
-            this.sessionId = crypto.randomUUID();
+            const requestedSessionId = data?.sessionId?.trim();
+            this.sessionId = data?.mode === 'join' && requestedSessionId
+                ? requestedSessionId
+                : crypto.randomUUID();
             const testDisplayName = "HeroZero123";
-            console.log("Generated session id: " + this.sessionId);
+            console.log("Using session id: " + this.sessionId);
 
             await gameHubClient.connect();
             await gameHubClient.joinGame(this.sessionId, testDisplayName);
