@@ -161,7 +161,7 @@ export class Board extends Phaser.Scene {
             : 'Waiting for opponent move...');
 
         this.rollButton.disableInteractive();
-        this.rollButton.setFillStyle(isLocalTurn ? 0x3a86ff : 0x555555, 1);
+        this.rollButtonBackground.setFillStyle(isLocalTurn ? 0x3a86ff : 0x555555, 1);
 
         if (isLocalTurn) {
             this.rollButton.setInteractive({ useHandCursor: true });
@@ -397,22 +397,42 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.rollButton = this.add.rectangle(0, 120, 460, 110, 0x3a86ff, 1)
-            .setStrokeStyle(6, 0xffffff, 1)
-            .setInteractive({ useHandCursor: true });
+        this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 110, 18, 0x3a86ff, 1)
+            .setStrokeStyle(6, 0xffffff, 1);
 
-        this.rollButtonText = this.add.text(0, 120, 'Roll!', {
+        this.rollButtonText = this.add.text(0, 0, 'Roll!', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '42px',
             color: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
+        this.rollButton = this.rexUI.add.label({
+            x: 0,
+            y: 120,
+            width: 460,
+            height: 110,
+            background: this.rollButtonBackground,
+            text: this.rollButtonText,
+            align: 'center'
+        }).layout().setInteractive({ useHandCursor: true });
+
+        this.rollButton.on('pointerover', () => {
+            if (this.rollButton.input?.enabled) {
+                this.rollButtonBackground.setFillStyle(0x4e97ff, 1);
+            }
+        });
+
+        this.rollButton.on('pointerout', () => {
+            const isEnabled = this.rollButton.input?.enabled;
+            this.rollButtonBackground.setFillStyle(isEnabled ? 0x3a86ff : 0x555555, 1);
+        });
+
         this.rollButton.on('pointerdown', () => {
             this.requestRoll();
         });
 
-        this.turnOverlay.add([dim, this.turnTitleText, this.turnSubtitleText, this.rollButton, this.rollButtonText]);
+        this.turnOverlay.add([dim, this.turnTitleText, this.turnSubtitleText, this.rollButton]);
     }
 
     addBoard() {

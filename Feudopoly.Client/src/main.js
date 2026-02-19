@@ -10,6 +10,15 @@ const config = {
     height: 1080,
     backgroundColor: '#000000',
     pixelArt: false,
+    plugins: {
+        scene: [
+            {
+                key: 'rexUI',
+                plugin: rexui,
+                mapping: 'rexUI'
+            }
+        ]
+    },
     scene: [
         Start,
         Board
