@@ -5,10 +5,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\hubs\\gamehub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:hubs\\gamehub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\multiplayer\\gamesession.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:multiplayer\\gamesession.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -18,22 +14,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 20,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "GameHub.cs",
-              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Hubs\\GameHub.cs",
-              "RelativeDocumentMoniker": "Hubs\\GameHub.cs",
-              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Hubs\\GameHub.cs",
-              "RelativeToolTip": "Hubs\\GameHub.cs",
-              "ViewState": "AgIAAIUAAAAAAAAAAAAEwIkAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-18T02:27:31.84Z",
-              "IsPinned": true,
-              "EditorCaption": ""
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:130:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
@@ -116,15 +98,15 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "GameSession.cs",
-              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\GameSession.cs",
-              "RelativeDocumentMoniker": "Multiplayer\\GameSession.cs",
-              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\GameSession.cs",
-              "RelativeToolTip": "Multiplayer\\GameSession.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAYAAAAAAAAAA==",
+              "DocumentIndex": 0,
+              "Title": "GameHub.cs",
+              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Hubs\\GameHub.cs",
+              "RelativeDocumentMoniker": "Hubs\\GameHub.cs",
+              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Hubs\\GameHub.cs",
+              "RelativeToolTip": "Hubs\\GameHub.cs",
+              "ViewState": "AgIAACsAAAAAAAAAAAAQwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-18T03:49:08.47Z",
+              "WhenOpened": "2026-02-19T01:20:59.512Z",
               "EditorCaption": ""
             }
           ]

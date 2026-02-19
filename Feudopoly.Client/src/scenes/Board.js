@@ -22,6 +22,7 @@ export class Board extends Phaser.Scene {
         this.activeTurnPlayerId = null;
         this.lastRollValue = 0;
         this.isRolling = false;
+        this.animatingPlayerId = null;
 
         this.addBoard();
         this.buildCells();
@@ -105,8 +106,13 @@ export class Board extends Phaser.Scene {
             }
 
             player.displayName = playerState.displayName;
-            player.currentPosition = playerState.position;
             player.isConnected = playerState.isConnected;
+
+            const isCurrentPlayerInAnimation = this.isRolling && playerId == this.animatingPlayerId;
+
+            if (!isCurrentPlayerInAnimation) {
+                player.currentPosition = playerState.position;
+            }
 
             if (!this.isRolling) {
                 const destination = this.cells[player.currentPosition];
@@ -184,6 +190,7 @@ export class Board extends Phaser.Scene {
         }
 
         this.isRolling = true;
+        this.animatingPlayerId = player.playerId;
 
         const steps = this.calculateSteps(player.currentPosition, payload.newPosition);
         this.showDice(payload.rollValue);
@@ -192,6 +199,7 @@ export class Board extends Phaser.Scene {
             this.movePlayer(player.playerId, steps, payload.newPosition, () => {
                 this.hideDice();
                 this.isRolling = false;
+                this.animatingPlayerId = null;
                 this.refreshTurnUI();
             });
         });
