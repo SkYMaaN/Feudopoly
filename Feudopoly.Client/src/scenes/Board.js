@@ -14,7 +14,7 @@ export class Board extends Phaser.Scene {
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
     }
 
-    async create() {
+    async create(data) {
         this.stepSfx = this.sound.add('stepSfx', { volume: 0.1 });
 
         this.players = [];
@@ -34,13 +34,15 @@ export class Board extends Phaser.Scene {
         this.registerHubEvents();
 
         try {
-            this.sessionId = crypto.randomUUID();
-            const testDisplayName = "HeroZero123";
-            console.log("Generated session id: " + this.sessionId);
+            this.sessionId = data?.sessionId ?? crypto.randomUUID();
+            const displayName = data?.displayName?.trim() || `Player-${Math.floor(Math.random() * 999)}`;
+            const mode = data?.mode === "join" ? "join" : "create";
+
+            console.log(`Session (${mode}): ${this.sessionId}`);
 
             await gameHubClient.connect();
-            await gameHubClient.joinGame(this.sessionId, testDisplayName);
-            this.setStatus(`Connected to ${this.sessionId}.`);
+            await gameHubClient.joinGame(this.sessionId, displayName);
+            this.setStatus(`${mode === "create" ? "Created" : "Joined"} session ${this.sessionId}.`);
         } catch (error) {
             console.error(error);
             this.setStatus(`SignalR error: ${error.message ?? 'Unknown error'}`);
