@@ -4,7 +4,7 @@ export class Start extends Phaser.Scene {
         this.nickname = '';
         this.sessionId = '';
         this.activeInput = null;
-        this.joinCodeVisible = false;
+        this.buttonsVisible = true;
     }
 
     create() {
@@ -55,11 +55,11 @@ export class Start extends Phaser.Scene {
         this.sessionField = this.createInputField(width / 2, height / 2 + 110, 'Paste game code here', 36);
         this.setJoinCodeVisibility(false);
 
-        this.createButton(width / 2, height / 2 + 235, 620, 96, 'CREATE NEW GAME', () => {
+        this.createNewButton = this.createButton(width / 2, height / 2 + 100, 420, 96, 'CREATE NEW', () => {
             const nickname = this.nickname.trim();
 
             if (!nickname) {
-                this.showMessage('Введите никнейм перед созданием игры.');
+                this.showMessage('Enter a nickname before creating a game.');
                 return;
             }
 
@@ -70,26 +70,29 @@ export class Start extends Phaser.Scene {
             });
         });
 
-        this.createButton(width / 2, height / 2 + 350, 620, 96, 'JOIN EXISTING GAME', () => {
+        this.joinGameButton = this.createButton(width / 2, height / 2 + 230, 420, 96, 'JOIN', () => {
             const nickname = this.nickname.trim();
 
             if (!nickname) {
-                this.showMessage('Введите никнейм перед подключением.');
+                this.showMessage('Enter your nickname before connecting.');
                 return;
             }
 
             if (!this.joinCodeVisible) {
+                this.setConnectGameButtonVisibility(true);
                 this.setJoinCodeVisibility(true);
+                this.setGameButtonsVisibility(false);
+                this.setBackButtonVisibility(true);
                 this.activeInput = this.sessionField.bg;
                 this.refreshInputStyles();
-                this.showMessage('Введите код сессии для подключения.');
+                this.showMessage('Enter the session code to connect.');
                 return;
             }
 
             const sessionId = this.sessionId.trim();
 
             if (!sessionId) {
-                this.showMessage('Укажите код игры для подключения.');
+                this.showMessage('Please enter the game code to connect.');
                 return;
             }
 
@@ -99,6 +102,51 @@ export class Start extends Phaser.Scene {
                 sessionId
             });
         });
+
+        this.setGameButtonsVisibility(true);
+
+        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 220, 300, 96, 'CONNECT', () => {
+            const nickname = this.nickname.trim();
+
+            if (!nickname) {
+                this.showMessage('Enter your nickname before connecting.');
+                return;
+            }
+
+            if (!this.joinCodeVisible) {
+                this.setJoinCodeVisibility(true);
+                this.setGameButtonsVisibility(false);
+                this.setBackButtonVisibility(true);
+                this.activeInput = this.sessionField.bg;
+                this.refreshInputStyles();
+                this.showMessage('Enter the session code to connect.');
+                return;
+            }
+
+            const sessionId = this.sessionId.trim();
+
+            if (!sessionId) {
+                this.showMessage('Please enter the game code to connect.');
+                return;
+            }
+
+            this.scene.start('Board', {
+                mode: 'join',
+                displayName: nickname,
+                sessionId
+            });
+        });
+
+        this.setConnectGameButtonVisibility(false);
+
+        this.backButton = this.createButton(width / 2 + 180, height / 2 + 220, 300, 96, 'BACK', () => {
+            this.setJoinCodeVisibility(false);
+            this.setGameButtonsVisibility(true);
+            this.setBackButtonVisibility(false);
+            this.setConnectGameButtonVisibility(false);
+        });
+
+        this.setBackButtonVisibility(false);
 
         this.messageText = this.add.text(width / 2, height / 2 + 445, '', {
             fontFamily: 'Georgia, serif',
@@ -113,6 +161,28 @@ export class Start extends Phaser.Scene {
         this.refreshInputStyles();
     }
 
+    setBackButtonVisibility(isVisible) {
+        this.backButton.shadow.setVisible(isVisible);
+        this.backButton.button.setVisible(isVisible);
+        this.backButton.text.setVisible(isVisible);
+    }
+
+    setGameButtonsVisibility(isVisible) {
+        this.createNewButton.shadow.setVisible(isVisible);
+        this.createNewButton.button.setVisible(isVisible);
+        this.createNewButton.text.setVisible(isVisible);
+
+        this.joinGameButton.shadow.setVisible(isVisible);
+        this.joinGameButton.button.setVisible(isVisible);
+        this.joinGameButton.text.setVisible(isVisible);
+    }
+
+    setConnectGameButtonVisibility(isVisible) {
+        this.connectGameButton.shadow.setVisible(isVisible);
+        this.connectGameButton.button.setVisible(isVisible);
+        this.connectGameButton.text.setVisible(isVisible);
+    }
+
     setJoinCodeVisibility(isVisible) {
         this.joinCodeVisible = isVisible;
         this.joinCodeLabel.setVisible(isVisible);
@@ -125,11 +195,11 @@ export class Start extends Phaser.Scene {
     }
 
     createInputField(x, y, placeholder, maxLength) {
-        const bg = this.add.rectangle(x, y, 680, 74, 0x1f1308, 1)
+        const bg = this.add.rectangle(x, y, 500, 74, 0x1f1308, 1)
             .setStrokeStyle(5, 0x8d6a3b, 0.9)
             .setInteractive({ useHandCursor: true });
 
-        const text = this.add.text(x - 315, y, placeholder, {
+        const text = this.add.text(x - 225, y, placeholder, {
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             color: '#9f8b69'
@@ -237,6 +307,8 @@ export class Start extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.InOut'
         });
+
+        return { shadow, button, text };
     }
 
     showMessage(text) {

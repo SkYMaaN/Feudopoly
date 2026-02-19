@@ -38,7 +38,7 @@ export class Board extends Phaser.Scene {
             const displayName = data?.displayName?.trim() || `Player-${Math.floor(Math.random() * 999)}`;
             const mode = data?.mode === "join" ? "join" : "create";
 
-            console.log(`Session (${mode}): ${this.sessionId}`);
+            console.log(`Session (${mode}): ${this.sessionId} Player: ${displayName}`);
 
             await gameHubClient.connect();
             await gameHubClient.joinGame(this.sessionId, displayName);
