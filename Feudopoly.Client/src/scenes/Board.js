@@ -283,46 +283,14 @@ export class Board extends Phaser.Scene {
         const steps = this.calculateSteps(player.currentPosition, payload.newPosition);
         this.pendingRollPayload = null;
 
-            diceShakeTween?.stop();
-            diceShakeTween = null;
-            diceFaceTimer?.remove();
-            diceFaceTimer = null;
-            diceRevealTimer?.remove();
-            diceRevealTimer = null;
-            diceCountdownTimer?.remove();
-            diceCountdownTimer = null;
-        };
-
-        const revealDiceResult = () => {
-            if (isRevealed) {
-                return;
-            }
-
-            isRevealed = true;
-            clearDiceSuspense();
-            this.diceContainer.setAngle(0);
-            this.diceValueText.setText(String(payload.rollValue));
-            this.diceHintText.setText(`The bones have spoken: ${payload.rollValue}`);
-            this.diceTimerText.setText('');
-
-            const currentPlayer = this.players.find(item => item.playerId === String(payload.playerId));
-            if (!currentPlayer) {
+        this.time.delayedCall(420, () => {
+            this.movePlayer(player.playerId, steps, payload.newPosition, () => {
                 this.hideDice();
                 this.isRolling = false;
                 this.refreshTurnUI();
-                return;
-            }
-
-            const steps = this.calculateSteps(currentPlayer.currentPosition, payload.newPosition);
-
-            this.time.delayedCall(420, () => {
-                this.movePlayer(currentPlayer.playerId, steps, payload.newPosition, () => {
-                    this.hideDice();
-                    this.isRolling = false;
-                    this.refreshTurnUI();
-                });
             });
-        };
+        });
+    }
 
     hideDice() {
         this.clearDiceTimers();
