@@ -188,15 +188,111 @@ export class Board extends Phaser.Scene {
 
         this.isRolling = true;
 
-        const steps = this.calculateSteps(player.currentPosition, payload.newPosition);
-        this.showDice(payload.rollValue);
+        let isRevealed = false;
+        let secondsLeft = 30;
+        let diceShakeTween = null;
+        let diceFaceTimer = null;
+        let diceRevealTimer = null;
+        let diceCountdownTimer = null;
+        let diceRevealHandler = null;
 
-        this.time.delayedCall(420, () => {
-            this.movePlayer(player.playerId, steps, payload.newPosition, () => {
+        const updateDiceCountdownText = () => {
+            this.diceTimerText.setText(`Auto reveal in ${secondsLeft}s`);
+        };
+
+        const clearDiceSuspense = () => {
+            if (diceRevealHandler) {
+                this.input.off('pointerdown', diceRevealHandler);
+                diceRevealHandler = null;
+            }
+
+            diceShakeTween?.stop();
+            diceShakeTween = null;
+            diceFaceTimer?.remove();
+            diceFaceTimer = null;
+            diceRevealTimer?.remove();
+            diceRevealTimer = null;
+            diceCountdownTimer?.remove();
+            diceCountdownTimer = null;
+        };
+
+        const revealDiceResult = () => {
+            if (isRevealed) {
+                return;
+            }
+
+            isRevealed = true;
+            clearDiceSuspense();
+            this.diceContainer.setAngle(0);
+            this.diceValueText.setText(String(payload.rollValue));
+            this.diceHintText.setText(`The bones have spoken: ${payload.rollValue}`);
+            this.diceTimerText.setText('');
+
+            const currentPlayer = this.players.find(item => item.playerId === String(payload.playerId));
+            if (!currentPlayer) {
                 this.hideDice();
                 this.isRolling = false;
                 this.refreshTurnUI();
+                return;
+            }
+
+            const steps = this.calculateSteps(currentPlayer.currentPosition, payload.newPosition);
+
+            this.time.delayedCall(420, () => {
+                this.movePlayer(currentPlayer.playerId, steps, payload.newPosition, () => {
+                    this.hideDice();
+                    this.isRolling = false;
+                    this.refreshTurnUI();
+                });
             });
+        };
+
+        this.diceContainer.setVisible(true);
+        this.diceContainer.setScale(0.2);
+        this.diceContainer.setAlpha(0);
+        this.diceContainer.setAngle(0);
+        this.diceValueText.setText('1');
+        this.diceHintText.setText('Shaking dice... Tap anywhere to reveal!');
+        updateDiceCountdownText();
+
+        diceFaceTimer = this.time.addEvent({
+            delay: 90,
+            loop: true,
+            callback: () => {
+                this.diceValueText.setText(String(Phaser.Math.Between(1, 6)));
+            }
+        });
+
+        diceCountdownTimer = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                secondsLeft = Math.max(0, secondsLeft - 1);
+                updateDiceCountdownText();
+            }
+        });
+
+        diceRevealTimer = this.time.delayedCall(30000, revealDiceResult);
+
+        diceRevealHandler = () => revealDiceResult();
+        this.input.on('pointerdown', diceRevealHandler);
+
+        diceShakeTween = this.tweens.add({
+            targets: this.diceContainer,
+            alpha: 1,
+            scale: 1,
+            duration: 380,
+            ease: 'Back.Out',
+            onComplete: () => {
+                diceShakeTween = this.tweens.add({
+                    targets: this.diceContainer,
+                    angle: { from: -8, to: 8 },
+                    duration: 120,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.InOut'
+                });
+            }
         });
     }
 
@@ -209,28 +305,12 @@ export class Board extends Phaser.Scene {
         return total - from + to;
     }
 
-    showDice(rollValue) {
-        this.diceContainer.setVisible(true);
-        this.diceContainer.setScale(0.2);
-        this.diceContainer.setAlpha(0);
-        this.diceValueText.setText(String(rollValue));
-        this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
-        this.diceTimerText.setText('');
-
-        this.tweens.add({
-            targets: this.diceContainer,
-            alpha: 1,
-            scale: 1,
-            duration: 380,
-            ease: 'Back.Out'
-        });
-    }
-
     hideDice() {
         this.tweens.add({
             targets: this.diceContainer,
             alpha: 0,
             scale: 0.6,
+            angle: 0,
             duration: 260,
             onComplete: () => this.diceContainer.setVisible(false)
         });
