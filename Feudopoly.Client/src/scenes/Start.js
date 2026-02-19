@@ -41,14 +41,28 @@ export class Start extends Phaser.Scene {
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        const startButtonShadow = this.add.rectangle(width / 2 + 6, height / 2 + 166, 600, 118, 0x2a1708, 0.8);
-        const startButton = this.add.rectangle(width / 2, height / 2 + 160, 600, 118, 0x6f4b23, 1)
+        const hostButtonShadow = this.add.rectangle(width / 2 + 6, height / 2 + 126, 600, 98, 0x2a1708, 0.8);
+        const hostButton = this.add.rectangle(width / 2, height / 2 + 120, 600, 98, 0x6f4b23, 1)
             .setStrokeStyle(8, 0xc89b58, 1)
             .setInteractive({ useHandCursor: true });
 
-        const startText = this.add.text(width / 2, height / 2 + 160, 'ENTER THE TAVERN', {
+        const hostText = this.add.text(width / 2, height / 2 + 120, 'HOST NEW GAME', {
             fontFamily: 'Georgia, serif',
-            fontSize: '46px',
+            fontSize: '40px',
+            color: '#f2e4c3',
+            stroke: '#3a230c',
+            strokeThickness: 9,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const joinButtonShadow = this.add.rectangle(width / 2 + 6, height / 2 + 246, 600, 98, 0x2a1708, 0.8);
+        const joinButton = this.add.rectangle(width / 2, height / 2 + 240, 600, 98, 0x6f4b23, 1)
+            .setStrokeStyle(8, 0xc89b58, 1)
+            .setInteractive({ useHandCursor: true });
+
+        const joinText = this.add.text(width / 2, height / 2 + 240, 'JOIN BY SESSION ID', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '36px',
             color: '#f2e4c3',
             stroke: '#3a230c',
             strokeThickness: 9,
@@ -56,7 +70,7 @@ export class Start extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.tweens.add({
-            targets: [startButton, startButtonShadow, startText],
+            targets: [hostButton, hostButtonShadow, hostText, joinButton, joinButtonShadow, joinText],
             scaleX: 1.03,
             scaleY: 1.03,
             duration: 900,
@@ -65,16 +79,35 @@ export class Start extends Phaser.Scene {
             ease: 'Sine.InOut'
         });
 
-        startButton.on('pointerover', () => {
-            startButton.setFillStyle(0x83592b, 1);
+        const attachButtonEvents = (button, defaultColor, hoverColor) => {
+            button.on('pointerover', () => {
+                button.setFillStyle(hoverColor, 1);
+            });
+
+            button.on('pointerout', () => {
+                button.setFillStyle(defaultColor, 1);
+            });
+        };
+
+        attachButtonEvents(hostButton, 0x6f4b23, 0x83592b);
+        attachButtonEvents(joinButton, 0x6f4b23, 0x83592b);
+
+        hostButton.on('pointerdown', () => {
+            this.scene.start('Board', { mode: 'host' });
         });
 
-        startButton.on('pointerout', () => {
-            startButton.setFillStyle(0x6f4b23, 1);
-        });
+        joinButton.on('pointerdown', () => {
+            const sessionId = window.prompt('Enter session ID');
+            const trimmedSessionId = sessionId?.trim();
 
-        startButton.on('pointerdown', () => {
-            this.scene.start('Board');
+            if (!trimmedSessionId) {
+                return;
+            }
+
+            this.scene.start('Board', {
+                mode: 'join',
+                sessionId: trimmedSessionId
+            });
         });
 
     }
