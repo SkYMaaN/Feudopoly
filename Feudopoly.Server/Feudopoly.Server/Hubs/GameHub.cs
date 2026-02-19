@@ -56,6 +56,8 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
             await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayer.PlayerId);
             await Clients.Group(groupName).SendAsync("StateUpdated", state);
             sessionStore.RemoveSessionIfEmpty(sessionId);
+
+            logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId);
         }
 
         await base.OnDisconnectedAsync(exception);
@@ -63,6 +65,8 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
     public async Task JoinGame(Guid? sessionId, string displayName)
     {
+        //sessionId = new Guid("959ebe53-a257-41a2-b1b1-367d97cb4079");
+
         if (sessionId is null || sessionId == Guid.Empty)
         {
             throw new HubException("Session id is required.");
@@ -109,7 +113,8 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
         await Clients.OthersInGroup(groupName).SendAsync("PlayerJoined", SessionStore.ToDto(session));
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
 
-        logger.LogInformation("Player {PlayerId} joined session {SessionId}", joinedPlayer.PlayerId, sessionId);
+        logger.LogInformation("Player {PlayerName}:{PlayerId} joined session {SessionId}", joinedPlayer.DisplayName, joinedPlayer.PlayerId, sessionId);
+        logger.LogInformation("Players count: {playersCount}", session.Players.Count);
     }
 
     public async Task RollDice(Guid sessionId)
@@ -177,6 +182,8 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
         });
 
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
+
+        logger.LogInformation("Player {PlayerName}:{PlayerId} rolled {rollValue}", currentPlayer.DisplayName, currentPlayer.PlayerId, rolled);
     }
 
     public async Task SyncState(Guid sessionId)
