@@ -12,6 +12,12 @@ export class Board extends Phaser.Scene {
         this.load.image('board', 'assets/boards/board1.png');
         this.load.image('token', 'assets/textures/game_token.png');
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
+
+        this.load.scenePlugin({
+            key: 'rexuiplugin',
+            url: "plugins/rexuiplugin.min.js",
+            sceneKey: 'rexUI'
+        });
     }
 
     async create(data) {
@@ -38,7 +44,7 @@ export class Board extends Phaser.Scene {
             const displayName = data?.displayName?.trim() || `Player-${Math.floor(Math.random() * 999)}`;
             const mode = data?.mode === "join" ? "join" : "create";
 
-            console.log(`Session (${mode}): ${this.sessionId} Player: ${displayName}`);
+            console.log(`Session (${mode}): ${this.sessionId} \nPlayer: ${displayName}`);
 
             await gameHubClient.connect();
             await gameHubClient.joinGame(this.sessionId, displayName);
@@ -127,7 +133,9 @@ export class Board extends Phaser.Scene {
         this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
         this.lastRollValue = state.lastRollValue ?? 0;
 
-        this.refreshTurnUI();
+        if (!this.isRolling) {
+            this.refreshTurnUI();
+        }
     }
 
     createPlayer(playerId, displayName, startPosition) {
@@ -161,7 +169,7 @@ export class Board extends Phaser.Scene {
             : 'Waiting for opponent move...');
 
         this.rollButton.disableInteractive();
-        this.rollButtonBackground.setFillStyle(isLocalTurn ? 0x3a86ff : 0x555555, 1);
+        this.rollButtonBackground.setFillStyle(isLocalTurn ? 0x3E5A2E : 0x555555, 1);
 
         if (isLocalTurn) {
             this.rollButton.setInteractive({ useHandCursor: true });
@@ -192,34 +200,34 @@ export class Board extends Phaser.Scene {
         }
 
         this.isRolling = true;
+        const steps = Math.abs(player.currentPosition - payload.newPosition);
         this.animatingPlayerId = player.playerId;
 
-        const steps = this.calculateSteps(player.currentPosition, payload.newPosition);
-        this.showDice(payload.rollValue);
+        this.turnOverlay.setVisible(false);
+        this.diceHintText.setVisible(false);
 
-        this.time.delayedCall(420, () => {
+        this.diceShakingTween.play();
+        this.showDice('');
+
+        this.time.delayedCall(3000, () => {
+            this.diceShakingTween.stop();
+            this.diceHintText.setVisible(true);
+            this.showDice(payload.rollValue);
+
             this.movePlayer(player.playerId, steps, payload.newPosition, () => {
-                this.hideDice();
                 this.isRolling = false;
+                this.hideDice();
                 this.animatingPlayerId = null;
                 this.refreshTurnUI();
             });
         });
     }
 
-    calculateSteps(from, to) {
-        const total = this.cells.length;
-        if (to >= from) {
-            return to - from;
-        }
-
-        return total - from + to;
-    }
-
     showDice(rollValue) {
         this.diceContainer.setVisible(true);
         this.diceContainer.setScale(0.2);
         this.diceContainer.setAlpha(0);
+        this.diceContainer.setAngle(0);
         this.diceValueText.setText(String(rollValue));
         this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
         this.diceTimerText.setText('');
@@ -228,7 +236,7 @@ export class Board extends Phaser.Scene {
             targets: this.diceContainer,
             alpha: 1,
             scale: 1,
-            duration: 380,
+            duration: 580,
             ease: 'Back.Out'
         });
     }
@@ -238,7 +246,7 @@ export class Board extends Phaser.Scene {
             targets: this.diceContainer,
             alpha: 0,
             scale: 0.6,
-            duration: 260,
+            duration: 460,
             onComplete: () => this.diceContainer.setVisible(false)
         });
     }
@@ -336,6 +344,16 @@ export class Board extends Phaser.Scene {
         this.diceContainer = this.add.container(width / 2, height / 2);
         this.diceContainer.setDepth(1000);
         this.diceContainer.setVisible(false);
+        this.diceContainer.setAngle(0);
+
+        this.diceShakingTween = this.tweens.add({
+            targets: this.diceContainer,
+            angle: { from: -12, to: 12 },
+            duration: 90,
+            ease: 'Sine.InOut',
+            yoyo: true,
+            repeat: -1
+        });
 
         const shadow = this.add.rectangle(8, 8, 220, 220, 0x000000, 0.35);
         const bg = this.add.rectangle(0, 0, 220, 220, 0xffffff, 0.97);
@@ -397,8 +415,8 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 110, 18, 0x3a86ff, 1)
-            .setStrokeStyle(6, 0xffffff, 1);
+        this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 110, 18, 0x6f4b23, 1)
+            .setStrokeStyle(7, 0xc89b58, 1);
 
         this.rollButtonText = this.add.text(0, 0, 'Roll!', {
             fontFamily: 'Arial, sans-serif',
@@ -419,13 +437,13 @@ export class Board extends Phaser.Scene {
 
         this.rollButton.on('pointerover', () => {
             if (this.rollButton.input?.enabled) {
-                this.rollButtonBackground.setFillStyle(0x4e97ff, 1);
+                this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
             }
         });
 
         this.rollButton.on('pointerout', () => {
             const isEnabled = this.rollButton.input?.enabled;
-            this.rollButtonBackground.setFillStyle(isEnabled ? 0x3a86ff : 0x555555, 1);
+            this.rollButtonBackground.setFillStyle(isEnabled ? 0x83592b : 0x555555, 1);
         });
 
         this.rollButton.on('pointerdown', () => {

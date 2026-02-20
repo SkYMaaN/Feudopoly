@@ -6,6 +6,14 @@ export class Start extends Phaser.Scene {
         this.activeInput = null;
     }
 
+    preload() {
+        this.load.scenePlugin({
+            key: 'rexuiplugin',
+            url: "plugins/rexuiplugin.min.js",
+            sceneKey: 'rexUI'
+        });
+    }
+
     create() {
         const { width, height } = this.scale.gameSize;
 
@@ -201,7 +209,7 @@ export class Start extends Phaser.Scene {
             align: 'center'
         }).layout().setInteractive({ useHandCursor: true });
 
-        button.on('pointerover', () => background.setFillStyle(0x83592b, 1));
+        button.on('pointerover', () => background.setFillStyle(0x3E5A2E, 1));
         button.on('pointerout', () => background.setFillStyle(0x6f4b23, 1));
         button.on('pointerdown', onClick);
 

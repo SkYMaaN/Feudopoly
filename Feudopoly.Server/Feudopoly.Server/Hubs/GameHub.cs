@@ -65,7 +65,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
     public async Task JoinGame(Guid? sessionId, string displayName)
     {
-        //sessionId = new Guid("959ebe53-a257-41a2-b1b1-367d97cb4079");
+        sessionId = new Guid("5e1dd9b1-79ba-4e13-962c-463e59860994");
 
         if (sessionId is null || sessionId == Guid.Empty)
         {
