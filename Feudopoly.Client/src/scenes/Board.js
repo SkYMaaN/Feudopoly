@@ -187,11 +187,24 @@ export class Board extends Phaser.Scene {
         }
 
         try {
+            this.isRolling = true;
+            this.animatingPlayerId = this.localPlayerId;
             this.turnOverlay.setVisible(false);
+
+            this.diceHintText.setVisible(false);
+            this.showDice('?');
+            this.diceShakingTween.play();
+
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
             await gameHubClient.rollDice(this.sessionId);
         } catch (error) {
             console.error(error);
             this.setStatus(`Roll failed: ${error.message ?? 'Unknown error'}`);
+            this.diceShakingTween.stop();
+            this.hideDice();
+            this.isRolling = false;
+            this.animatingPlayerId = null;
             this.turnOverlay.setVisible(true);
         }
     }
@@ -209,23 +222,16 @@ export class Board extends Phaser.Scene {
         this.animatingPlayerId = player.playerId;
 
         this.turnOverlay.setVisible(false);
-        this.diceHintText.setVisible(false);
+        this.diceShakingTween.stop();
+        this.diceHintText.setVisible(true);
+        this.showDice(payload.rollValue);
 
-        this.diceShakingTween.play();
-        this.showDice('');
-
-        this.time.delayedCall(3000, () => {
-            this.diceShakingTween.stop();
-            this.diceHintText.setVisible(true);
-            this.showDice(payload.rollValue);
-
-            console.log('player moved!');
-            this.movePlayer(player.playerId, steps, payload.newPosition, () => {
-                this.isRolling = false;
-                this.hideDice();
-                this.animatingPlayerId = null;
-                this.refreshTurnUI();
-            });
+        console.log('player moved!');
+        this.movePlayer(player.playerId, steps, payload.newPosition, () => {
+            this.isRolling = false;
+            this.hideDice();
+            this.animatingPlayerId = null;
+            this.refreshTurnUI();
         });
     }
 
@@ -308,9 +314,8 @@ export class Board extends Phaser.Scene {
                 x: point.x,
                 y: point.y,
                 duration: 500,
+                delay: 100,
                 onComplete: () => {
-                    this.applyStackOffsets(player.currentPosition);
-
                     steps -= 1;
                     if (steps > 0) {
                         moveOne();
@@ -324,6 +329,7 @@ export class Board extends Phaser.Scene {
             });
         };
 
+        this.applyStackOffsets(player.currentPosition);
         moveOne();
     }
 
