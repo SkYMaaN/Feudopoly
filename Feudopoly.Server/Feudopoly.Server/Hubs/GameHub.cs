@@ -65,7 +65,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
     public async Task JoinGame(Guid? sessionId, string displayName)
     {
-        sessionId = new Guid("5e1dd9b1-79ba-4e13-962c-463e59860994");
+        //sessionId = new Guid("5e1dd9b1-79ba-4e13-962c-463e59860994");
 
         if (sessionId is null || sessionId == Guid.Empty)
         {
@@ -173,14 +173,13 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
         string groupName = sessionId.ToString();
 
-        await Clients.Group(groupName).SendAsync("DiceRolled", new
+        await Clients.Caller.SendAsync("DiceRolled", new
         {
             playerId = currentPlayer.PlayerId,
             rollValue = rolled,
             newPosition = currentPlayer.Position,
             nextTurnPlayerId
         });
-
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
 
         logger.LogInformation("Player {PlayerName}:{PlayerId} rolled {rollValue}", currentPlayer.DisplayName, currentPlayer.PlayerId, rolled);

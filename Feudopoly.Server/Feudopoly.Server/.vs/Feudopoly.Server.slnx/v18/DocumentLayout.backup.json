@@ -5,10 +5,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\hubs\\gamehub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:hubs\\gamehub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\multiplayer\\gamesession.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:multiplayer\\gamesession.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -28,9 +24,9 @@
               "RelativeDocumentMoniker": "Hubs\\GameHub.cs",
               "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Hubs\\GameHub.cs",
               "RelativeToolTip": "Hubs\\GameHub.cs",
-              "ViewState": "AgIAADoAAAAAAAAAAAArwEQAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAJwAAAAAAAAAAAAvwK4AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-19T01:20:59.512Z",
+              "WhenOpened": "2026-02-20T00:36:06.715Z",
               "IsPinned": true,
               "EditorCaption": ""
             },
@@ -113,19 +109,6 @@
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{6324226f-61b6-4f28-92ee-18d4b5fe1e48}"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "GameSession.cs",
-              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\GameSession.cs",
-              "RelativeDocumentMoniker": "Multiplayer\\GameSession.cs",
-              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\GameSession.cs",
-              "RelativeToolTip": "Multiplayer\\GameSession.cs",
-              "ViewState": "AgIAACAAAAAAAAAAAAAAwAkAAAAzAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-20T00:26:16.845Z",
-              "EditorCaption": ""
             }
           ]
         }

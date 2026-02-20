@@ -269,6 +269,12 @@ export class Start extends Phaser.Scene {
                 return;
             }
 
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+                event.preventDefault();
+                this.pasteFromClipboard();
+                return;
+            }
+
             const isNickname = this.activeInput === this.nicknameField;
             const value = isNickname ? this.nickname : this.sessionId;
             const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
@@ -289,6 +295,26 @@ export class Start extends Phaser.Scene {
                 this.setFieldValue(isNickname, value + event.key);
             }
         });
+    }
+
+    async pasteFromClipboard() {
+        if (!navigator.clipboard?.readText || !this.activeInput) {
+            return;
+        }
+
+        try {
+            const isNickname = this.activeInput === this.nicknameField;
+            const value = isNickname ? this.nickname : this.sessionId;
+            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
+
+            const clipboardText = await navigator.clipboard.readText();
+            const cleanText = clipboardText.replace(/[\r\n]+/g, ' ').trim();
+            const nextValue = (value + cleanText).slice(0, maxLength);
+
+            this.setFieldValue(isNickname, nextValue);
+        } catch {
+            this.showMessage('Clipboard access is unavailable.');
+        }
     }
 
     setFieldValue(isNickname, value) {

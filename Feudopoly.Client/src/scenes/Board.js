@@ -90,14 +90,17 @@ export class Board extends Phaser.Scene {
     }
 
     applyState(state) {
+        console.log('Apply state event!');
         if (!state || !Array.isArray(state.players)) {
             return;
         }
 
+        this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
+        this.lastRollValue = state.lastRollValue ?? 0;
+
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
-        this.players
-            .filter(player => !incomingIds.has(String(player.playerId)))
+        this.players.filter(player => !incomingIds.has(String(player.playerId)))
             .forEach(player => {
                 player.sprite.destroy();
             });
@@ -116,22 +119,14 @@ export class Board extends Phaser.Scene {
             player.displayName = playerState.displayName;
             player.isConnected = playerState.isConnected;
 
-            const isCurrentPlayerInAnimation = this.isRolling && playerId == this.animatingPlayerId;
+            // To prevent double animation from two web socket events. Active Turn Player was moved by diceRolled event.
+            if (this.activeTurnPlayerId != playerId) {
+                const steps = Math.abs(playerState.position - player.currentPosition);
+                const finalPosition = player.currentPosition + steps;
 
-            if (!isCurrentPlayerInAnimation) {
-                player.currentPosition = playerState.position;
+                this.movePlayer(playerId, steps, finalPosition, () => { });
             }
-
-            if (!this.isRolling) {
-                const destination = this.cells[player.currentPosition];
-                player.sprite.setPosition(destination.x, destination.y);
-            }
-
-            this.applyStackOffsets(player.currentPosition);
         });
-
-        this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
-        this.lastRollValue = state.lastRollValue ?? 0;
 
         if (!this.isRolling) {
             this.refreshTurnUI();
@@ -144,6 +139,9 @@ export class Board extends Phaser.Scene {
         const sprite = this.add.sprite(cell.x, cell.y, 'token')
             .setOrigin(0.5)
             .setScale(0.05);
+
+        const color = Phaser.Display.Color.RandomRGB().color;
+        sprite.setTint(color);
 
         return {
             playerId,
@@ -168,11 +166,16 @@ export class Board extends Phaser.Scene {
             ? 'Your turn! Press Roll to cast the dice.'
             : 'Waiting for opponent move...');
 
-        this.rollButton.disableInteractive();
-        this.rollButtonBackground.setFillStyle(isLocalTurn ? 0x3E5A2E : 0x555555, 1);
 
         if (isLocalTurn) {
+            this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
+            this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
+        }
+        else {
+            this.rollButton.setVisible(false);
+            this.rollButton.disableInteractive();
+            this.rollButtonBackground.setFillStyle(0x555555, 1);
         }
 
         this.turnOverlay.setVisible(true);
@@ -194,6 +197,8 @@ export class Board extends Phaser.Scene {
     }
 
     playDiceResult(payload) {
+        console.log('Dice result event!');
+
         const player = this.players.find(item => item.playerId === String(payload.playerId));
         if (!player) {
             return;
@@ -214,6 +219,7 @@ export class Board extends Phaser.Scene {
             this.diceHintText.setVisible(true);
             this.showDice(payload.rollValue);
 
+            console.log('player moved!');
             this.movePlayer(player.playerId, steps, payload.newPosition, () => {
                 this.isRolling = false;
                 this.hideDice();
@@ -301,7 +307,7 @@ export class Board extends Phaser.Scene {
                 targets: player.sprite,
                 x: point.x,
                 y: point.y,
-                duration: 300,
+                duration: 500,
                 onComplete: () => {
                     this.applyStackOffsets(player.currentPosition);
 
