@@ -119,8 +119,8 @@ export class Board extends Phaser.Scene {
             player.displayName = playerState.displayName;
             player.isConnected = playerState.isConnected;
 
-            // To prevent double animation from two web socket events. Active Turn Player was moved by diceRolled event.
-            if (this.activeTurnPlayerId != playerId) {
+            // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
+            if (this.localPlayerId != playerId) {
                 const steps = Math.abs(playerState.position - player.currentPosition);
                 const finalPosition = player.currentPosition + steps;
 
@@ -167,7 +167,9 @@ export class Board extends Phaser.Scene {
             : 'Waiting for opponent move...');
 
 
-        if (isLocalTurn) {
+        console.log('this.animatingPlayerId: ' + this.animatingPlayerId);
+        console.log('this.rolling?: ' + this.isRolling);
+        if (isLocalTurn && this.animatingPlayerId == null) {
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
@@ -195,7 +197,7 @@ export class Board extends Phaser.Scene {
             this.showDice('?');
             this.diceShakingTween.play();
 
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, 3000));
 
             await gameHubClient.rollDice(this.sessionId);
         } catch (error) {
@@ -226,7 +228,6 @@ export class Board extends Phaser.Scene {
         this.diceHintText.setVisible(true);
         this.showDice(payload.rollValue);
 
-        console.log('player moved!');
         this.movePlayer(player.playerId, steps, payload.newPosition, () => {
             this.isRolling = false;
             this.hideDice();
@@ -364,7 +365,9 @@ export class Board extends Phaser.Scene {
             duration: 90,
             ease: 'Sine.InOut',
             yoyo: true,
-            repeat: -1
+            repeat: -1,
+            paused: true,
+            persist: true
         });
 
         const shadow = this.add.rectangle(8, 8, 220, 220, 0x000000, 0.35);
