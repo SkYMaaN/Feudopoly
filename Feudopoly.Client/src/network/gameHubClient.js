@@ -72,6 +72,10 @@ export class GameHubClient {
         await this.connection.invoke('RollDice', sessionId);
     }
 
+    async completeTurn(sessionId) {
+        await this.connection.invoke('CompleteTurn', sessionId);
+    }
+
     async syncState(sessionId) {
         await this.connection.invoke('SyncState', sessionId);
     }

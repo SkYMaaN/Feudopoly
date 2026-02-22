@@ -126,7 +126,6 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
         PlayerState currentPlayer;
         int rolled;
-        Guid nextTurnPlayerId;
         GameStateDto state;
 
         lock (session)
@@ -157,17 +156,17 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
                 throw new HubException("Not your turn.");
             }
 
+            if (session.IsTurnInProgress)
+            {
+                throw new HubException("Turn is not finished yet.");
+            }
+
             currentPlayer = session.Players.First(p => p.PlayerId == session.ActiveTurnPlayerId);
             rolled = Random.Shared.Next(1, 7);
             session.LastRollValue = rolled;
             currentPlayer.Position = (currentPlayer.Position + rolled) % BoardCellsCount;
 
-            int currentTurnPlayerIdx = session.Players.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
-            int nextTurnPlayerIdx = (currentTurnPlayerIdx + 1) % session.Players.Count;
-
-            nextTurnPlayerId = session.Players.ElementAt(nextTurnPlayerIdx).PlayerId;
-            session.ActiveTurnPlayerId = nextTurnPlayerId;
-
+            session.IsTurnInProgress = true;
             state = SessionStore.ToDto(session);
         }
 
@@ -177,12 +176,59 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
         {
             playerId = currentPlayer.PlayerId,
             rollValue = rolled,
-            newPosition = currentPlayer.Position,
-            nextTurnPlayerId
+            newPosition = currentPlayer.Position
         });
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
 
         logger.LogInformation("Player {PlayerName}:{PlayerId} rolled {rollValue}", currentPlayer.DisplayName, currentPlayer.PlayerId, rolled);
+    }
+
+
+    public async Task CompleteTurn(Guid sessionId)
+    {
+        if (!sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        {
+            throw new HubException("Session not found.");
+        }
+
+        GameStateDto state;
+
+        lock (session)
+        {
+            if (session.Players.Count == 0)
+            {
+                throw new HubException("No players in session.");
+            }
+
+            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId);
+            if (caller is null)
+            {
+                throw new HubException("Player is not part of this session.");
+            }
+
+            if (caller.PlayerId != session.ActiveTurnPlayerId)
+            {
+                throw new HubException("Not your turn.");
+            }
+
+            if (!session.IsTurnInProgress)
+            {
+                throw new HubException("Turn is already completed.");
+            }
+
+            // TODO: resolve landed cell action for caller.Position here.
+
+            int currentTurnPlayerIdx = session.Players.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
+            int nextTurnPlayerIdx = (currentTurnPlayerIdx + 1) % session.Players.Count;
+
+            session.ActiveTurnPlayerId = session.Players[nextTurnPlayerIdx].PlayerId;
+            session.IsTurnInProgress = false;
+
+            state = SessionStore.ToDto(session);
+        }
+
+        string groupName = sessionId.ToString();
+        await Clients.Group(groupName).SendAsync("StateUpdated", state);
     }
 
     public async Task SyncState(Guid sessionId)

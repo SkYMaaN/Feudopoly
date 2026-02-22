@@ -9,6 +9,7 @@ public sealed class GameSession
     public required Guid ActiveTurnPlayerId { get; set; }
     public required int LastRollValue { get; set; }
     public required DateTime CreatedAtUtc { get; init; }
+    public required bool IsTurnInProgress { get; set; }
 }
 
 public sealed class PlayerState
@@ -48,7 +49,8 @@ public sealed class SessionStore
             Players = [],
             ActiveTurnPlayerId = Guid.Empty,
             LastRollValue = 0,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            IsTurnInProgress = false
         });
     }
 

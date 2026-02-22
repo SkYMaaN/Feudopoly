@@ -121,10 +121,18 @@ export class Board extends Phaser.Scene {
 
             // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
             if (this.localPlayerId != playerId) {
-                const steps = Math.abs(playerState.position - player.currentPosition);
-                const finalPosition = player.currentPosition + steps;
+                const steps = this.getStepsToPosition(player.currentPosition, playerState.position);
 
-                this.movePlayer(playerId, steps, finalPosition, () => { });
+                if (steps > 0) {
+                    this.animatingPlayerId = playerId;
+                    this.isRolling = true;
+
+                    this.movePlayer(playerId, steps, playerState.position, () => {
+                        this.isRolling = false;
+                        this.animatingPlayerId = null;
+                        this.refreshTurnUI();
+                    });
+                }
             }
         });
 
@@ -219,8 +227,7 @@ export class Board extends Phaser.Scene {
             return;
         }
 
-        this.isRolling = true;
-        const steps = Math.abs(player.currentPosition - payload.newPosition);
+        const steps = this.getStepsToPosition(player.currentPosition, payload.newPosition);
         this.animatingPlayerId = player.playerId;
 
         this.turnOverlay.setVisible(false);
@@ -228,12 +235,26 @@ export class Board extends Phaser.Scene {
         this.diceHintText.setVisible(true);
         this.showDice(payload.rollValue);
 
-        this.movePlayer(player.playerId, steps, payload.newPosition, () => {
-            this.isRolling = false;
+        this.movePlayer(player.playerId, steps, payload.newPosition, async () => {
             this.hideDice();
-            this.animatingPlayerId = null;
-            this.refreshTurnUI();
+
+            try {
+                await gameHubClient.completeTurn(this.sessionId);
+            } catch (error) {
+                console.error(error);
+                this.setStatus(`Turn completion failed: ${error.message ?? 'Unknown error'}`);
+            } finally {
+                this.isRolling = false;
+                this.animatingPlayerId = null;
+                this.refreshTurnUI();
+            }
         });
+    }
+
+
+    getStepsToPosition(fromPosition, toPosition) {
+        const total = this.cells.length;
+        return (toPosition - fromPosition + total) % total;
     }
 
     showDice(rollValue) {
