@@ -289,7 +289,7 @@ export class Board extends Phaser.Scene {
         const stack = this.players.filter(player => player.currentPosition === cellIndex);
         const base = this.cells[cellIndex];
 
-        const d = 72;
+        const d = 60;
         stack.forEach((player, n) => {
             const col = n % 2;
             const row = Math.floor(n / 2);
@@ -511,32 +511,42 @@ export class Board extends Phaser.Scene {
         const toWorldX = (tx) => bounds.x + (tx / texW) * bounds.width;
         const toWorldY = (ty) => bounds.y + (ty / texH) * bounds.height;
 
-        const xLines = [60, 221, 370, 525, 681, 838, 995, 1150, 1307, 1475];
-        const yLines = [20, 56, 217, 361, 505, 648, 791, 935];
+        // Под твою новую картинку (9x8 => 10 вертикальных линий, 9 горизонтальных)
+        const xLines = [55, 205, 356, 502, 657, 803, 951, 1101, 1253, 1410];
+        const yLines = [25, 165, 295, 416, 545, 659, 794, 914, 1044];
+
+        const xMid = (i) => (xLines[i] + xLines[i + 1]) / 2;
+        const yMid = (i) => (yLines[i] + yLines[i + 1]) / 2;
+
+        const W = xLines.length - 1; // 9
+        const H = yLines.length - 1; // 8
+
+        const left = 0, right = W - 1;
+        const top = 0, bottom = H - 1;
 
         const centers = [];
 
-        const bottomY = (yLines[yLines.length - 2] + yLines[yLines.length - 1]) / 2;
-        for (let i = xLines.length - 2; i >= 0; i--) {
-            centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: bottomY });
+        // 0..8: нижний ряд (справа -> влево), включая оба угла
+        for (let x = right; x >= left; x--) {
+            centers.push({ tx: xMid(x), ty: yMid(bottom) });
         }
 
-        const leftX = (xLines[0] + xLines[1]) / 2;
-        for (let i = yLines.length - 3; i >= 2; i--) {
-            centers.push({ tx: leftX, ty: (yLines[i] + yLines[i + 1]) / 2 });
+        // 9..15: левая колонка (снизу -> вверх), без нижнего угла, с верхним
+        for (let y = bottom - 1; y >= top; y--) {
+            centers.push({ tx: xMid(left), ty: yMid(y) });
         }
 
-        const topY = (yLines[1] + yLines[2]) / 2;
-        for (let i = 0; i < xLines.length - 1; i++) {
-            centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: topY });
+        // 16..23: верхний ряд (слева -> вправо), без левого угла, с правым
+        for (let x = left + 1; x <= right; x++) {
+            centers.push({ tx: xMid(x), ty: yMid(top) });
         }
 
-        const rightX = (xLines[xLines.length - 2] + xLines[xLines.length - 1]) / 2;
-        for (let i = 2; i < yLines.length - 2; i++) {
-            centers.push({ tx: rightX, ty: (yLines[i] + yLines[i + 1]) / 2 });
+        // 24..29: правая колонка (сверху -> вниз), без верхнего и нижнего углов
+        for (let y = top + 1; y <= bottom - 1; y++) {
+            centers.push({ tx: xMid(right), ty: yMid(y) });
         }
 
-        const cells = centers.map(point => ({ x: toWorldX(point.tx), y: toWorldY(point.ty) }));
-        this.cells = cells.slice(this.startCellIndex).concat(cells.slice(0, this.startCellIndex));
+        // 30 клеток: индексы 0..29
+        this.cells = centers.map(p => ({ x: toWorldX(p.tx), y: toWorldY(p.ty) }));
     }
 }
