@@ -2,14 +2,14 @@ import { gameHubClient } from '../network/gameHubClient.js';
 
 export class Board extends Phaser.Scene {
     maxPlayers = 4;
-    startCellIndex = 21;
+    startCellIndex = 0;
 
     constructor() {
         super('Board');
     }
 
     preload() {
-        this.load.image('board', 'assets/boards/board1.png');
+        this.load.image('board', 'assets/boards/board1.jpg');
         this.load.image('token', 'assets/textures/game_token.png');
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
 
@@ -516,16 +516,6 @@ export class Board extends Phaser.Scene {
 
         const centers = [];
 
-        const topY = (yLines[1] + yLines[2]) / 2;
-        for (let i = 0; i < xLines.length - 1; i++) {
-            centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: topY });
-        }
-
-        const rightX = (xLines[xLines.length - 2] + xLines[xLines.length - 1]) / 2;
-        for (let i = 2; i < yLines.length - 2; i++) {
-            centers.push({ tx: rightX, ty: (yLines[i] + yLines[i + 1]) / 2 });
-        }
-
         const bottomY = (yLines[yLines.length - 2] + yLines[yLines.length - 1]) / 2;
         for (let i = xLines.length - 2; i >= 0; i--) {
             centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: bottomY });
@@ -534,6 +524,16 @@ export class Board extends Phaser.Scene {
         const leftX = (xLines[0] + xLines[1]) / 2;
         for (let i = yLines.length - 3; i >= 2; i--) {
             centers.push({ tx: leftX, ty: (yLines[i] + yLines[i + 1]) / 2 });
+        }
+
+        const topY = (yLines[1] + yLines[2]) / 2;
+        for (let i = 0; i < xLines.length - 1; i++) {
+            centers.push({ tx: (xLines[i] + xLines[i + 1]) / 2, ty: topY });
+        }
+
+        const rightX = (xLines[xLines.length - 2] + xLines[xLines.length - 1]) / 2;
+        for (let i = 2; i < yLines.length - 2; i++) {
+            centers.push({ tx: rightX, ty: (yLines[i] + yLines[i + 1]) / 2 });
         }
 
         const cells = centers.map(point => ({ x: toWorldX(point.tx), y: toWorldY(point.ty) }));
