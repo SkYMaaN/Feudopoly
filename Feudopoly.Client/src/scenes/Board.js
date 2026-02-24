@@ -42,6 +42,7 @@ export class Board extends Phaser.Scene {
         this.animatingPlayerId = null;
         this.diceRotationTween = null;
         this.diceSpinState = { x: 0, y: 0, z: 0 };
+        this.diceRollDurationMs = 5000;
 
         this.addBoard();
         this.buildCells();
@@ -263,7 +264,7 @@ export class Board extends Phaser.Scene {
             this.showDice('?');
             this.startDiceRollingLoop();
 
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            await new Promise(resolve => setTimeout(resolve, this.diceRollDurationMs));
 
             await gameHubClient.rollDice(this.sessionId);
         } catch (error) {
@@ -534,15 +535,16 @@ export class Board extends Phaser.Scene {
         this.stopDiceRotationTween();
 
         const state = this.diceSpinState;
+        const fullTurn = Math.PI * 2;
 
+        // One long tween avoids per-loop restart jitter and keeps the roll smooth.
         this.diceRotationTween = this.tweens.add({
             targets: state,
-            x: state.x + Phaser.Math.FloatBetween(Math.PI * 5, Math.PI * 7),
-            y: state.y + Phaser.Math.FloatBetween(Math.PI * 6, Math.PI * 8),
-            z: state.z + Phaser.Math.FloatBetween(Math.PI * 4, Math.PI * 6),
-            duration: 700,
+            x: state.x + Phaser.Math.FloatBetween(1.6, 2.2) * fullTurn,
+            y: state.y + Phaser.Math.FloatBetween(1.9, 2.6) * fullTurn,
+            z: state.z + Phaser.Math.FloatBetween(1.2, 1.8) * fullTurn,
+            duration: this.diceRollDurationMs,
             ease: 'Sine.InOut',
-            repeat: -1,
             onUpdate: () => this.renderDice3D()
         });
     }
