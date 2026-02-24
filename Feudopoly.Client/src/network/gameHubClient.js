@@ -10,6 +10,8 @@ export class GameHubClient {
             playerJoined: [],
             playerLeft: [],
             diceRolled: [],
+            turnBegan: [],
+            turnEnded: [],
             error: []
         };
     }
@@ -57,6 +59,14 @@ export class GameHubClient {
             this.emit('diceRolled', payload);
         });
 
+        this.connection.on('TurnBegan', (payload) => {
+            this.emit('turnBegan', payload);
+        });
+
+        this.connection.on('TurnEnded', (payload) => {
+            this.emit('turnEnded', payload);
+        });
+
         this.connection.onclose((error) => {
             this.emit('error', error ?? new Error('Connection closed.'));
         });
@@ -72,8 +82,12 @@ export class GameHubClient {
         await this.connection.invoke('RollDice', sessionId);
     }
 
-    async completeTurn(sessionId) {
-        await this.connection.invoke('CompleteTurn', sessionId);
+    async beginTurn(sessionId) {
+        await this.connection.invoke('BeginTurn', sessionId);
+    }
+
+    async finishTurn(sessionId) {
+        await this.connection.invoke('FinishTurn', sessionId);
     }
 
     async syncState(sessionId) {

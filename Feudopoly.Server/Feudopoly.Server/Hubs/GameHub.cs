@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Feudopoly.Server.Hubs;
 
-public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) : Hub
+public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventStorage, ILogger<GameHub> logger) : Hub
 {
     private const int BoardCellsCount = 30;
+
     private const int MaxPlayers = 4;
+
     private const string SessionIdContextKey = "sessionId";
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -17,7 +19,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
             return;
         }
 
-        if (!sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             await base.OnDisconnectedAsync(exception);
             return;
@@ -31,7 +33,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
             removedPlayer = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId);
             if (removedPlayer is null)
             {
-                state = SessionStore.ToDto(session);
+                state = SessionStorage.ToDto(session);
             }
             else
             {
@@ -44,7 +46,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
                 session.Players.Remove(removedPlayer);
 
-                state = SessionStore.ToDto(session);
+                state = SessionStorage.ToDto(session);
             }
         }
 
@@ -55,7 +57,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
             await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayer.PlayerId);
             await Clients.Group(groupName).SendAsync("StateUpdated", state);
-            sessionStore.RemoveSessionIfEmpty(sessionId);
+            _sessionStore.RemoveSessionIfEmpty(sessionId);
 
             logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId);
         }
@@ -79,7 +81,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
         displayName = displayName.Trim();
 
-        var session = sessionStore.GetOrCreateSession(sessionId.Value);
+        var session = _sessionStore.GetOrCreateSession(sessionId.Value);
 
         PlayerState? joinedPlayer;
         GameStateDto state;
@@ -101,7 +103,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
             };
 
             session.Players.Add(joinedPlayer);
-            state = SessionStore.ToDto(session);
+            state = SessionStorage.ToDto(session);
         }
 
         Context.Items[SessionIdContextKey] = sessionId;
@@ -110,7 +112,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
         await Clients.Caller.SendAsync("Joined", joinedPlayer.PlayerId, state);
-        await Clients.OthersInGroup(groupName).SendAsync("PlayerJoined", SessionStore.ToDto(session));
+        await Clients.OthersInGroup(groupName).SendAsync("PlayerJoined", SessionStorage.ToDto(session));
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
 
         logger.LogInformation("Player {PlayerName}:{PlayerId} joined session {SessionId}", joinedPlayer.DisplayName, joinedPlayer.PlayerId, sessionId);
@@ -119,7 +121,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
     public async Task RollDice(Guid sessionId)
     {
-        if (!sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
         }
@@ -167,7 +169,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
             currentPlayer.Position = (currentPlayer.Position + rolled) % BoardCellsCount;
 
             session.IsTurnInProgress = true;
-            state = SessionStore.ToDto(session);
+            state = SessionStorage.ToDto(session);
         }
 
         string groupName = sessionId.ToString();
@@ -184,14 +186,16 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
     }
 
 
-    public async Task CompleteTurn(Guid sessionId)
+    public async Task BeginTurn(Guid sessionId)
     {
-        if (!sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
         }
 
         GameStateDto state;
+        GameCellEvent cellEvent;
+        PlayerState currentPlayer;
 
         lock (session)
         {
@@ -216,24 +220,91 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
                 throw new HubException("Turn is already completed.");
             }
 
-            // TODO: resolve landed cell action for caller.Position here.
+            if (!_eventStorage.Events.TryGetValue(caller.Position, out cellEvent))
+            {
+                logger.LogError("Event for {position} position does not exist!", caller.Position);
+                throw new HubException($"Event for {caller.Position} position does not exist!");
+            }
 
-            int currentTurnPlayerIdx = session.Players.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
+            currentPlayer = session.Players.First(p => p.PlayerId == session.ActiveTurnPlayerId);
+
+            //int currentTurnPlayerIdx = session.Players.FindIndex(p => p.PlayerId == currentPlayer.PlayerId);
+            //int nextTurnPlayerIdx = (currentTurnPlayerIdx + 1) % session.Players.Count;
+
+            //session.ActiveTurnPlayerId = session.Players[nextTurnPlayerIdx].PlayerId;
+            //session.IsTurnInProgress = false;
+
+            state = SessionStorage.ToDto(session);
+        }
+
+        string groupName = sessionId.ToString();
+        await Clients.Group(groupName).SendAsync("StateUpdated", state);
+        await Clients.Caller.SendAsync("TurnBegan", cellEvent);
+
+        logger.LogInformation("Player {PlayerName}:{PlayerId} started {cellEvent}", currentPlayer.DisplayName, currentPlayer.PlayerId, cellEvent);
+    }
+
+    public async Task FinishTurn(Guid sessionId)
+    {
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        {
+            throw new HubException("Session not found.");
+        }
+
+        GameStateDto state;
+        GameCellEvent cellEvent;
+        PlayerState currentPlayer;
+
+        lock (session)
+        {
+            if (session.Players.Count == 0)
+            {
+                throw new HubException("No players in session.");
+            }
+
+            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId);
+            if (caller is null)
+            {
+                throw new HubException("Player is not part of this session.");
+            }
+
+            if (caller.PlayerId != session.ActiveTurnPlayerId)
+            {
+                throw new HubException("Not your turn.");
+            }
+
+            if (!session.IsTurnInProgress)
+            {
+                throw new HubException("Turn isn't stated.");
+            }
+
+            if (!_eventStorage.Events.TryGetValue(caller.Position, out cellEvent))
+            {
+                logger.LogError("Event for {position} position does not exist!", caller.Position);
+                throw new HubException($"Event for {caller.Position} position does not exist!");
+            }
+
+            currentPlayer = session.Players.First(p => p.PlayerId == session.ActiveTurnPlayerId);
+
+            int currentTurnPlayerIdx = session.Players.FindIndex(p => p.PlayerId == currentPlayer.PlayerId);
             int nextTurnPlayerIdx = (currentTurnPlayerIdx + 1) % session.Players.Count;
 
             session.ActiveTurnPlayerId = session.Players[nextTurnPlayerIdx].PlayerId;
             session.IsTurnInProgress = false;
 
-            state = SessionStore.ToDto(session);
+            state = SessionStorage.ToDto(session);
         }
 
         string groupName = sessionId.ToString();
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
+        await Clients.Caller.SendAsync("TurnEnded", cellEvent);
+
+        logger.LogInformation("Player {PlayerName}:{PlayerId} finished {cellEvent}", currentPlayer.DisplayName, currentPlayer.PlayerId, cellEvent);
     }
 
     public async Task SyncState(Guid sessionId)
     {
-        if (!sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
         }
@@ -242,7 +313,7 @@ public sealed class GameHub(SessionStore sessionStore, ILogger<GameHub> logger) 
 
         lock (session)
         {
-            state = SessionStore.ToDto(session);
+            state = SessionStorage.ToDto(session);
         }
 
         await Clients.Caller.SendAsync("StateUpdated", state);

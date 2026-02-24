@@ -1,6 +1,10 @@
 import { gameHubClient } from '../network/gameHubClient.js';
 
 export class Board extends Phaser.Scene {
+    COLOR_MAIN = 0x4e342e;
+    COLOR_LIGHT = 0x7b5e57;
+    COLOR_DARK = 0x260e04;
+
     maxPlayers = 4;
     startCellIndex = 0;
 
@@ -13,6 +17,10 @@ export class Board extends Phaser.Scene {
         this.load.image('token', 'assets/textures/game_token.png');
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
 
+        for (let i = 1; i < 21; i++) {
+            this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
+        }
+
         this.load.scenePlugin({
             key: 'rexuiplugin',
             url: "plugins/rexuiplugin.min.js",
@@ -21,6 +29,8 @@ export class Board extends Phaser.Scene {
     }
 
     async create(data) {
+        const { width, height } = this.scale.gameSize;
+
         this.stepSfx = this.sound.add('stepSfx', { volume: 0.1 });
 
         this.players = [];
@@ -32,12 +42,31 @@ export class Board extends Phaser.Scene {
 
         this.addBoard();
         this.buildCells();
+        this.setCellBackgrounds();
         this.addMedievalAtmosphere();
         this.createDiceUI();
         this.createTurnUI();
         this.createStatusText();
 
         this.registerHubEvents();
+
+        this.notificationTextBox = this.createTextBox(this, width / 2, height / 2,
+            {
+                width: 500,
+                height: 150,
+                title: ''
+            }
+        )
+            .setOrigin(0.5)
+            .setVisible(false);
+
+        this.input.on('pointerdown', () => {
+            if (!this.notificationTextBox.visible) {
+                return;
+            }
+
+            this.notificationTextBox.stop(true).setVisible(false);
+        });
 
         try {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
@@ -67,6 +96,12 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('diceRolled', (payload) => {
                 this.playDiceResult(payload);
             }),
+            gameHubClient.on('turnBegan', (payload) => {
+                this.turnBegan(payload);
+            }),
+            gameHubClient.on('turnEnded', (payload) => {
+                this.turnEnded(payload);
+            }),
             gameHubClient.on('error', (error) => {
                 this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
             })
@@ -90,7 +125,6 @@ export class Board extends Phaser.Scene {
     }
 
     applyState(state) {
-        console.log('Apply state event!');
         if (!state || !Array.isArray(state.players)) {
             return;
         }
@@ -161,6 +195,12 @@ export class Board extends Phaser.Scene {
     }
 
     refreshTurnUI() {
+        /*this.rollButton.setVisible(false);
+        this.rollButton.disableInteractive();
+        this.rollButtonBackground.setFillStyle(0x555555, 1);
+        this.turnOverlay.setVisible(false);
+        return;*/
+
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
             return;
@@ -175,9 +215,7 @@ export class Board extends Phaser.Scene {
             : 'Waiting for opponent move...');
 
 
-        console.log('this.animatingPlayerId: ' + this.animatingPlayerId);
-        console.log('this.rolling?: ' + this.isRolling);
-        if (isLocalTurn && this.animatingPlayerId == null) {
+        if (isLocalTurn) {
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
@@ -219,9 +257,31 @@ export class Board extends Phaser.Scene {
         }
     }
 
-    playDiceResult(payload) {
-        console.log('Dice result event!');
+    turnBegan(payload) {
+        console.log('Turn Began: ' + JSON.stringify(payload));
 
+        this.notificationTextBox
+            .setVisible(true)
+            .stop(true);
+
+        const titleEl = this.notificationTextBox.getElement('title');
+        if (titleEl) {
+            titleEl.setText(payload.title ?? '');
+        }
+
+        this.notificationTextBox
+            .setText('')
+            .layout()
+            .start(payload.description ?? '', 30);
+
+        gameHubClient.finishTurn(this.sessionId);
+    }
+
+    turnEnded(payload) {
+        console.log('Turn Ended: ' + JSON.stringify(payload));
+    }
+
+    playDiceResult(payload) {
         const player = this.players.find(item => item.playerId === String(payload.playerId));
         if (!player) {
             return;
@@ -239,7 +299,7 @@ export class Board extends Phaser.Scene {
             this.hideDice();
 
             try {
-                await gameHubClient.completeTurn(this.sessionId);
+                await gameHubClient.beginTurn(this.sessionId);
             } catch (error) {
                 console.error(error);
                 this.setStatus(`Turn completion failed: ${error.message ?? 'Unknown error'}`);
@@ -513,7 +573,7 @@ export class Board extends Phaser.Scene {
 
         // Под твою новую картинку (9x8 => 10 вертикальных линий, 9 горизонтальных)
         const xLines = [55, 205, 356, 502, 657, 803, 951, 1101, 1253, 1410];
-        const yLines = [25, 165, 295, 416, 545, 659, 794, 914, 1044];
+        const yLines = [40, 160, 294, 411, 546, 659, 800, 914, 1052];
 
         const xMid = (i) => (xLines[i] + xLines[i + 1]) / 2;
         const yMid = (i) => (yLines[i] + yLines[i + 1]) / 2;
@@ -548,5 +608,126 @@ export class Board extends Phaser.Scene {
 
         // 30 клеток: индексы 0..29
         this.cells = centers.map(p => ({ x: toWorldX(p.tx), y: toWorldY(p.ty) }));
+    }
+
+    setCellBackgrounds() {
+        for (let i = 1; i < this.cells.length; i++) {
+            let cell = this.cells[i];
+            const img = this.add.image(cell.x, cell.y, `bg${i}`).setOrigin(0.5);
+
+            img.setDisplaySize(145, 120);
+        }
+    }
+
+    createTextBox(scene, x, y, config) {
+        var width = Phaser.Utils.Objects.GetValue(config, 'width', 0);
+        var height = Phaser.Utils.Objects.GetValue(config, 'height', 0);
+        var wrapWidth = Phaser.Utils.Objects.GetValue(config, 'wrapWidth', 0);
+        var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', 0);
+        var fixedHeight = Phaser.Utils.Objects.GetValue(config, 'fixedHeight', 0);
+        var titleText = Phaser.Utils.Objects.GetValue(config, 'title', undefined);
+        var typingMode = Phaser.Utils.Objects.GetValue(config, 'typingMode', 'page');
+        var maxLines = (width > 0) ? 0 : 3;
+
+        var textBox = scene.rexUI.add.textBox({
+            x: x, y: y,
+            width: width, height: height,
+
+            typingMode: typingMode,
+
+            background: scene.rexUI.add.roundRectangle({ radius: 20, color: this.COLOR_MAIN, strokeColor: this.COLOR_LIGHT, strokeWidth: 2 }),
+
+            /*icon: scene.rexUI.add.transitionImagePack({
+                width: 40, height: 40,
+                key: 'portraits', frame: 'A-smile'
+            }),*/
+
+            // text: getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight),
+            text: this.getBBcodeText(scene, wrapWidth, fixedWidth, fixedHeight, maxLines),
+            expandTextWidth: (width > 0),
+            expandTextHeight: (height > 0),
+
+            action: scene.rexUI.add.aioSpinner({
+                width: 30, height: 30,
+                duration: 1000,
+                animationMode: 'ball'
+            }).setVisible(false),
+
+            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '24px', }) : undefined,
+
+            separator: (titleText) ? scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }) : undefined,
+
+            space: {
+                left: 20, right: 20, top: 20, bottom: 20,
+
+                icon: 10, text: 10,
+
+                separator: 6,
+            },
+
+            align: {
+                title: 'center',
+                action: 'bottom'
+            }
+        })
+            .setOrigin(0)
+            .layout();
+
+        textBox
+            .setInteractive()
+            .on('pointerdown', function () {
+                if (typingMode === 'page') {
+
+                    var icon = this.getElement('action');
+                    icon.stop().setVisible(false);
+                    this.resetChildVisibleState(icon);
+
+                    if (this.isTyping) {
+                        this.stop(true);
+                    } else {
+                        this.typeNextPage();
+                    }
+                }
+            }, textBox)
+            .on('pageend', function () {
+                if (this.isLastPage) {
+                    return;
+                }
+
+                var icon = this.getElement('action');
+                icon.setVisible(true).start();
+                this.resetChildVisibleState(icon);
+
+            }, textBox)
+            .on('complete', function () {
+                console.log('all pages typing complete')
+            })
+
+        return textBox;
+    }
+
+    getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight) {
+        return scene.add.text(0, 0, '', {
+            fontSize: '20px',
+            wordWrap: {
+                width: wrapWidth
+            },
+            maxLines: 3
+        })
+            .setFixedSize(fixedWidth, fixedHeight);
+    }
+
+    getBBcodeText(scene, wrapWidth, fixedWidth, fixedHeight) {
+        return scene.rexUI.add.BBCodeText(0, 0, '', {
+            fixedWidth: fixedWidth,
+            fixedHeight: fixedHeight,
+
+            fontSize: '20px',
+            wrap: {
+                mode: 'word',
+                width: wrapWidth
+            },
+            maxLines: 3
+        })
     }
 }

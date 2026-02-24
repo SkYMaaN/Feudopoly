@@ -12,7 +12,8 @@ namespace Feudopoly.Server
             builder.Services.AddControllers();
             builder.Services.AddOpenApi();
             builder.Services.AddSignalR();
-            builder.Services.AddSingleton<SessionStore>();
+            builder.Services.AddSingleton<SessionStorage>();
+            builder.Services.AddSingleton<EventStorage>();
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("ClientPolicy", policy =>

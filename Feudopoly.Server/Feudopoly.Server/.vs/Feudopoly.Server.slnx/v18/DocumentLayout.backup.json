@@ -5,6 +5,22 @@
     {
       "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\hubs\\gamehub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:hubs\\gamehub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\multiplayer\\gamecellevent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:multiplayer\\gamecellevent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\multiplayer\\eventstorage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:multiplayer\\eventstorage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\multiplayer\\sessionstorage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:multiplayer\\sessionstorage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|q:\\phaser\\projects\\feudopoly\\feudopoly.server\\feudopoly.server\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FA8B9BBF-FABF-8F8B-B507-16D5E16D5975}|Feudopoly.Server.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -24,9 +40,51 @@
               "RelativeDocumentMoniker": "Hubs\\GameHub.cs",
               "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Hubs\\GameHub.cs",
               "RelativeToolTip": "Hubs\\GameHub.cs",
-              "ViewState": "AgIAAL8AAAAAAAAAAADgv7oAAAAWAAAAAAAAAA==",
+              "ViewState": "AgIAANcAAAAAAAAAAAAwwN0AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-02-20T00:36:06.715Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "EventStorage.cs",
+              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\EventStorage.cs",
+              "RelativeDocumentMoniker": "Multiplayer\\EventStorage.cs",
+              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\EventStorage.cs",
+              "RelativeToolTip": "Multiplayer\\EventStorage.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAkAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-23T22:50:31.289Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "GameCellEvent.cs",
+              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\GameCellEvent.cs",
+              "RelativeDocumentMoniker": "Multiplayer\\GameCellEvent.cs",
+              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\GameCellEvent.cs",
+              "RelativeToolTip": "Multiplayer\\GameCellEvent.cs",
+              "ViewState": "AgIAABoAAAAAAAAAAAAkwB4AAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-23T22:20:08.942Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "SessionStorage.cs",
+              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\SessionStorage.cs",
+              "RelativeDocumentMoniker": "Multiplayer\\SessionStorage.cs",
+              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Multiplayer\\SessionStorage.cs",
+              "RelativeToolTip": "Multiplayer\\SessionStorage.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAA5AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-23T22:50:34.699Z",
               "IsPinned": true,
               "EditorCaption": ""
             },
@@ -109,6 +167,19 @@
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{6324226f-61b6-4f28-92ee-18d4b5fe1e48}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "Program.cs",
+              "DocumentMoniker": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Program.cs",
+              "RelativeDocumentMoniker": "Program.cs",
+              "ToolTip": "Q:\\Phaser\\Projects\\Feudopoly\\Feudopoly.Server\\Feudopoly.Server\\Program.cs",
+              "RelativeToolTip": "Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAA2AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-23T22:51:12.236Z",
+              "EditorCaption": ""
             }
           ]
         }
