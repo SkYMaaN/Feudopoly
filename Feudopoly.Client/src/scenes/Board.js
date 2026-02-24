@@ -37,6 +37,7 @@ export class Board extends Phaser.Scene {
         this.localPlayerId = null;
         this.activeTurnPlayerId = null;
         this.lastRollValue = 0;
+        this.isTurnInProgress = false;
         this.isRolling = false;
         this.animatingPlayerId = null;
 
@@ -131,6 +132,7 @@ export class Board extends Phaser.Scene {
 
         this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
         this.lastRollValue = state.lastRollValue ?? 0;
+        this.isTurnInProgress = Boolean(state.isTurnInProgress);
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -208,14 +210,21 @@ export class Board extends Phaser.Scene {
 
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
+        const canRoll = isLocalTurn && !this.isTurnInProgress;
 
         this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
-        this.turnSubtitleText.setText(isLocalTurn
-            ? 'Your turn! Press Roll to cast the dice.'
-            : 'Waiting for opponent move...');
 
+        if (this.isTurnInProgress) {
+            this.turnSubtitleText.setText(isLocalTurn
+                ? 'Resolving your turn...'
+                : 'Opponent is resolving turn...');
+        } else {
+            this.turnSubtitleText.setText(isLocalTurn
+                ? 'Your turn! Press Roll to cast the dice.'
+                : 'Waiting for opponent move...');
+        }
 
-        if (isLocalTurn) {
+        if (canRoll) {
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
@@ -230,7 +239,7 @@ export class Board extends Phaser.Scene {
     }
 
     async requestRoll() {
-        if (this.isRolling) {
+        if (this.isRolling || this.isTurnInProgress) {
             return;
         }
 

@@ -49,6 +49,7 @@ public sealed class SessionStorage
                 ? session.Players.FirstOrDefault(p => p.PlayerId == session.ActiveTurnPlayerId)?.PlayerId
                 : null,
             LastRollValue = session.LastRollValue,
+            IsTurnInProgress = session.IsTurnInProgress,
             Players = session.Players.Select(player => new PlayerDto
             {
                 PlayerId = player.PlayerId,

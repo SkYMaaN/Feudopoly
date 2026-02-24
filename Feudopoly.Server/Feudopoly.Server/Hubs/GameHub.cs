@@ -289,8 +289,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             int currentTurnPlayerIdx = session.Players.FindIndex(p => p.PlayerId == currentPlayer.PlayerId);
             int nextTurnPlayerIdx = (currentTurnPlayerIdx + 1) % session.Players.Count;
 
-            session.ActiveTurnPlayerId = session.Players[nextTurnPlayerIdx].PlayerId;
             session.IsTurnInProgress = false;
+            session.ActiveTurnPlayerId = session.Players[nextTurnPlayerIdx].PlayerId;
 
             state = SessionStorage.ToDto(session);
         }
