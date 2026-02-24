@@ -569,21 +569,25 @@ export class Board extends Phaser.Scene {
     }
 
     getTargetDiceRotation(value) {
+        // Face values are mapped to cube normals in diceFaceValues.
+        // We settle with the rolled value facing the camera (+Z) so the visible face
+        // always matches the SignalR hub result.
         const base = {
-            1: { x: 0, y: 0, z: 0 },
-            2: { x: Math.PI / 2, y: 0, z: 0 },
-            3: { x: 0, y: 0, z: -Math.PI / 2 },
-            4: { x: 0, y: 0, z: Math.PI / 2 },
-            5: { x: -Math.PI / 2, y: 0, z: 0 },
-            6: { x: Math.PI, y: 0, z: 0 }
+            1: { x: Math.PI / 2, y: 0, z: 0 },
+            2: { x: 0, y: 0, z: 0 },
+            3: { x: 0, y: -Math.PI / 2, z: 0 },
+            4: { x: 0, y: Math.PI / 2, z: 0 },
+            5: { x: 0, y: Math.PI, z: 0 },
+            6: { x: -Math.PI / 2, y: 0, z: 0 }
         };
 
         const destination = base[value] ?? base[1];
+        const fullTurn = Math.PI * 2;
 
         return {
-            x: destination.x + Math.PI * 4,
-            y: destination.y + Phaser.Math.FloatBetween(Math.PI * 3, Math.PI * 4),
-            z: destination.z + Math.PI * 3
+            x: destination.x + Phaser.Math.Between(2, 4) * fullTurn,
+            y: destination.y + Phaser.Math.Between(2, 4) * fullTurn,
+            z: destination.z + Phaser.Math.Between(1, 3) * fullTurn
         };
     }
 
