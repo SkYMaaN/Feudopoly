@@ -74,8 +74,8 @@ export class GameHubClient {
         await this.connection.start();
     }
 
-    async joinGame(sessionId, displayName) {
-        await this.connection.invoke('JoinGame', sessionId, displayName);
+    async joinGame(sessionId, displayName, isMan, isMuslim) {
+        await this.connection.invoke('JoinGame', sessionId, displayName, isMan, isMuslim);
     }
 
     async rollDice(sessionId) {

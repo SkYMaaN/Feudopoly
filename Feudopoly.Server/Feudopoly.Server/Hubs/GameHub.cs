@@ -65,7 +65,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task JoinGame(Guid? sessionId, string displayName)
+    public async Task JoinGame(Guid? sessionId, string displayName, bool isMan, bool isMuslim)
     {
         //sessionId = new Guid("5e1dd9b1-79ba-4e13-962c-463e59860994");
 
@@ -98,6 +98,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 ConnectionId = Context.ConnectionId,
                 PlayerId = Guid.NewGuid(),
                 DisplayName = displayName,
+                IsMan = isMan,
+                IsMuslim = isMuslim,
                 Position = 0,
                 IsConnected = true
             };
