@@ -70,11 +70,13 @@ export class Board extends Phaser.Scene {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
             const displayName = data?.displayName?.trim() || `Player-${Math.floor(Math.random() * 999)}`;
             const mode = data?.mode === "join" ? "join" : "create";
+            const isMan = Boolean(data?.isMan);
+            const isMuslim = Boolean(data?.isMuslim);
 
             console.log(`Session (${mode}): ${this.sessionId} \nPlayer: ${displayName}`);
 
             await gameHubClient.connect();
-            await gameHubClient.joinGame(this.sessionId, displayName);
+            await gameHubClient.joinGame(this.sessionId, displayName, isMan, isMuslim);
             this.setStatus(`${mode === "create" ? "Created" : "Joined"} session ${this.sessionId}.`);
         } catch (error) {
             console.error(error);

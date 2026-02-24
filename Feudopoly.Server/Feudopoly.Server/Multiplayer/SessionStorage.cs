@@ -54,6 +54,8 @@ public sealed class SessionStorage
             {
                 PlayerId = player.PlayerId,
                 DisplayName = player.DisplayName,
+                IsMan = player.IsMan,
+                IsMuslim = player.IsMuslim,
                 Position = player.Position,
                 IsConnected = player.IsConnected
             }).ToArray()

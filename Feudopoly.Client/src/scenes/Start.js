@@ -4,6 +4,8 @@ export class Start extends Phaser.Scene {
         this.nickname = '';
         this.sessionId = '';
         this.activeInput = null;
+        this.isMan = false;
+        this.isMuslim = false;
     }
 
     preload() {
@@ -48,6 +50,19 @@ export class Start extends Phaser.Scene {
         this.nicknameField = this.createInputField(width / 2, height / 2 - 30, 'Enter your nickname', 28);
         this.activeInput = this.nicknameField;
 
+        this.isManToggle = this.createToggle(width / 2 - 150, height / 2 + 40, 'IsMan', () => {
+            this.isMan = !this.isMan;
+            this.updateToggleStyle(this.isManToggle, this.isMan);
+        });
+
+        this.isMuslimToggle = this.createToggle(width / 2 + 150, height / 2 + 40, 'IsMuslim', () => {
+            this.isMuslim = !this.isMuslim;
+            this.updateToggleStyle(this.isMuslimToggle, this.isMuslim);
+        });
+
+        this.updateToggleStyle(this.isManToggle, this.isMan);
+        this.updateToggleStyle(this.isMuslimToggle, this.isMuslim);
+
         this.joinCodeLabel = this.add.text(width / 2, height / 2 + 50, 'Game code (for joining)', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
@@ -67,7 +82,9 @@ export class Start extends Phaser.Scene {
             this.scene.start('Board', {
                 mode: 'create',
                 displayName: nickname,
-                sessionId: crypto.randomUUID()
+                sessionId: crypto.randomUUID(),
+                isMan: this.isMan,
+                isMuslim: this.isMuslim
             });
         });
 
@@ -99,7 +116,9 @@ export class Start extends Phaser.Scene {
             this.scene.start('Board', {
                 mode: 'join',
                 displayName: nickname,
-                sessionId
+                sessionId,
+                isMan: this.isMan,
+                isMuslim: this.isMuslim
             });
         });
 
@@ -122,7 +141,9 @@ export class Start extends Phaser.Scene {
             this.scene.start('Board', {
                 mode: 'join',
                 displayName: nickname,
-                sessionId
+                sessionId,
+                isMan: this.isMan,
+                isMuslim: this.isMuslim
             });
         });
         this.setConnectGameButtonVisibility(false);
@@ -224,6 +245,39 @@ export class Start extends Phaser.Scene {
         });
 
         return button;
+    }
+
+    createToggle(x, y, label, onToggle) {
+        const background = this.rexUI.add.roundRectangle(0, 0, 260, 64, 16, 0x1f1308, 1)
+            .setStrokeStyle(5, 0x8d6a3b, 0.9);
+
+        const text = this.add.text(0, 0, label, {
+            fontFamily: 'Georgia, serif',
+            fontSize: '28px',
+            color: '#d9c39a',
+            stroke: '#2a1707',
+            strokeThickness: 5
+        }).setOrigin(0.5);
+
+        const toggle = this.rexUI.add.label({
+            x,
+            y,
+            width: 260,
+            height: 64,
+            background,
+            text,
+            align: 'center'
+        }).layout().setInteractive({ useHandCursor: true });
+
+        toggle.on('pointerdown', onToggle);
+        return { container: toggle, background, text, label };
+    }
+
+    updateToggleStyle(toggle, isActive) {
+        toggle.background.setFillStyle(isActive ? 0x3E5A2E : 0x1f1308, 1);
+        toggle.background.setStrokeStyle(5, isActive ? 0xe5b96d : 0x8d6a3b, 1);
+        toggle.text.setText(`${isActive ? '✓ ' : ''}${toggle.label}`);
+        toggle.text.setColor(isActive ? '#f2e4c3' : '#d9c39a');
     }
 
     setBackButtonVisibility(isVisible) {
