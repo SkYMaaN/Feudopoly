@@ -16,6 +16,7 @@ export class Board extends Phaser.Scene {
         this.load.image('board', 'assets/boards/board1.jpg');
         this.load.image('token', 'assets/textures/game_token.png');
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
+        this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
         for (let i = 0; i < 30; i++) {
             this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
@@ -32,6 +33,7 @@ export class Board extends Phaser.Scene {
         const { width, height } = this.scale.gameSize;
 
         this.stepSfx = this.sound.add('stepSfx', { volume: 0.1 });
+        this.diceRollSfx = this.sound.add('diceRollSfx', { volume: 0.2, loop: true });
 
         this.players = [];
         this.localPlayerId = null;
@@ -263,6 +265,7 @@ export class Board extends Phaser.Scene {
             this.diceHintText.setVisible(false);
             this.showDice('?');
             this.startDiceRollingLoop();
+            this.diceRollSfx?.play();
 
             await new Promise(resolve => setTimeout(resolve, this.diceRollDurationMs - 200));
 
@@ -271,6 +274,7 @@ export class Board extends Phaser.Scene {
             console.error(error);
             this.setStatus(`Roll failed: ${error.message ?? 'Unknown error'}`);
             this.stopDiceRotationTween();
+            this.diceRollSfx?.stop();
             this.hideDice();
             this.isRolling = false;
             this.animatingPlayerId = null;
@@ -326,6 +330,7 @@ export class Board extends Phaser.Scene {
         this.showDice(payload.rollValue);
 
         this.animateDiceToValue(payload.rollValue);
+        this.diceRollSfx?.stop();
 
         this.movePlayer(player.playerId, steps, payload.newPosition, async () => {
             this.hideDice();
