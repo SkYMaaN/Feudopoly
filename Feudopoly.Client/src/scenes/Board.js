@@ -40,6 +40,8 @@ export class Board extends Phaser.Scene {
         this.isTurnInProgress = false;
         this.isRolling = false;
         this.animatingPlayerId = null;
+        this.diceRotationTween = null;
+        this.diceSpinState = { x: 0, y: 0, z: 0 };
 
         this.addBoard();
         this.buildCells();
@@ -259,7 +261,7 @@ export class Board extends Phaser.Scene {
 
             this.diceHintText.setVisible(false);
             this.showDice('?');
-            this.diceShakingTween.play();
+            this.startDiceRollingLoop();
 
             await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -267,7 +269,7 @@ export class Board extends Phaser.Scene {
         } catch (error) {
             console.error(error);
             this.setStatus(`Roll failed: ${error.message ?? 'Unknown error'}`);
-            this.diceShakingTween.stop();
+            this.stopDiceRotationTween();
             this.hideDice();
             this.isRolling = false;
             this.animatingPlayerId = null;
@@ -319,9 +321,10 @@ export class Board extends Phaser.Scene {
         this.animatingPlayerId = player.playerId;
 
         this.turnOverlay.setVisible(false);
-        this.diceShakingTween.stop();
         this.diceHintText.setVisible(true);
         this.showDice(payload.rollValue);
+
+        this.animateDiceToValue(payload.rollValue);
 
         this.movePlayer(player.playerId, steps, payload.newPosition, async () => {
             this.hideDice();
@@ -349,7 +352,12 @@ export class Board extends Phaser.Scene {
         this.diceContainer.setVisible(true);
         this.diceContainer.setScale(0.2);
         this.diceContainer.setAlpha(0);
-        this.diceContainer.setAngle(0);
+
+        this.diceSpinState.x = this.diceSpinState.x % (Math.PI * 2);
+        this.diceSpinState.y = this.diceSpinState.y % (Math.PI * 2);
+        this.diceSpinState.z = this.diceSpinState.z % (Math.PI * 2);
+
+        this.renderDice3D();
         this.diceValueText.setText(String(rollValue));
         this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
         this.diceTimerText.setText('');
@@ -364,6 +372,8 @@ export class Board extends Phaser.Scene {
     }
 
     hideDice() {
+        this.stopDiceRotationTween();
+
         this.tweens.add({
             targets: this.diceContainer,
             alpha: 0,
@@ -466,28 +476,18 @@ export class Board extends Phaser.Scene {
         this.diceContainer = this.add.container(width / 2, height / 2);
         this.diceContainer.setDepth(1000);
         this.diceContainer.setVisible(false);
-        this.diceContainer.setAngle(0);
 
-        this.diceShakingTween = this.tweens.add({
-            targets: this.diceContainer,
-            angle: { from: -12, to: 12 },
-            duration: 90,
-            ease: 'Sine.InOut',
-            yoyo: true,
-            repeat: -1,
-            paused: true,
-            persist: true
-        });
+        this.diceShadow = this.add.ellipse(10, 90, 210, 70, 0x000000, 0.3);
+        this.diceShadow.setScale(1.05, 0.8);
 
-        const shadow = this.add.rectangle(8, 8, 220, 220, 0x000000, 0.35);
-        const bg = this.add.rectangle(0, 0, 220, 220, 0xffffff, 0.97);
-        const border = this.add.rectangle(0, 0, 220, 220);
-        border.setStrokeStyle(10, 0x202020, 1);
+        this.diceGraphics = this.add.graphics();
 
-        this.diceValueText = this.add.text(0, 0, '1', {
+        this.diceValueText = this.add.text(0, -158, '1', {
             fontFamily: 'Arial, sans-serif',
-            fontSize: '120px',
-            color: '#111111',
+            fontSize: '68px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 8,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
@@ -509,7 +509,212 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceContainer.add([shadow, bg, border, this.diceValueText, this.diceHintText, this.diceTimerText]);
+        this.diceContainer.add([this.diceShadow, this.diceGraphics, this.diceValueText, this.diceHintText, this.diceTimerText]);
+
+        this.diceFaceValues = {
+            px: 3,
+            nx: 4,
+            py: 1,
+            ny: 6,
+            pz: 2,
+            nz: 5
+        };
+
+        this.renderDice3D();
+    }
+
+    stopDiceRotationTween() {
+        if (this.diceRotationTween) {
+            this.diceRotationTween.stop();
+            this.diceRotationTween = null;
+        }
+    }
+
+    startDiceRollingLoop() {
+        this.stopDiceRotationTween();
+
+        const state = this.diceSpinState;
+
+        this.diceRotationTween = this.tweens.add({
+            targets: state,
+            x: state.x + Phaser.Math.FloatBetween(Math.PI * 5, Math.PI * 7),
+            y: state.y + Phaser.Math.FloatBetween(Math.PI * 6, Math.PI * 8),
+            z: state.z + Phaser.Math.FloatBetween(Math.PI * 4, Math.PI * 6),
+            duration: 700,
+            ease: 'Sine.InOut',
+            repeat: -1,
+            onUpdate: () => this.renderDice3D()
+        });
+    }
+
+    animateDiceToValue(value) {
+        this.stopDiceRotationTween();
+
+        const target = this.getTargetDiceRotation(value);
+        const state = this.diceSpinState;
+
+        this.diceRotationTween = this.tweens.add({
+            targets: state,
+            x: target.x,
+            y: target.y,
+            z: target.z,
+            duration: 900,
+            ease: 'Cubic.Out',
+            onUpdate: () => this.renderDice3D(),
+            onComplete: () => {
+                this.diceRotationTween = null;
+                this.renderDice3D();
+            }
+        });
+    }
+
+    getTargetDiceRotation(value) {
+        const base = {
+            1: { x: 0, y: 0, z: 0 },
+            2: { x: Math.PI / 2, y: 0, z: 0 },
+            3: { x: 0, y: 0, z: -Math.PI / 2 },
+            4: { x: 0, y: 0, z: Math.PI / 2 },
+            5: { x: -Math.PI / 2, y: 0, z: 0 },
+            6: { x: Math.PI, y: 0, z: 0 }
+        };
+
+        const destination = base[value] ?? base[1];
+
+        return {
+            x: destination.x + Math.PI * 4,
+            y: destination.y + Phaser.Math.FloatBetween(Math.PI * 3, Math.PI * 4),
+            z: destination.z + Math.PI * 3
+        };
+    }
+
+    renderDice3D() {
+        if (!this.diceGraphics) {
+            return;
+        }
+
+        const g = this.diceGraphics;
+        g.clear();
+
+        const size = 72;
+        const cameraZ = 5.2;
+        const perspective = 220;
+        const rot = this.diceSpinState;
+
+        const points = {
+            nnn: [-1, -1, -1],
+            nnp: [-1, -1, 1],
+            npn: [-1, 1, -1],
+            npp: [-1, 1, 1],
+            pnn: [1, -1, -1],
+            pnp: [1, -1, 1],
+            ppn: [1, 1, -1],
+            ppp: [1, 1, 1]
+        };
+
+        const rotate = ([x, y, z]) => {
+            const cx = Math.cos(rot.x), sx = Math.sin(rot.x);
+            const cy = Math.cos(rot.y), sy = Math.sin(rot.y);
+            const cz = Math.cos(rot.z), sz = Math.sin(rot.z);
+
+            let y1 = y * cx - z * sx;
+            let z1 = y * sx + z * cx;
+            let x1 = x;
+
+            let x2 = x1 * cy + z1 * sy;
+            let z2 = -x1 * sy + z1 * cy;
+            let y2 = y1;
+
+            return {
+                x: (x2 * cz - y2 * sz) * size,
+                y: (x2 * sz + y2 * cz) * size,
+                z: z2
+            };
+        };
+
+        const projected = Object.fromEntries(Object.entries(points).map(([k, p]) => {
+            const rp = rotate(p);
+            const scale = perspective / (cameraZ - rp.z);
+            return [k, {
+                x: rp.x * scale / 130,
+                y: rp.y * scale / 130,
+                z: rp.z,
+                world: rp
+            }];
+        }));
+
+        const faces = [
+            { key: 'py', verts: ['npp', 'ppp', 'ppn', 'npn'], normal: [0, 1, 0] },
+            { key: 'ny', verts: ['nnp', 'pnp', 'pnn', 'nnn'], normal: [0, -1, 0] },
+            { key: 'px', verts: ['pnp', 'ppp', 'ppn', 'pnn'], normal: [1, 0, 0] },
+            { key: 'nx', verts: ['nnp', 'npp', 'npn', 'nnn'], normal: [-1, 0, 0] },
+            { key: 'pz', verts: ['npp', 'ppp', 'pnp', 'nnp'], normal: [0, 0, 1] },
+            { key: 'nz', verts: ['npn', 'ppn', 'pnn', 'nnn'], normal: [0, 0, -1] }
+        ];
+
+        const rotateNormal = (n) => rotate(n);
+
+        const visibleFaces = faces
+            .map(face => {
+                const normal = rotateNormal(face.normal);
+                return {
+                    ...face,
+                    normal,
+                    depth: face.verts.reduce((sum, v) => sum + projected[v].z, 0) / face.verts.length
+                };
+            })
+            .filter(face => face.normal.z > -0.08)
+            .sort((a, b) => a.depth - b.depth);
+
+        visibleFaces.forEach(face => {
+            const shade = Phaser.Math.Clamp(0.55 + face.normal.z * 0.42, 0.28, 0.95);
+            const color = Phaser.Display.Color.GetColor(255 * shade, 248 * shade, 236 * shade);
+
+            g.fillStyle(color, 1);
+            g.lineStyle(3, 0x111111, 0.45);
+
+            g.beginPath();
+            g.moveTo(projected[face.verts[0]].x, projected[face.verts[0]].y);
+            for (let i = 1; i < face.verts.length; i++) {
+                g.lineTo(projected[face.verts[i]].x, projected[face.verts[i]].y);
+            }
+            g.closePath();
+            g.fillPath();
+            g.strokePath();
+
+            this.drawFacePips(g, face, projected);
+        });
+    }
+
+    drawFacePips(graphics, face, projectedPoints) {
+        const value = this.diceFaceValues[face.key] ?? 1;
+        const [v0, v1, v2, v3] = face.verts.map(v => projectedPoints[v]);
+
+        const bilinear = (u, v) => {
+            const a = Phaser.Math.Linear(v0.x, v1.x, u);
+            const b = Phaser.Math.Linear(v3.x, v2.x, u);
+            const c = Phaser.Math.Linear(v0.y, v1.y, u);
+            const d = Phaser.Math.Linear(v3.y, v2.y, u);
+
+            return {
+                x: Phaser.Math.Linear(a, b, v),
+                y: Phaser.Math.Linear(c, d, v)
+            };
+        };
+
+        const positions = {
+            1: [[0.5, 0.5]],
+            2: [[0.3, 0.3], [0.7, 0.7]],
+            3: [[0.3, 0.3], [0.5, 0.5], [0.7, 0.7]],
+            4: [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]],
+            5: [[0.3, 0.3], [0.7, 0.3], [0.5, 0.5], [0.3, 0.7], [0.7, 0.7]],
+            6: [[0.3, 0.25], [0.7, 0.25], [0.3, 0.5], [0.7, 0.5], [0.3, 0.75], [0.7, 0.75]]
+        };
+
+        graphics.fillStyle(0x111111, 0.95);
+        positions[value].forEach(([u, v]) => {
+            const point = bilinear(u, v);
+            graphics.fillCircle(point.x, point.y, 5.5);
+        });
     }
 
     createTurnUI() {
