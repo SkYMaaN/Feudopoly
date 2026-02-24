@@ -552,16 +552,16 @@ export class Board extends Phaser.Scene {
     animateDiceToValue(value) {
         this.stopDiceRotationTween();
 
+        const target = this.getTargetDiceRotation(value);
         const state = this.diceSpinState;
-        const target = this.getTargetDiceRotation(value, state);
 
         this.diceRotationTween = this.tweens.add({
             targets: state,
             x: target.x,
             y: target.y,
             z: target.z,
-            duration: 1150,
-            ease: 'Sine.Out',
+            duration: 900,
+            ease: 'Cubic.Out',
             onUpdate: () => this.renderDice3D(),
             onComplete: () => {
                 this.diceRotationTween = null;
@@ -570,7 +570,7 @@ export class Board extends Phaser.Scene {
         });
     }
 
-    getTargetDiceRotation(value, currentState = this.diceSpinState) {
+    getTargetDiceRotation(value) {
         // Face values are mapped to cube normals in diceFaceValues.
         // We settle with the rolled value facing the camera (+Z) so the visible face
         // always matches the SignalR hub result.
@@ -586,17 +586,10 @@ export class Board extends Phaser.Scene {
         const destination = base[value] ?? base[1];
         const fullTurn = Math.PI * 2;
 
-        const forwardAngle = (current, target, extraTurnsMin, extraTurnsMax) => {
-            const turnsToTarget = Math.ceil((current - target) / fullTurn);
-            const aligned = target + turnsToTarget * fullTurn;
-            const extraTurns = Phaser.Math.FloatBetween(extraTurnsMin, extraTurnsMax);
-            return aligned + extraTurns * fullTurn;
-        };
-
         return {
-            x: forwardAngle(currentState.x, destination.x, 0.18, 0.42),
-            y: forwardAngle(currentState.y, destination.y, 0.2, 0.5),
-            z: forwardAngle(currentState.z, destination.z, 0.12, 0.28)
+            x: destination.x + Phaser.Math.Between(2, 4) * fullTurn,
+            y: destination.y + Phaser.Math.Between(2, 4) * fullTurn,
+            z: destination.z + Phaser.Math.Between(1, 3) * fullTurn
         };
     }
 
