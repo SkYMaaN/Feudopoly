@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Feudopoly.Server")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+651a1d33dc300dbd5ee80da454d003afff7917c0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7e9925c44ddc5276d179888ab382f6f93ceb6a2b")]
 [assembly: System.Reflection.AssemblyProductAttribute("Feudopoly.Server")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Feudopoly.Server")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -17,7 +17,7 @@ export class Board extends Phaser.Scene {
         this.load.image('token', 'assets/textures/game_token.png');
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
 
-        for (let i = 1; i < 21; i++) {
+        for (let i = 0; i < 30; i++) {
             this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
         }
 
@@ -53,21 +53,13 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2,
             {
-                width: 500,
-                height: 150,
-                title: ''
+                width: 600,
+                height: 250,
+                title: 'sad'
             }
         )
             .setOrigin(0.5)
             .setVisible(false);
-
-        this.input.on('pointerdown', () => {
-            if (!this.notificationTextBox.visible) {
-                return;
-            }
-
-            this.notificationTextBox.stop(true).setVisible(false);
-        });
 
         try {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
@@ -138,7 +130,7 @@ export class Board extends Phaser.Scene {
 
         this.players.filter(player => !incomingIds.has(String(player.playerId)))
             .forEach(player => {
-                player.sprite.destroy();
+                player.container.destroy();
             });
 
         this.players = this.players.filter(player => incomingIds.has(String(player.playerId)));
@@ -180,17 +172,40 @@ export class Board extends Phaser.Scene {
     createPlayer(playerId, displayName, startPosition) {
         const cell = this.cells[startPosition] ?? this.cells[0];
 
-        const sprite = this.add.sprite(cell.x, cell.y, 'token')
+        const container = this.add.container(cell.x, cell.y);
+
+        const outline = this.add.sprite(0, 0, 'token')
+            .setOrigin(0.5)
+            .setScale(0.065)
+            .setTint(0xFFD700)
+            .setAlpha(1)
+            .setBlendMode(Phaser.BlendModes.ADD);
+
+        const sprite = this.add.sprite(0, 0, 'token')
             .setOrigin(0.5)
             .setScale(0.05);
 
         const color = Phaser.Display.Color.RandomRGB().color;
         sprite.setTint(color);
 
+        container.add([outline, sprite]);
+
+        this.tweens.add({
+            targets: outline,
+            alpha: { from: 0.8, to: 1 },
+            scale: { from: 0.06, to: 0.065 },
+            duration: 900,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
         return {
             playerId,
             displayName,
+            container,
             sprite,
+            outline,
             currentPosition: startPosition,
             isConnected: true
         };
@@ -212,17 +227,11 @@ export class Board extends Phaser.Scene {
         const isLocalTurn = current?.playerId === this.localPlayerId;
         const canRoll = isLocalTurn && !this.isTurnInProgress;
 
-        this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
-
-        if (this.isTurnInProgress) {
-            this.turnSubtitleText.setText(isLocalTurn
-                ? 'Resolving your turn...'
-                : 'Opponent is resolving turn...');
-        } else {
-            this.turnSubtitleText.setText(isLocalTurn
-                ? 'Your turn! Press Roll to cast the dice.'
-                : 'Waiting for opponent move...');
+        if (isLocalTurn && this.isTurnInProgress) {
+            return;
         }
+
+        this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
 
         if (canRoll) {
             this.rollButton.setVisible(true);
@@ -283,11 +292,21 @@ export class Board extends Phaser.Scene {
             .layout()
             .start(payload.description ?? '', 30);
 
-        gameHubClient.finishTurn(this.sessionId);
+        const onClick = () => {
+            gameHubClient.finishTurn(this.sessionId);
+
+            this.input.off('pointerdown', onClick);
+        };
+
+        this.input.on('pointerdown', onClick);
     }
 
     turnEnded(payload) {
         console.log('Turn Ended: ' + JSON.stringify(payload));
+
+        this.notificationTextBox
+            .setVisible(false)
+            .stop(true);
     }
 
     playDiceResult(payload) {
@@ -370,7 +389,7 @@ export class Board extends Phaser.Scene {
             const dy = row * d - d / 2;
 
             this.tweens.add({
-                targets: player.sprite,
+                targets: player.container,
                 x: base.x + dx,
                 y: base.y + dy,
                 duration: 260
@@ -401,7 +420,7 @@ export class Board extends Phaser.Scene {
             this.stepSfx?.play();
 
             this.tweens.add({
-                targets: player.sprite,
+                targets: player.container,
                 x: point.x,
                 y: point.y,
                 duration: 500,
@@ -620,7 +639,7 @@ export class Board extends Phaser.Scene {
     }
 
     setCellBackgrounds() {
-        for (let i = 1; i < this.cells.length; i++) {
+        for (let i = 0; i < this.cells.length; i++) {
             let cell = this.cells[i];
             const img = this.add.image(cell.x, cell.y, `bg${i}`).setOrigin(0.5);
 
@@ -662,7 +681,7 @@ export class Board extends Phaser.Scene {
                 animationMode: 'ball'
             }).setVisible(false),
 
-            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '24px', }) : undefined,
+            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '30px', }) : undefined,
 
             separator: (titleText) ? scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }) : undefined,
 
@@ -717,7 +736,7 @@ export class Board extends Phaser.Scene {
 
     getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight) {
         return scene.add.text(0, 0, '', {
-            fontSize: '20px',
+            fontSize: '24px',
             wordWrap: {
                 width: wrapWidth
             },
@@ -731,7 +750,7 @@ export class Board extends Phaser.Scene {
             fixedWidth: fixedWidth,
             fixedHeight: fixedHeight,
 
-            fontSize: '20px',
+            fontSize: '24px',
             wrap: {
                 mode: 'word',
                 width: wrapWidth
