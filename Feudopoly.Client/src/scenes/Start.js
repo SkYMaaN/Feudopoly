@@ -4,8 +4,9 @@ export class Start extends Phaser.Scene {
         this.nickname = '';
         this.sessionId = '';
         this.activeInput = null;
-        this.isMan = false;
-        this.isMuslim = false;
+        this.gender = 'Male';
+        this.religion = 'Islam';
+        this.openDropdown = null;
     }
 
     preload() {
@@ -50,29 +51,43 @@ export class Start extends Phaser.Scene {
         this.nicknameField = this.createInputField(width / 2, height / 2 - 30, 'Enter your nickname', 28);
         this.activeInput = this.nicknameField;
 
-        this.isManToggle = this.createToggle(width / 2 - 150, height / 2 + 40, 'IsMan', () => {
-            this.isMan = !this.isMan;
-            this.updateToggleStyle(this.isManToggle, this.isMan);
+        this.genderLabel = this.add.text(width / 2, height / 2 + 30, 'Gender', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '30px',
+            color: '#f2e4c3'
+        }).setOrigin(0.5);
+
+        this.genderDropdown = this.createDropdown(width / 2, height / 2 + 90, [
+            { label: 'Male', value: 'Male' },
+            { label: 'Female', value: 'Female' },
+            { label: 'Other', value: 'Other' }
+        ], this.gender, (value) => {
+            this.gender = value;
         });
 
-        this.isMuslimToggle = this.createToggle(width / 2 + 150, height / 2 + 40, 'IsMuslim', () => {
-            this.isMuslim = !this.isMuslim;
-            this.updateToggleStyle(this.isMuslimToggle, this.isMuslim);
+        this.religionLabel = this.add.text(width / 2, height / 2 + 150, 'Religion', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '30px',
+            color: '#f2e4c3'
+        }).setOrigin(0.5);
+
+        this.religionDropdown = this.createDropdown(width / 2, height / 2 + 210, [
+            { label: 'Islam', value: 'Islam' },
+            { label: 'Other', value: 'Other' }
+        ], this.religion, (value) => {
+            this.religion = value;
         });
 
-        this.updateToggleStyle(this.isManToggle, this.isMan);
-        this.updateToggleStyle(this.isMuslimToggle, this.isMuslim);
-
-        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 50, 'Game code (for joining)', {
+        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 270, 'Game code (for joining)', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: '#f2e4c3'
         }).setOrigin(0.5).setVisible(false);
 
-        this.sessionField = this.createInputField(width / 2, height / 2 + 110, 'Paste game code here', 36);
+        this.sessionField = this.createInputField(width / 2, height / 2 + 330, 'Paste game code here', 36);
         this.setJoinCodeVisibility(false);
 
-        this.createNewButton = this.createButton(width / 2, height / 2 + 100, 420, 96, 'CREATE NEW', () => {
+        this.createNewButton = this.createButton(width / 2, height / 2 + 290, 420, 96, 'CREATE NEW', () => {
             const nickname = this.nickname.trim();
             if (!nickname) {
                 this.showMessage('Enter a nickname before creating a game.');
@@ -83,12 +98,12 @@ export class Start extends Phaser.Scene {
                 mode: 'create',
                 displayName: nickname,
                 sessionId: crypto.randomUUID(),
-                isMan: this.isMan,
-                isMuslim: this.isMuslim
+                isMan: this.gender === 'Male',
+                isMuslim: this.religion === 'Islam'
             });
         });
 
-        this.joinGameButton = this.createButton(width / 2, height / 2 + 230, 420, 96, 'JOIN', () => {
+        this.joinGameButton = this.createButton(width / 2, height / 2 + 400, 420, 96, 'JOIN', () => {
             const nickname = this.nickname.trim();
 
             if (!nickname) {
@@ -117,14 +132,14 @@ export class Start extends Phaser.Scene {
                 mode: 'join',
                 displayName: nickname,
                 sessionId,
-                isMan: this.isMan,
-                isMuslim: this.isMuslim
+                isMan: this.gender === 'Male',
+                isMuslim: this.religion === 'Islam'
             });
         });
 
         this.setGameButtonsVisibility(true);
 
-        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 220, 300, 96, 'CONNECT', () => {
+        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 440, 300, 96, 'CONNECT', () => {
             const nickname = this.nickname.trim();
 
             if (!nickname) {
@@ -142,13 +157,13 @@ export class Start extends Phaser.Scene {
                 mode: 'join',
                 displayName: nickname,
                 sessionId,
-                isMan: this.isMan,
-                isMuslim: this.isMuslim
+                isMan: this.gender === 'Male',
+                isMuslim: this.religion === 'Islam'
             });
         });
         this.setConnectGameButtonVisibility(false);
 
-        this.backButton = this.createButton(width / 2 + 180, height / 2 + 220, 300, 96, 'BACK', () => {
+        this.backButton = this.createButton(width / 2 + 180, height / 2 + 440, 300, 96, 'BACK', () => {
             this.setJoinCodeVisibility(false);
             this.setGameButtonsVisibility(true);
             this.setBackButtonVisibility(false);
@@ -167,6 +182,18 @@ export class Start extends Phaser.Scene {
 
         this.setupKeyboardInput();
         this.refreshInputStyles();
+
+        this.input.on('pointerdown', (pointer, currentlyOver) => {
+            if (!this.openDropdown) {
+                return;
+            }
+
+            const hoveredObjects = currentlyOver || [];
+            const isClickInsideDropdown = hoveredObjects.some((gameObject) => this.isInDropdownHierarchy(gameObject));
+            if (!isClickInsideDropdown) {
+                this.closeDropdown(this.openDropdown);
+            }
+        });
     }
 
     createInputField(x, y, placeholder, maxLength) {
@@ -247,37 +274,137 @@ export class Start extends Phaser.Scene {
         return button;
     }
 
-    createToggle(x, y, label, onToggle) {
-        const background = this.rexUI.add.roundRectangle(0, 0, 260, 64, 16, 0x1f1308, 1)
+    createDropdown(x, y, options, initialValue, onSelect) {
+        const background = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0x1f1308, 1)
             .setStrokeStyle(5, 0x8d6a3b, 0.9);
 
-        const text = this.add.text(0, 0, label, {
+        const text = this.add.text(0, 0, initialValue, {
             fontFamily: 'Georgia, serif',
-            fontSize: '28px',
+            fontSize: '30px',
+            color: '#f2e4c3',
+            stroke: '#2a1707',
+            strokeThickness: 5
+        }).setOrigin(0, 0.5);
+
+        const arrow = this.add.text(0, 0, '▼', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '30px',
             color: '#d9c39a',
             stroke: '#2a1707',
             strokeThickness: 5
         }).setOrigin(0.5);
 
-        const toggle = this.rexUI.add.label({
+        const dropdown = this.rexUI.add.label({
             x,
             y,
-            width: 260,
-            height: 64,
+            width: 500,
+            height: 74,
             background,
             text,
-            align: 'center'
-        }).layout().setInteractive({ useHandCursor: true });
+            icon: arrow,
+            align: 'left',
+            space: {
+                left: 25,
+                right: 20,
+                top: 10,
+                bottom: 10,
+                icon: 18
+            }
+        }).layout().setInteractive({ useHandCursor: true, pixelPerfect: false });
 
-        toggle.on('pointerdown', onToggle);
-        return { container: toggle, background, text, label };
+        const optionButtons = options.map((option, index) => {
+            const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x1f1308, 1)
+                .setStrokeStyle(4, 0x8d6a3b, 0.8);
+            const optionText = this.add.text(0, 0, option.label, {
+                fontFamily: 'Georgia, serif',
+                fontSize: '28px',
+                color: '#f2e4c3',
+                stroke: '#2a1707',
+                strokeThickness: 4
+            }).setOrigin(0, 0.5);
+
+            const button = this.rexUI.add.label({
+                x: 0,
+                y: index * 68,
+                width: 500,
+                height: 64,
+                background: optionBackground,
+                text: optionText,
+                align: 'left',
+                space: {
+                    left: 20,
+                    right: 20,
+                    top: 8,
+                    bottom: 8
+                }
+            }).layout().setOrigin(0.5, 0).setInteractive({ useHandCursor: true, pixelPerfect: false });
+
+            button.on('pointerover', () => optionBackground.setFillStyle(0x3E5A2E, 1));
+            button.on('pointerout', () => optionBackground.setFillStyle(0x1f1308, 1));
+            button.on('pointerdown', () => {
+                text.setText(option.label);
+                onSelect(option.value);
+                this.closeDropdown(dropdownData);
+            });
+
+            return button;
+        });
+
+        const panelHeight = options.length * 68 + 10;
+        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 520, panelHeight, 16, 0x120b04, 0.98)
+            .setStrokeStyle(5, 0xc89b58, 1)
+            .setOrigin(0.5, 0);
+        const panel = this.add.container(x, y + 48, [panelBackground, ...optionButtons]).setVisible(false).setDepth(50);
+
+        const dropdownData = { container: dropdown, panel, arrow, background, optionButtons };
+
+        dropdown.on('pointerdown', () => {
+            if (this.openDropdown && this.openDropdown !== dropdownData) {
+                this.closeDropdown(this.openDropdown);
+            }
+
+            if (panel.visible) {
+                this.closeDropdown(dropdownData);
+                return;
+            }
+
+            this.openDropdown = dropdownData;
+            panel.setVisible(true);
+            arrow.setText('▲');
+            background.setStrokeStyle(5, 0xe5b96d, 1);
+        });
+
+        return dropdownData;
     }
 
-    updateToggleStyle(toggle, isActive) {
-        toggle.background.setFillStyle(isActive ? 0x3E5A2E : 0x1f1308, 1);
-        toggle.background.setStrokeStyle(5, isActive ? 0xe5b96d : 0x8d6a3b, 1);
-        toggle.text.setText(`${isActive ? '✓ ' : ''}${toggle.label}`);
-        toggle.text.setColor(isActive ? '#f2e4c3' : '#d9c39a');
+    closeDropdown(dropdown) {
+        if (!dropdown) {
+            return;
+        }
+
+        dropdown.panel.setVisible(false);
+        dropdown.arrow.setText('▼');
+        dropdown.background.setStrokeStyle(5, 0x8d6a3b, 0.9);
+
+        if (this.openDropdown === dropdown) {
+            this.openDropdown = null;
+        }
+    }
+
+    isInDropdownHierarchy(gameObject) {
+        if (!this.openDropdown || !gameObject) {
+            return false;
+        }
+
+        if (gameObject === this.openDropdown.container || gameObject === this.openDropdown.panel) {
+            return true;
+        }
+
+        if (this.openDropdown.optionButtons.includes(gameObject)) {
+            return true;
+        }
+
+        return this.openDropdown.panel.list?.includes(gameObject) ?? false;
     }
 
     setBackButtonVisibility(isVisible) {
