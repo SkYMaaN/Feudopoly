@@ -42,7 +42,7 @@ export class Board extends Phaser.Scene {
         this.animatingPlayerId = null;
         this.diceRotationTween = null;
         this.diceSpinState = { x: 0, y: 0, z: 0 };
-        this.diceRollDurationMs = 5000;
+        this.diceRollDurationMs = 3200;
 
         this.addBoard();
         this.buildCells();
@@ -264,7 +264,7 @@ export class Board extends Phaser.Scene {
             this.showDice('?');
             this.startDiceRollingLoop();
 
-            await new Promise(resolve => setTimeout(resolve, this.diceRollDurationMs));
+            await new Promise(resolve => setTimeout(resolve, this.diceRollDurationMs - 200));
 
             await gameHubClient.rollDice(this.sessionId);
         } catch (error) {
@@ -560,7 +560,7 @@ export class Board extends Phaser.Scene {
             x: target.x,
             y: target.y,
             z: target.z,
-            duration: 900,
+            duration: 200,
             ease: 'Cubic.Out',
             onUpdate: () => this.renderDice3D(),
             onComplete: () => {
@@ -601,7 +601,7 @@ export class Board extends Phaser.Scene {
         const g = this.diceGraphics;
         g.clear();
 
-        const size = 72;
+        const size = 100;
         const cameraZ = 5.2;
         const perspective = 220;
         const rot = this.diceSpinState;
@@ -719,7 +719,7 @@ export class Board extends Phaser.Scene {
         graphics.fillStyle(0x111111, 0.95);
         positions[value].forEach(([u, v]) => {
             const point = bilinear(u, v);
-            graphics.fillCircle(point.x, point.y, 5.5);
+            graphics.fillCircle(point.x, point.y, 7);
         });
     }
 
@@ -811,7 +811,7 @@ export class Board extends Phaser.Scene {
         const toWorldY = (ty) => bounds.y + (ty / texH) * bounds.height;
 
         // Под твою новую картинку (9x8 => 10 вертикальных линий, 9 горизонтальных)
-        const xLines = [55, 205, 356, 502, 657, 803, 951, 1101, 1253, 1410];
+        const xLines = [55, 205, 356, 502, 657, 803, 951, 1101, 1253, 1407];
         const yLines = [40, 160, 294, 411, 546, 659, 800, 914, 1052];
 
         const xMid = (i) => (xLines[i] + xLines[i + 1]) / 2;
