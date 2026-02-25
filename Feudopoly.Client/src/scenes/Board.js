@@ -192,8 +192,7 @@ export class Board extends Phaser.Scene {
             .setOrigin(0.5)
             .setScale(0.05);
 
-        const color = Phaser.Display.Color.RandomRGB().color;
-        sprite.setTint(color);
+        sprite.setTint(this.getPlayerColor(playerId));
 
         container.add([outline, sprite]);
 
@@ -216,6 +215,29 @@ export class Board extends Phaser.Scene {
             currentPosition: startPosition,
             isConnected: true
         };
+    }
+
+    getPlayerColor(playerId) {
+        const palette = [
+            0xFF6B6B,
+            0x4ECDC4,
+            0xFFD166,
+            0x6A9FFB,
+            0xC77DFF,
+            0x95D36E,
+            0xF4A261,
+            0xF28482
+        ];
+
+        let hash = 0;
+        const value = String(playerId ?? '');
+
+        for (let i = 0; i < value.length; i += 1) {
+            hash = ((hash << 5) - hash) + value.charCodeAt(i);
+            hash |= 0;
+        }
+
+        return palette[Math.abs(hash) % palette.length];
     }
 
     refreshTurnUI() {
