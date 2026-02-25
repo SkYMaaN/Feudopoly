@@ -53,6 +53,7 @@ export class Board extends Phaser.Scene {
         this.createDiceUI();
         this.createTurnUI();
         this.createStatusText();
+        this.createPlayersListUI();
 
         this.registerHubEvents();
 
@@ -174,6 +175,8 @@ export class Board extends Phaser.Scene {
         if (!this.isRolling) {
             this.refreshTurnUI();
         }
+
+        this.updatePlayersListUI(state.players);
     }
 
     createPlayer(playerId, displayName, startPosition) {
@@ -238,6 +241,88 @@ export class Board extends Phaser.Scene {
         }
 
         return palette[Math.abs(hash) % palette.length];
+    }
+
+    createPlayersListUI() {
+        const { width, height } = this.scale.gameSize;
+
+        this.playersListContainer = this.add.container(width / 2, height / 2 + 165).setDepth(860);
+
+        const panel = this.add.rectangle(0, 0, 460, 230, 0x000000, 0.52)
+            .setStrokeStyle(3, 0xc89b58, 0.75)
+            .setOrigin(0.5);
+
+        const title = this.add.text(0, -80, 'Players', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '36px',
+            color: '#ffe066',
+            stroke: '#000000',
+            strokeThickness: 8,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.playersListRowsContainer = this.add.container(0, -20);
+
+        this.playersListContainer.add([panel, title, this.playersListRowsContainer]);
+    }
+
+    updatePlayersListUI(playersState) {
+        if (!this.playersListRowsContainer) {
+            return;
+        }
+
+        this.playersListRowsContainer.removeAll(true);
+
+        if (!playersState.length) {
+            const noPlayersText = this.add.text(0, 0, 'Waiting for players...', {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '24px',
+                color: '#d9d9d9',
+                stroke: '#000000',
+                strokeThickness: 5
+            }).setOrigin(0.5);
+
+            this.playersListRowsContainer.add(noPlayersText);
+            return;
+        }
+
+        const rowHeight = 38;
+        const startY = -((playersState.length - 1) * rowHeight) / 2;
+
+        playersState.forEach((playerState, index) => {
+            const playerId = String(playerState.playerId);
+            const nickname = playerState.displayName ?? 'Player';
+            const colorValue = this.getPlayerColor(playerId);
+            const colorHex = `#${colorValue.toString(16).padStart(6, '0')}`;
+
+            const rowY = startY + index * rowHeight;
+            const nicknameText = this.add.text(0, rowY, nickname, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '30px',
+                color: colorHex,
+                stroke: '#000000',
+                strokeThickness: 6,
+                fontStyle: 'bold'
+            }).setOrigin(0.5);
+
+            this.playersListRowsContainer.add(nicknameText);
+
+            const isDead = Boolean(
+                playerState.isDead
+                || playerState.dead
+                || playerState.isAlive === false
+                || playerState.status === 'dead'
+            );
+
+            if (isDead) {
+                const textWidth = nicknameText.width;
+                const strikeLine = this.add.line(0, rowY, -textWidth / 2, 0, textWidth / 2, 0, 0xff2e2e)
+                    .setLineWidth(6)
+                    .setOrigin(0.5);
+
+                this.playersListRowsContainer.add(strikeLine);
+            }
+        });
     }
 
     refreshTurnUI() {
