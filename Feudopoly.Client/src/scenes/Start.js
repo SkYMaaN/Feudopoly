@@ -22,10 +22,10 @@ export class Start extends Phaser.Scene {
 
         this.add.rectangle(width / 2, height / 2, width, height, 0x1a1207, 1).setOrigin(0.5);
         this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.35).setOrigin(0.5);
-        this.add.rectangle(width / 2 + 10, height / 2 + 10, 980, 720, 0x000000, 0.45);
-        this.add.rectangle(width / 2, height / 2, 980, 720, 0x2d1f11, 0.95).setStrokeStyle(10, 0x8d6a3b, 1);
+        this.add.rectangle(width / 2 + 10, height / 2 + 10, 980, 920, 0x000000, 0.45);
+        this.add.rectangle(width / 2, height / 2, 980, 920, 0x2d1f11, 0.95).setStrokeStyle(10, 0x8d6a3b, 1);
 
-        this.add.text(width / 2, height / 2 - 260, 'FEUDOPOLY', {
+        this.add.text(width / 2, height / 2 - 360, 'FEUDOPOLY', {
             fontFamily: 'Georgia, serif',
             fontSize: '120px',
             color: '#e8d2a9',
@@ -34,7 +34,7 @@ export class Start extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height / 2 - 165, 'A medieval board of feuds and fortune', {
+        this.add.text(width / 2, height / 2 - 270, 'A medieval board of feuds and fortune', {
             fontFamily: 'Georgia, serif',
             fontSize: '34px',
             color: '#d9c39a',
@@ -42,22 +42,22 @@ export class Start extends Phaser.Scene {
             strokeThickness: 8
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height / 2 - 90, 'Nickname', {
+        this.add.text(width / 2, height / 2 - 220, 'Nickname', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: '#f2e4c3'
         }).setOrigin(0.5);
 
-        this.nicknameField = this.createInputField(width / 2, height / 2 - 30, 'Enter your nickname', 28);
+        this.nicknameField = this.createInputField(width / 2, height / 2 - 160, 'Enter your nickname', 28);
         this.activeInput = this.nicknameField;
 
-        this.genderLabel = this.add.text(width / 2, height / 2 + 30, 'Gender', {
+        this.genderLabel = this.add.text(width / 2, height / 2 - 100, 'Gender', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: '#f2e4c3'
         }).setOrigin(0.5);
 
-        this.genderDropdown = this.createDropdown(width / 2, height / 2 + 90, [
+        this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
             { label: 'Male', value: 'Male' },
             { label: 'Female', value: 'Female' },
             { label: 'Other', value: 'Other' }
@@ -65,29 +65,29 @@ export class Start extends Phaser.Scene {
             this.gender = value;
         });
 
-        this.religionLabel = this.add.text(width / 2, height / 2 + 150, 'Religion', {
+        this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: '#f2e4c3'
         }).setOrigin(0.5);
 
-        this.religionDropdown = this.createDropdown(width / 2, height / 2 + 210, [
-            { label: 'Islam', value: 'Islam' },
-            { label: 'Other', value: 'Other' }
+        this.religionDropdown = this.createDropdown(width / 2, height / 2 + 85, [
+            { label: 'Other', value: 'Other' },
+            { label: 'Islam', value: 'Islam' }
         ], this.religion, (value) => {
             this.religion = value;
         });
 
-        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 270, 'Game code (for joining)', {
+        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 150, 'Game code (for joining)', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: '#f2e4c3'
         }).setOrigin(0.5).setVisible(false);
 
-        this.sessionField = this.createInputField(width / 2, height / 2 + 330, 'Paste game code here', 36);
+        this.sessionField = this.createInputField(width / 2, height / 2 + 210, 'Paste game code here', 36);
         this.setJoinCodeVisibility(false);
 
-        this.createNewButton = this.createButton(width / 2, height / 2 + 290, 420, 96, 'CREATE NEW', () => {
+        this.createNewButton = this.createButton(width / 2, height / 2 + 200, 420, 96, 'CREATE NEW', () => {
             const nickname = this.nickname.trim();
             if (!nickname) {
                 this.showMessage('Enter a nickname before creating a game.');
@@ -103,7 +103,7 @@ export class Start extends Phaser.Scene {
             });
         });
 
-        this.joinGameButton = this.createButton(width / 2, height / 2 + 400, 420, 96, 'JOIN', () => {
+        this.joinGameButton = this.createButton(width / 2, height / 2 + 330, 420, 96, 'JOIN', () => {
             const nickname = this.nickname.trim();
 
             if (!nickname) {
@@ -139,7 +139,7 @@ export class Start extends Phaser.Scene {
 
         this.setGameButtonsVisibility(true);
 
-        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 440, 300, 96, 'CONNECT', () => {
+        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 320, 300, 96, 'CONNECT', () => {
             const nickname = this.nickname.trim();
 
             if (!nickname) {
@@ -163,7 +163,7 @@ export class Start extends Phaser.Scene {
         });
         this.setConnectGameButtonVisibility(false);
 
-        this.backButton = this.createButton(width / 2 + 180, height / 2 + 440, 300, 96, 'BACK', () => {
+        this.backButton = this.createButton(width / 2 + 180, height / 2 + 320, 300, 96, 'BACK', () => {
             this.setJoinCodeVisibility(false);
             this.setGameButtonsVisibility(true);
             this.setBackButtonVisibility(false);
@@ -171,7 +171,7 @@ export class Start extends Phaser.Scene {
         });
         this.setBackButtonVisibility(false);
 
-        this.messageText = this.add.text(width / 2, height / 2 + 445, '', {
+        this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
             fontFamily: 'Georgia, serif',
             fontSize: '26px',
             color: '#ffd9a0',
@@ -297,8 +297,8 @@ export class Start extends Phaser.Scene {
         const dropdown = this.rexUI.add.label({
             x,
             y,
-            width: 500,
-            height: 74,
+            width: 330,
+            height: 40,
             background,
             text,
             icon: arrow,
@@ -315,6 +315,7 @@ export class Start extends Phaser.Scene {
         const optionButtons = options.map((option, index) => {
             const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x1f1308, 1)
                 .setStrokeStyle(4, 0x8d6a3b, 0.8);
+
             const optionText = this.add.text(0, 0, option.label, {
                 fontFamily: 'Georgia, serif',
                 fontSize: '28px',
@@ -325,9 +326,9 @@ export class Start extends Phaser.Scene {
 
             const button = this.rexUI.add.label({
                 x: 0,
-                y: index * 68,
-                width: 500,
-                height: 64,
+                y: 40 + index * 68,
+                width: 200,
+                height: 20,
                 background: optionBackground,
                 text: optionText,
                 align: 'left',
@@ -351,10 +352,10 @@ export class Start extends Phaser.Scene {
         });
 
         const panelHeight = options.length * 68 + 10;
-        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 520, panelHeight, 16, 0x120b04, 0.98)
+        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 230, panelHeight, 16, 0x120b04, 0.98)
             .setStrokeStyle(5, 0xc89b58, 1)
             .setOrigin(0.5, 0);
-        const panel = this.add.container(x, y + 48, [panelBackground, ...optionButtons]).setVisible(false).setDepth(50);
+        const panel = this.add.container(x, y + 40, [panelBackground, ...optionButtons]).setVisible(false).setDepth(250);
 
         const dropdownData = { container: dropdown, panel, arrow, background, optionButtons };
 
