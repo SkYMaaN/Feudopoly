@@ -244,24 +244,42 @@ export class Board extends Phaser.Scene {
     }
 
     createPlayersListUI() {
-        const { width, height } = this.scale.gameSize;
+        const bounds = this.board.getBounds();
+        const tex = this.textures.get('board').getSourceImage();
+        const texW = tex.width;
+        const texH = tex.height;
 
-        this.playersListContainer = this.add.container(width / 2, height / 2 + 165).setDepth(860);
+        const toWorldX = (tx) => bounds.x + (tx / texW) * bounds.width;
+        const toWorldY = (ty) => bounds.y + (ty / texH) * bounds.height;
 
-        const panel = this.add.rectangle(0, 0, 460, 230, 0x000000, 0.52)
+        const xLines = [55, 205, 356, 502, 657, 803, 951, 1101, 1253, 1407];
+        const yLines = [40, 160, 294, 411, 546, 659, 800, 914, 1052];
+
+        const innerLeft = toWorldX(xLines[1]);
+        const innerTop = toWorldY(yLines[1]);
+        const innerRight = toWorldX(xLines[xLines.length - 2]);
+        const innerBottom = toWorldY(yLines[yLines.length - 2]);
+
+        const padding = 18;
+        const panelWidth = Math.min(560, Math.max(340, innerRight - innerLeft - (padding * 2)));
+        const panelHeight = Math.min(290, Math.max(180, innerBottom - innerTop - (padding * 2)));
+
+        this.playersListContainer = this.add.container(innerLeft + padding, innerTop + padding).setDepth(860);
+
+        const panel = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x000000, 0.52)
             .setStrokeStyle(3, 0xc89b58, 0.75)
-            .setOrigin(0.5);
+            .setOrigin(0, 0);
 
-        const title = this.add.text(0, -80, 'Players', {
+        const title = this.add.text(24, 18, 'Players', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '36px',
             color: '#ffe066',
             stroke: '#000000',
             strokeThickness: 8,
             fontStyle: 'bold'
-        }).setOrigin(0.5);
+        }).setOrigin(0, 0);
 
-        this.playersListRowsContainer = this.add.container(0, -20);
+        this.playersListRowsContainer = this.add.container(24, 82);
 
         this.playersListContainer.add([panel, title, this.playersListRowsContainer]);
     }
@@ -280,14 +298,13 @@ export class Board extends Phaser.Scene {
                 color: '#d9d9d9',
                 stroke: '#000000',
                 strokeThickness: 5
-            }).setOrigin(0.5);
+            }).setOrigin(0, 0.5);
 
             this.playersListRowsContainer.add(noPlayersText);
             return;
         }
 
         const rowHeight = 38;
-        const startY = -((playersState.length - 1) * rowHeight) / 2;
 
         playersState.forEach((playerState, index) => {
             const playerId = String(playerState.playerId);
@@ -295,7 +312,7 @@ export class Board extends Phaser.Scene {
             const colorValue = this.getPlayerColor(playerId);
             const colorHex = `#${colorValue.toString(16).padStart(6, '0')}`;
 
-            const rowY = startY + index * rowHeight;
+            const rowY = index * rowHeight;
             const nicknameText = this.add.text(0, rowY, nickname, {
                 fontFamily: 'Arial, sans-serif',
                 fontSize: '30px',
@@ -303,7 +320,7 @@ export class Board extends Phaser.Scene {
                 stroke: '#000000',
                 strokeThickness: 6,
                 fontStyle: 'bold'
-            }).setOrigin(0.5);
+            }).setOrigin(0, 0.5);
 
             this.playersListRowsContainer.add(nicknameText);
 
@@ -316,9 +333,9 @@ export class Board extends Phaser.Scene {
 
             if (isDead) {
                 const textWidth = nicknameText.width;
-                const strikeLine = this.add.line(0, rowY, -textWidth / 2, 0, textWidth / 2, 0, 0xff2e2e)
+                const strikeLine = this.add.line(0, rowY, 0, 0, textWidth, 0, 0xff2e2e)
                     .setLineWidth(6)
-                    .setOrigin(0.5);
+                    .setOrigin(0, 0.5);
 
                 this.playersListRowsContainer.add(strikeLine);
             }
