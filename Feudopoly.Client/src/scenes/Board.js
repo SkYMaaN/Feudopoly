@@ -260,26 +260,26 @@ export class Board extends Phaser.Scene {
         const innerRight = toWorldX(xLines[xLines.length - 2]);
         const innerBottom = toWorldY(yLines[yLines.length - 2]);
 
-        const padding = 18;
-        const panelWidth = Math.min(560, Math.max(340, innerRight - innerLeft - (padding * 2)));
-        const panelHeight = Math.min(290, Math.max(180, innerBottom - innerTop - (padding * 2)));
+        const padding = 10;
+        const panelWidth = Math.min(200, Math.max(340, innerRight - innerLeft - (padding * 2)));
+        const panelHeight = Math.min(160, Math.max(180, innerBottom - innerTop - (padding * 2)));
 
         this.playersListContainer = this.add.container(innerLeft + padding, innerTop + padding).setDepth(860);
 
-        const panel = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x000000, 0.52)
+        const panel = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x000000, 0.3)
             .setStrokeStyle(3, 0xc89b58, 0.75)
             .setOrigin(0, 0);
 
-        const title = this.add.text(24, 18, 'Players', {
+        const title = this.add.text(40, 0, 'Players', {
             fontFamily: 'Arial, sans-serif',
-            fontSize: '36px',
+            fontSize: '24px',
             color: '#ffe066',
             stroke: '#000000',
             strokeThickness: 8,
             fontStyle: 'bold'
         }).setOrigin(0, 0);
 
-        this.playersListRowsContainer = this.add.container(24, 82);
+        this.playersListRowsContainer = this.add.container(5, 35);
 
         this.playersListContainer.add([panel, title, this.playersListRowsContainer]);
     }
@@ -292,19 +292,10 @@ export class Board extends Phaser.Scene {
         this.playersListRowsContainer.removeAll(true);
 
         if (!playersState.length) {
-            const noPlayersText = this.add.text(0, 0, 'Waiting for players...', {
-                fontFamily: 'Arial, sans-serif',
-                fontSize: '24px',
-                color: '#d9d9d9',
-                stroke: '#000000',
-                strokeThickness: 5
-            }).setOrigin(0, 0.5);
-
-            this.playersListRowsContainer.add(noPlayersText);
             return;
         }
 
-        const rowHeight = 38;
+        const rowHeight = 25;
 
         playersState.forEach((playerState, index) => {
             const playerId = String(playerState.playerId);
@@ -315,12 +306,12 @@ export class Board extends Phaser.Scene {
             const rowY = index * rowHeight;
             const nicknameText = this.add.text(0, rowY, nickname, {
                 fontFamily: 'Arial, sans-serif',
-                fontSize: '30px',
+                fontSize: '20px',
                 color: colorHex,
                 stroke: '#000000',
                 strokeThickness: 6,
                 fontStyle: 'bold'
-            }).setOrigin(0, 0.5);
+            }).setOrigin(0, 0);
 
             this.playersListRowsContainer.add(nicknameText);
 
