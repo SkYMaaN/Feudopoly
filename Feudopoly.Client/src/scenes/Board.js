@@ -18,6 +18,8 @@ export class Board extends Phaser.Scene {
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
         this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
+        this.load.image('deathScreen', 'assets/backgrounds/death_screen.png');
+
         for (let i = 0; i < 30; i++) {
             this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
         }
@@ -54,6 +56,7 @@ export class Board extends Phaser.Scene {
         this.createTurnUI();
         this.createStatusText();
         this.createPlayersListUI();
+        this.createDeathScreenUI();
 
         this.registerHubEvents();
 
@@ -402,6 +405,14 @@ export class Board extends Phaser.Scene {
     turnBegan(payload) {
         console.log('Turn Began: ' + JSON.stringify(payload));
 
+        const hasDeathOutcome = Boolean(payload?.hasDeathOutcome);
+
+        if (hasDeathOutcome) {
+            this.showDeathScreen(payload);
+        } else {
+            this.hideDeathScreen();
+        }
+
         this.notificationTextBox
             .setVisible(true)
             .stop(true);
@@ -428,9 +439,157 @@ export class Board extends Phaser.Scene {
     turnEnded(payload) {
         console.log('Turn Ended: ' + JSON.stringify(payload));
 
+        this.hideDeathScreen();
+
         this.notificationTextBox
             .setVisible(false)
             .stop(true);
+    }
+
+    createDeathScreenUI() {
+        const { width, height } = this.scale.gameSize;
+
+        this.deathScreenContainer = this.add.container(width / 2, height / 2)
+            .setDepth(1800)
+            .setVisible(false)
+            .setAlpha(0);
+
+        const deathBg = this.add.image(0, 0, 'deathScreen').setOrigin(0.5);
+        const bgScale = Math.max(width / deathBg.width, height / deathBg.height);
+        deathBg.setScale(bgScale);
+        deathBg.setTint(0xaa2222);
+
+        const deathShade = this.add.rectangle(0, 0, width, height, 0x000000, 0.45).setOrigin(0.5);
+        const deathPulse = this.add.rectangle(0, 0, width, height, 0x7a0000, 0.18).setOrigin(0.5);
+
+        const scanlines = this.add.graphics();
+        scanlines.fillStyle(0x000000, 0.12);
+        for (let y = -height / 2; y < height / 2; y += 7) {
+            scanlines.fillRect(-width / 2, y, width, 2);
+        }
+
+        this.deathTitle = this.add.text(0, -70, 'YOU DIED', {
+            fontFamily: 'Arial Black, Arial, sans-serif',
+            fontSize: '132px',
+            color: '#ff1f1f',
+            stroke: '#120000',
+            strokeThickness: 14,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.deathSubtitle = this.add.text(0, 72, 'The darkness has consumed your fate', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '38px',
+            color: '#ffe6e6',
+            stroke: '#000000',
+            strokeThickness: 8,
+            align: 'center'
+        }).setOrigin(0.5);
+
+        this.deathScreenContainer.add([deathBg, deathShade, deathPulse, scanlines, this.deathTitle, this.deathSubtitle]);
+
+        this.deathPulseTween = this.tweens.add({
+            targets: deathPulse,
+            alpha: { from: 0.1, to: 0.32 },
+            duration: 620,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+            paused: true
+        });
+
+        this.deathFlickerTween = this.tweens.add({
+            targets: [this.deathTitle, this.deathSubtitle],
+            alpha: { from: 0.7, to: 1 },
+            duration: 180,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Stepped',
+            paused: true
+        });
+
+        this.deathShakeTween = this.tweens.add({
+            targets: this.deathScreenContainer,
+            x: this.deathScreenContainer.x + 7,
+            y: this.deathScreenContainer.y + 4,
+            duration: 56,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+
+        if (!this.textures.exists('deathFogParticle')) {
+            const fog = this.make.graphics({ x: 0, y: 0, add: false });
+            fog.fillStyle(0x8f0a0a, 1);
+            fog.fillCircle(22, 22, 22);
+            fog.generateTexture('deathFogParticle', 44, 44);
+            fog.destroy();
+        }
+
+        this.deathFog = this.add.particles(0, 0, 'deathFogParticle', {
+            x: { min: -width / 2, max: width / 2 },
+            y: { min: -height / 2, max: height / 2 },
+            lifespan: 1900,
+            speedX: { min: -55, max: 55 },
+            speedY: { min: -35, max: 35 },
+            scale: { start: 0.28, end: 1.5 },
+            alpha: { start: 0.38, end: 0 },
+            quantity: 3,
+            blendMode: 'ADD',
+            emitting: false
+        }).setDepth(1);
+
+        this.deathScreenContainer.add(this.deathFog);
+    }
+
+    showDeathScreen(payload) {
+        if (!this.deathScreenContainer) {
+            return;
+        }
+
+        this.deathTitle.setText(payload?.title?.trim() || 'YOU DIED');
+        this.deathSubtitle.setText(payload?.description?.trim() || 'The darkness has consumed your fate');
+
+        this.deathScreenContainer.setVisible(true);
+        this.deathScreenContainer.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
+
+        this.tweens.killTweensOf(this.deathScreenContainer);
+        this.deathScreenContainer.setAlpha(0);
+
+        this.tweens.add({
+            targets: this.deathScreenContainer,
+            alpha: 1,
+            duration: 260,
+            ease: 'Quad.Out'
+        });
+
+        this.deathPulseTween?.resume();
+        this.deathFlickerTween?.resume();
+        this.deathShakeTween?.resume();
+        this.deathFog?.start();
+    }
+
+    hideDeathScreen() {
+        if (!this.deathScreenContainer || !this.deathScreenContainer.visible) {
+            return;
+        }
+
+        this.deathPulseTween?.pause();
+        this.deathFlickerTween?.pause();
+        this.deathShakeTween?.pause();
+        this.deathFog?.stop();
+
+        this.tweens.killTweensOf(this.deathScreenContainer);
+        this.tweens.add({
+            targets: this.deathScreenContainer,
+            alpha: 0,
+            duration: 180,
+            onComplete: () => {
+                this.deathScreenContainer.setVisible(false);
+                this.deathScreenContainer.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
+            }
+        });
     }
 
     playDiceResult(payload) {
