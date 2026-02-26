@@ -291,15 +291,19 @@ namespace Feudopoly.Server.Multiplayer
                 MoveOffset = 0
             };
 
-            // 22 (в PDF видны только 5-6; 1-4 не попали в текст)
+            // 22
             dictionary[22] = new GameCellEvent
             {
                 Id = Guid.NewGuid(),
-                Title = "Reformation",
-                Description = "It's the Reformation. For some it's good, for others not. Roll again.",
-                WinRange = R(5, 6),
-                WinText = "You're basically worshipping the tooth fairy. Smile and be happy. It could be worse.",
-                DictorSpeech = "Smile and be happy. It could be worse.",
+                Title = "The Reformation",
+                Description = "For some it's good, for others not. Roll again.",
+                WinRange = new IntRange(1, 2),
+                WinText = "Actually, you love confessions and incense. You are sad and suspends a train.",
+                TieRange = new IntRange(3, 4),
+                TieText = "The priest now legal. You think it's good to be able to have a woman. Smile and be happy. It could be worse.",
+                LoseRange = new IntRange(5, 6),
+                LoseText = "You're basically worshipping the tooth fairy. Smile and be happy. It could be worse.",
+                DictorSpeech = "",
                 HasDeathOutcome = false,
                 MoveOffset = 0
             };
@@ -382,16 +386,16 @@ namespace Feudopoly.Server.Multiplayer
                 MoveOffset = 3
             };
 
-            // 29 (в PDF есть ещё фраза “Go to field 24” отдельной строкой — не помещается в текущую модель телепорта)
+            // 29
             dictionary[29] = new GameCellEvent
             {
                 Id = Guid.NewGuid(),
                 Title = "Industrialization begins",
                 Description = "Industrialization begins. Roll again.",
                 LoseRange = R(1, 3),
-                LoseText = "Skip 2 moves.",
+                LoseText = "Rejoice. You will be significantly better off in just 200 years because of this",
                 WinRange = R(4, 6),
-                WinText = "Rejoice. You will be significantly better off in just 200 years because of this.",
+                WinText = "You prefer honest, manual labor in the field - even if you're pulling the plow yourself. Skip 2 moves",
                 DictorSpeech = "Rejoice.",
                 HasDeathOutcome = false,
                 MoveOffset = 0
