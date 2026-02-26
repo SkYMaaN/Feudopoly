@@ -57,7 +57,8 @@ public sealed class SessionStorage
                 IsMan = player.IsMan,
                 IsMuslim = player.IsMuslim,
                 Position = player.Position,
-                IsConnected = player.IsConnected
+                IsConnected = player.IsConnected,
+                IsDead = player.IsDead
             }).ToArray()
         };
     }

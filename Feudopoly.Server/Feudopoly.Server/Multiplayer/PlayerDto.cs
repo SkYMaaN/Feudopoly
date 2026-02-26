@@ -8,4 +8,5 @@ public sealed class PlayerDto
     public required bool IsMuslim { get; init; }
     public required int Position { get; init; }
     public required bool IsConnected { get; init; }
+    public required bool IsDead { get; init; }
 }
