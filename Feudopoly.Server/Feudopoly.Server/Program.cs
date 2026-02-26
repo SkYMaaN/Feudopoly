@@ -19,7 +19,7 @@ namespace Feudopoly.Server
                 options.AddPolicy("ClientPolicy", policy =>
                 {
                     policy
-                        .WithOrigins("http://localhost:8083", "http://localhost:8084", "http://localhost:8085")
+                        .WithOrigins("http://localhost:8083", "http://localhost:8084", "http://localhost:8085", "http://localhost:8086", "http://localhost:8087")
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
