@@ -9,4 +9,6 @@ public sealed class PlayerState
     public required bool IsMuslim { get; set; }
     public required int Position { get; set; }
     public required bool IsConnected { get; set; }
+    public required bool IsDead { get; set; }
+    public required int TurnsToSkip { get; set; }
 }
