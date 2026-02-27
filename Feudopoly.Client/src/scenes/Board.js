@@ -343,12 +343,6 @@ export class Board extends Phaser.Scene {
     }
 
     refreshTurnUI() {
-        /*this.rollButton.setVisible(false);
-        this.rollButton.disableInteractive();
-        this.rollButtonBackground.setFillStyle(0x555555, 1);
-        this.turnOverlay.setVisible(false);
-        return;*/
-
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
             return;
@@ -363,7 +357,14 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
-        this.turnSubtitleText.setText(this.pendingRepeatRoll ? 'You got a repeat roll. Throw again!' : 'Roll the dice to continue');
+
+        if (this.pendingRepeatRoll) {
+            this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
+        }
+
+        if (!isLocalTurn) {
+            this.turnSubtitleText.setText('Waiting for opponent\'s move...');
+        }
 
         if (canRoll) {
             this.rollButton.setVisible(true);
@@ -422,15 +423,15 @@ export class Board extends Phaser.Scene {
             .setVisible(true)
             .stop(true);
 
-        const titleEl = this.notificationTextBox.getElement('title');
-        if (titleEl) {
-            titleEl.setText(payload.title ?? '');
+        this.notificationTextBox.getElement('title')?.setText(payload.title ?? '');
+
+        let notificationText = payload.description ?? '';
+
+        if (this.turnRequiresChosenPlayer) {
+            notificationText + ' Choose player.';
         }
 
-        this.notificationTextBox
-            .setText('')
-            .layout()
-            .start(payload.description ?? '', 30);
+        this.notificationTextBox.setText('').layout().start(notificationText, 30);
 
         const onClick = (_pointer, currentlyOver) => {
             const chosenPlayerId = this.turnRequiresChosenPlayer
@@ -448,37 +449,6 @@ export class Board extends Phaser.Scene {
         };
 
         this.input.on('pointerdown', onClick);
-    }
-
-
-    eventRequiresChosenPlayer(payload) {
-        const chosenTarget = 'ChosenPlayer';
-
-        const fixedRequiresChoice = Array.isArray(payload?.fixedOutcomes)
-            && payload.fixedOutcomes.some(outcome => outcome?.target === chosenTarget || outcome?.target === 1);
-
-        const rollRequiresChoice = Array.isArray(payload?.rollOutcomes)
-            && payload.rollOutcomes.some(item => item?.outcome?.target === chosenTarget || item?.outcome?.target === 1);
-
-        return fixedRequiresChoice || rollRequiresChoice;
-    }
-
-    resolveChosenPlayerId(currentlyOver) {
-        if (Array.isArray(currentlyOver)) {
-            for (const gameObject of currentlyOver) {
-                const hit = this.players.find(player => player.sprite === gameObject || player.outline === gameObject);
-                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead) {
-                    return hit.playerId;
-                }
-            }
-        }
-
-        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead);
-        if (candidates.length === 1) {
-            return candidates[0].playerId;
-        }
-
-        return null;
     }
 
     turnEnded(payload) {
@@ -501,6 +471,38 @@ export class Board extends Phaser.Scene {
             .stop(true);
 
         this.refreshTurnUI();
+    }
+
+
+    eventRequiresChosenPlayer(payload) {
+        const chosenTarget = 'ChosenPlayer';
+
+        const fixedRequiresChoice = Array.isArray(payload?.fixedOutcomes)
+            && payload.fixedOutcomes.some(outcome => outcome?.target === chosenTarget || outcome?.target === 1);
+
+        const rollRequiresChoice = Array.isArray(payload?.rollOutcomes)
+            && payload.rollOutcomes.some(item => item?.outcome?.target === chosenTarget || item?.outcome?.target === 1);
+
+        return fixedRequiresChoice || rollRequiresChoice;
+    }
+
+    resolveChosenPlayerId(currentlyOver) {
+        if (Array.isArray(currentlyOver)) {
+            for (const gameObject of currentlyOver) {
+                const hit = this.players.find(player => player.sprite === gameObject || player.outline === gameObject);
+                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead) {
+                    console.log('Selected playerId: ' + hit.playerId);
+                    return hit.playerId;
+                }
+            }
+        }
+
+        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead);
+        if (candidates.length === 1) {
+            return candidates[0].playerId;
+        }
+
+        return null;
     }
 
     didLocalPlayerDie(payload) {
