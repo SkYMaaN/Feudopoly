@@ -37,13 +37,14 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             {
                 var wasActive = removedPlayer.PlayerId == session.ActiveTurnPlayerId;
                 session.Players.Remove(removedPlayer);
+                RemovePendingRollRequirementForPlayer(session, removedPlayer.PlayerId);
 
                 if (session.Players.Count == 0)
                 {
                     session.ActiveTurnPlayerId = Guid.Empty;
                     session.IsTurnInProgress = false;
                 }
-                else if (wasActive)
+                else if (wasActive && session.PendingEventRoll is null)
                 {
                     AdvanceTurn(session);
                 }
@@ -211,12 +212,25 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 throw new HubException($"Event for {caller.Position} position does not exist!");
             }
 
-            resolution = ResolveEvent(session, caller, cellEvent, chosenPlayerId);
-
-            session.IsTurnInProgress = false;
-            if (!resolution.RepeatTurn)
+            if (cellEvent.ResolutionMode == EventResolutionMode.Roll)
             {
-                AdvanceTurn(session);
+                InitializePendingEventRoll(session, caller, cellEvent, chosenPlayerId);
+                resolution = new TurnResolutionPayload
+                {
+                    Event = cellEvent,
+                    Entries = [],
+                    RepeatTurn = false
+                };
+            }
+            else
+            {
+                resolution = ResolveEvent(session, caller, cellEvent, chosenPlayerId);
+
+                session.IsTurnInProgress = false;
+                if (!resolution.RepeatTurn)
+                {
+                    AdvanceTurn(session);
+                }
             }
 
             state = SessionStorage.ToDto(session);
@@ -224,7 +238,83 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
         string groupName = sessionId.ToString();
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
-        await Clients.Caller.SendAsync("TurnEnded", resolution);
+        await Clients.Group(groupName).SendAsync("TurnEnded", resolution);
+    }
+
+
+    public async Task RollEventDice(Guid sessionId)
+    {
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        {
+            throw new HubException("Session not found.");
+        }
+
+        ResolvedOutcomeEntry entry;
+        bool isCompleted;
+        TurnResolutionPayload? completedResolution = null;
+        GameStateDto state;
+
+        lock (session)
+        {
+            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
+                         ?? throw new HubException("Player is not part of this session.");
+
+            var pending = session.PendingEventRoll ?? throw new HubException("No pending event roll.");
+
+            if (!pending.RequiredPlayerIds.Contains(caller.PlayerId))
+            {
+                throw new HubException("You are not required to roll for this event.");
+            }
+
+            if (pending.EntriesByPlayerId.ContainsKey(caller.PlayerId))
+            {
+                throw new HubException("You already rolled for this event.");
+            }
+
+            var roll = Random.Shared.Next(1, 7);
+            var outcome = pending.Event.RollOutcomes.FirstOrDefault(r => r.Range.InRange(roll))?.Outcome
+                          ?? throw new HubException("No roll range matched outcome.");
+
+            ApplyOutcome(caller, outcome, ref pending.RepeatTurn);
+            entry = new ResolvedOutcomeEntry(caller.PlayerId, roll, outcome);
+            pending.EntriesByPlayerId[caller.PlayerId] = entry;
+
+            if (caller.IsDead)
+            {
+                pending.RequiredPlayerIds.Remove(caller.PlayerId);
+            }
+
+            CleanupPendingRequiredPlayers(session);
+            isCompleted = pending.RequiredPlayerIds.All(id => pending.EntriesByPlayerId.ContainsKey(id));
+
+            if (isCompleted)
+            {
+                completedResolution = new TurnResolutionPayload
+                {
+                    Event = pending.Event,
+                    Entries = pending.EntriesByPlayerId.Values.ToArray(),
+                    RepeatTurn = pending.RepeatTurn
+                };
+
+                session.PendingEventRoll = null;
+                session.IsTurnInProgress = false;
+                if (!completedResolution.RepeatTurn)
+                {
+                    AdvanceTurn(session);
+                }
+            }
+
+            state = SessionStorage.ToDto(session);
+        }
+
+        string groupName = sessionId.ToString();
+        await Clients.Group(groupName).SendAsync("EventDiceRolled", entry);
+        await Clients.Group(groupName).SendAsync("StateUpdated", state);
+
+        if (completedResolution is not null)
+        {
+            await Clients.Group(groupName).SendAsync("TurnEnded", completedResolution);
+        }
     }
 
     public async Task SyncState(Guid sessionId)
@@ -408,6 +498,62 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         };
     }
 
+    private static void InitializePendingEventRoll(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent, Guid? chosenPlayerId)
+    {
+        var targetScopes = gameEvent.RollOutcomes.Select(r => r.Outcome.Target).Distinct().ToList();
+        if (targetScopes.Count == 0)
+        {
+            throw new HubException("Roll event has no outcomes.");
+        }
+
+        var requiredPlayerIds = targetScopes
+            .SelectMany(scope => ResolveTargets(session, currentPlayer, scope, chosenPlayerId))
+            .Where(p => !p.IsDead)
+            .Select(p => p.PlayerId)
+            .ToHashSet();
+
+        session.PendingEventRoll = new PendingEventRollState
+        {
+            Event = gameEvent,
+            RequiredPlayerIds = requiredPlayerIds,
+            EntriesByPlayerId = new Dictionary<Guid, ResolvedOutcomeEntry>(),
+            RepeatTurn = false
+        };
+    }
+
+    private static void RemovePendingRollRequirementForPlayer(GameSession session, Guid playerId)
+    {
+        if (session.PendingEventRoll is null)
+        {
+            return;
+        }
+
+        session.PendingEventRoll.RequiredPlayerIds.Remove(playerId);
+        CleanupPendingRequiredPlayers(session);
+
+        if (session.PendingEventRoll.RequiredPlayerIds.Count == 0)
+        {
+            var pending = session.PendingEventRoll;
+            session.PendingEventRoll = null;
+            session.IsTurnInProgress = false;
+            if (!pending.RepeatTurn)
+            {
+                AdvanceTurn(session);
+            }
+        }
+    }
+
+    private static void CleanupPendingRequiredPlayers(GameSession session)
+    {
+        if (session.PendingEventRoll is null)
+        {
+            return;
+        }
+
+        var aliveIds = session.Players.Where(p => !p.IsDead).Select(p => p.PlayerId).ToHashSet();
+        session.PendingEventRoll.RequiredPlayerIds.RemoveWhere(id => !aliveIds.Contains(id));
+    }
+
     private bool TryGetSessionId(out Guid sessionId)
     {
         if (Context.Items.TryGetValue(SessionIdContextKey, out var value) && value is Guid sid)
@@ -427,17 +573,4 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         public required bool RepeatTurn { get; init; }
     }
 
-    private sealed class ResolvedOutcomeEntry
-    {
-        public ResolvedOutcomeEntry(Guid playerId, int roll, EventOutcome outcome)
-        {
-            PlayerId = playerId;
-            Roll = roll;
-            Outcome = outcome;
-        }
-
-        public Guid PlayerId { get; }
-        public int Roll { get; }
-        public EventOutcome Outcome { get; }
-    }
 }
