@@ -162,20 +162,25 @@ export class Board extends Phaser.Scene {
             player.isDead = Boolean(playerState.isDead);
 
             // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
-            if (this.localPlayerId != playerId) {
-                const steps = this.getStepsToPosition(player.currentPosition, playerState.position);
-
-                if (steps > 0) {
-                    this.animatingPlayerId = playerId;
-                    this.isRolling = true;
-
-                    this.movePlayer(playerId, steps, playerState.position, () => {
-                        this.isRolling = false;
-                        this.animatingPlayerId = null;
-                        this.refreshTurnUI();
-                    });
-                }
+            if (this.isTurnInProgress && this.localPlayerId == playerId) {
+                return;
             }
+
+            const steps = this.getStepsToPosition(player.currentPosition, playerState.position);
+
+            if (steps < 1) {
+                return;
+            }
+
+            this.animatingPlayerId = playerId;
+            this.isRolling = true;
+
+            this.movePlayer(playerId, steps, playerState.position, () => {
+                this.isRolling = false;
+                this.animatingPlayerId = null;
+                this.refreshTurnUI();
+            });
+
         });
 
         if (!this.isRolling) {
@@ -419,12 +424,8 @@ export class Board extends Phaser.Scene {
         this.hideDeathScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
-        this.notificationTextBox
-            .setVisible(true)
-            .stop(true);
-
+        this.notificationTextBox.setVisible(true).stop(true);
         this.notificationTextBox.getElement('title')?.setText(payload.title ?? '');
-
         let notificationText = payload.description ?? '';
 
         if (this.turnRequiresChosenPlayer) {
@@ -466,13 +467,10 @@ export class Board extends Phaser.Scene {
             this.hideDeathScreen();
         }
 
-        this.notificationTextBox
-            .setVisible(false)
-            .stop(true);
+        this.notificationTextBox.setVisible(false).stop(true);
 
-        this.refreshTurnUI();
+        //this.refreshTurnUI();
     }
-
 
     eventRequiresChosenPlayer(payload) {
         const chosenTarget = 'ChosenPlayer';
