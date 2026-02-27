@@ -15,7 +15,10 @@ public sealed class SessionStorage
             ActiveTurnPlayerId = Guid.Empty,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
-            IsTurnInProgress = false
+            IsTurnInProgress = false,
+            CurrentTurnEventId = null,
+            CurrentTurnRolls = [],
+            CurrentTurnRollTargets = []
         });
     }
 
