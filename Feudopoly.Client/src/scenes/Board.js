@@ -47,6 +47,7 @@ export class Board extends Phaser.Scene {
         this.diceRotationTween = null;
         this.diceSpinState = { x: 0, y: 0, z: 0 };
         this.diceRollDurationMs = 3200;
+        this.pendingRepeatRoll = false;
 
         this.addBoard();
         this.buildCells();
@@ -357,16 +358,19 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
+        this.turnSubtitleText.setText(this.pendingRepeatRoll ? 'You got a repeat roll. Throw again!' : 'Roll the dice to continue');
 
         if (canRoll) {
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
+            this.rollButtonText.setText(this.pendingRepeatRoll ? 'Roll again!' : 'Roll!');
         }
         else {
             this.rollButton.setVisible(false);
             this.rollButton.disableInteractive();
             this.rollButtonBackground.setFillStyle(0x555555, 1);
+            this.rollButtonText.setText(this.pendingRepeatRoll ? 'Roll again!' : 'Roll!');
         }
 
         this.turnOverlay.setVisible(true);
@@ -380,6 +384,7 @@ export class Board extends Phaser.Scene {
         try {
             this.isRolling = true;
             this.animatingPlayerId = this.localPlayerId;
+            this.pendingRepeatRoll = false;
             this.turnOverlay.setVisible(false);
 
             this.diceHintText.setVisible(false);
@@ -405,13 +410,7 @@ export class Board extends Phaser.Scene {
     turnBegan(payload) {
         console.log('Turn Began: ' + JSON.stringify(payload));
 
-        const hasDeathOutcome = Boolean(payload?.hasDeathOutcome);
-
-        if (hasDeathOutcome) {
-            this.showDeathScreen(payload);
-        } else {
-            this.hideDeathScreen();
-        }
+        this.hideDeathScreen();
 
         this.notificationTextBox
             .setVisible(true)
@@ -439,11 +438,36 @@ export class Board extends Phaser.Scene {
     turnEnded(payload) {
         console.log('Turn Ended: ' + JSON.stringify(payload));
 
-        this.hideDeathScreen();
+        this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
+
+        if (this.didLocalPlayerDie(payload)) {
+            this.showDeathScreen({
+                title: payload?.event?.title,
+                description: payload?.event?.description
+            });
+        } else {
+            this.hideDeathScreen();
+        }
 
         this.notificationTextBox
             .setVisible(false)
             .stop(true);
+
+        this.refreshTurnUI();
+    }
+
+    didLocalPlayerDie(payload) {
+        const localId = String(this.localPlayerId ?? '');
+        if (!localId || !Array.isArray(payload?.entries)) {
+            return false;
+        }
+
+        return payload.entries.some(entry => {
+            const entryPlayerId = String(entry?.playerId ?? '');
+            const kind = entry?.outcome?.kind;
+
+            return entryPlayerId === localId && (kind === 'Eliminate' || kind === 5);
+        });
     }
 
     createDeathScreenUI() {
