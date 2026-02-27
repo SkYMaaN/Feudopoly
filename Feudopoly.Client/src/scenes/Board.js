@@ -698,7 +698,14 @@ export class Board extends Phaser.Scene {
 
     getStepsToPosition(fromPosition, toPosition) {
         const total = this.cells.length;
-        return (toPosition - fromPosition + total) % total;
+        const forwardSteps = (toPosition - fromPosition + total) % total;
+
+        if (forwardSteps === 0) {
+            return 0;
+        }
+
+        const backwardSteps = forwardSteps - total;
+        return Math.abs(backwardSteps) < forwardSteps ? backwardSteps : forwardSteps;
     }
 
     showDice(rollValue) {
@@ -767,7 +774,7 @@ export class Board extends Phaser.Scene {
             return;
         }
 
-        if (steps <= 0) {
+        if (steps === 0) {
             player.currentPosition = finalPosition;
             this.applyStackOffsets(player.currentPosition);
             onComplete?.();
@@ -775,9 +782,11 @@ export class Board extends Phaser.Scene {
         }
 
         const total = this.cells.length;
+        const direction = steps > 0 ? 1 : -1;
+        let remainingSteps = Math.abs(steps);
 
         const moveOne = () => {
-            player.currentPosition = (player.currentPosition + 1) % total;
+            player.currentPosition = (player.currentPosition + direction + total) % total;
             const point = this.cells[player.currentPosition];
 
             this.stepSfx?.play();
@@ -789,8 +798,8 @@ export class Board extends Phaser.Scene {
                 duration: 500,
                 delay: 100,
                 onComplete: () => {
-                    steps -= 1;
-                    if (steps > 0) {
+                    remainingSteps -= 1;
+                    if (remainingSteps > 0) {
                         moveOne();
                         return;
                     }
