@@ -15,7 +15,8 @@ public sealed class SessionStorage
             ActiveTurnPlayerId = Guid.Empty,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
-            IsTurnInProgress = false
+            IsTurnInProgress = false,
+            PendingEventRoll = null
         });
     }
 
@@ -50,6 +51,15 @@ public sealed class SessionStorage
                 : null,
             LastRollValue = session.LastRollValue,
             IsTurnInProgress = session.IsTurnInProgress,
+            PendingEventRoll = session.PendingEventRoll is null
+                ? null
+                : new PendingEventRollDto
+                {
+                    EventId = session.PendingEventRoll.Event.Id,
+                    RequiredPlayerIds = session.PendingEventRoll.RequiredPlayerIds.ToHashSet(),
+                    ResolvedPlayerIds = session.PendingEventRoll.EntriesByPlayerId.Keys.ToArray(),
+                    RepeatTurn = session.PendingEventRoll.RepeatTurn
+                },
             Players = session.Players.Select(player => new PlayerDto
             {
                 PlayerId = player.PlayerId,
