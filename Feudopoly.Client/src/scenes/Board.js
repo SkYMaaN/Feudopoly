@@ -108,6 +108,9 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('turnEnded', (payload) => {
                 this.turnEnded(payload);
             }),
+            gameHubClient.on('eventDiceRolled', (payload) => {
+                this.setStatus(`Event roll: ${payload?.roll ?? '?'} for player ${payload?.playerId ?? ''}`);
+            }),
             gameHubClient.on('error', (error) => {
                 this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
             })
@@ -138,6 +141,7 @@ export class Board extends Phaser.Scene {
         this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
         this.lastRollValue = state.lastRollValue ?? 0;
         this.isTurnInProgress = Boolean(state.isTurnInProgress);
+        this.pendingEventRoll = state.pendingEventRoll ?? null;
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -355,9 +359,17 @@ export class Board extends Phaser.Scene {
 
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
-        const canRoll = isLocalTurn && !this.isTurnInProgress;
+        const requiredIds = Array.isArray(this.pendingEventRoll?.requiredPlayerIds)
+            ? this.pendingEventRoll.requiredPlayerIds.map(id => String(id))
+            : [];
+        const resolvedIds = Array.isArray(this.pendingEventRoll?.resolvedPlayerIds)
+            ? this.pendingEventRoll.resolvedPlayerIds.map(id => String(id))
+            : [];
+        const waitingForEventRoll = requiredIds.includes(String(this.localPlayerId))
+            && !resolvedIds.includes(String(this.localPlayerId));
+        const canRoll = waitingForEventRoll || (isLocalTurn && !this.isTurnInProgress);
 
-        if (isLocalTurn && this.isTurnInProgress) {
+        if (isLocalTurn && this.isTurnInProgress && !this.pendingEventRoll && !waitingForEventRoll) {
             return;
         }
 
@@ -367,7 +379,9 @@ export class Board extends Phaser.Scene {
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         }
 
-        if (!isLocalTurn) {
+        if (waitingForEventRoll) {
+            this.turnSubtitleText.setText('Event requires your roll. Throw now!');
+        } else if (!isLocalTurn) {
             this.turnSubtitleText.setText('Waiting for opponent\'s move...');
         }
 
@@ -375,20 +389,33 @@ export class Board extends Phaser.Scene {
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll ? 'Roll again!' : 'Roll!');
+            this.rollButtonText.setText(waitingForEventRoll ? 'Roll event!' : (this.pendingRepeatRoll ? 'Roll again!' : 'Roll!'));
         }
         else {
             this.rollButton.setVisible(false);
             this.rollButton.disableInteractive();
             this.rollButtonBackground.setFillStyle(0x555555, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll ? 'Roll again!' : 'Roll!');
+            this.rollButtonText.setText(waitingForEventRoll ? 'Roll event!' : (this.pendingRepeatRoll ? 'Roll again!' : 'Roll!'));
         }
 
         this.turnOverlay.setVisible(true);
     }
 
     async requestRoll() {
-        if (this.isRolling || this.isTurnInProgress) {
+        if (this.isRolling) {
+            return;
+        }
+
+        const requiredIds = Array.isArray(this.pendingEventRoll?.requiredPlayerIds)
+            ? this.pendingEventRoll.requiredPlayerIds.map(id => String(id))
+            : [];
+        const resolvedIds = Array.isArray(this.pendingEventRoll?.resolvedPlayerIds)
+            ? this.pendingEventRoll.resolvedPlayerIds.map(id => String(id))
+            : [];
+        const waitingForEventRoll = requiredIds.includes(String(this.localPlayerId))
+            && !resolvedIds.includes(String(this.localPlayerId));
+
+        if (!waitingForEventRoll && this.isTurnInProgress) {
             return;
         }
 
@@ -405,7 +432,11 @@ export class Board extends Phaser.Scene {
 
             await new Promise(resolve => setTimeout(resolve, this.diceRollDurationMs - 200));
 
-            await gameHubClient.rollDice(this.sessionId);
+            if (waitingForEventRoll) {
+                await gameHubClient.rollEventDice(this.sessionId);
+            } else {
+                await gameHubClient.rollDice(this.sessionId);
+            }
         } catch (error) {
             console.error(error);
             this.setStatus(`Roll failed: ${error.message ?? 'Unknown error'}`);
@@ -429,7 +460,7 @@ export class Board extends Phaser.Scene {
         let notificationText = payload.description ?? '';
 
         if (this.turnRequiresChosenPlayer) {
-            notificationText + ' Choose player.';
+            notificationText += ' Choose player.';
         }
 
         this.notificationTextBox.setText('').layout().start(notificationText, 30);
