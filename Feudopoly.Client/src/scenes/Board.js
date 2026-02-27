@@ -48,6 +48,7 @@ export class Board extends Phaser.Scene {
         this.diceSpinState = { x: 0, y: 0, z: 0 };
         this.diceRollDurationMs = 3200;
         this.pendingRepeatRoll = false;
+        this.turnRequiresChosenPlayer = false;
 
         this.addBoard();
         this.buildCells();
@@ -158,6 +159,7 @@ export class Board extends Phaser.Scene {
 
             player.displayName = playerState.displayName;
             player.isConnected = playerState.isConnected;
+            player.isDead = Boolean(playerState.isDead);
 
             // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
             if (this.localPlayerId != playerId) {
@@ -200,6 +202,8 @@ export class Board extends Phaser.Scene {
             .setScale(0.05);
 
         sprite.setTint(this.getPlayerColor(playerId));
+        sprite.setInteractive({ useHandCursor: true });
+        outline.setInteractive({ useHandCursor: true });
 
         container.add([outline, sprite]);
 
@@ -220,7 +224,8 @@ export class Board extends Phaser.Scene {
             sprite,
             outline,
             currentPosition: startPosition,
-            isConnected: true
+            isConnected: true,
+            isDead: false
         };
     }
 
@@ -411,6 +416,7 @@ export class Board extends Phaser.Scene {
         console.log('Turn Began: ' + JSON.stringify(payload));
 
         this.hideDeathScreen();
+        this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
         this.notificationTextBox
             .setVisible(true)
@@ -426,8 +432,17 @@ export class Board extends Phaser.Scene {
             .layout()
             .start(payload.description ?? '', 30);
 
-        const onClick = () => {
-            gameHubClient.finishTurn(this.sessionId);
+        const onClick = (_pointer, currentlyOver) => {
+            const chosenPlayerId = this.turnRequiresChosenPlayer
+                ? this.resolveChosenPlayerId(currentlyOver)
+                : null;
+
+            if (this.turnRequiresChosenPlayer && !chosenPlayerId) {
+                this.setStatus('Choose another alive player token to continue.');
+                return;
+            }
+
+            gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
 
             this.input.off('pointerdown', onClick);
         };
@@ -435,10 +450,42 @@ export class Board extends Phaser.Scene {
         this.input.on('pointerdown', onClick);
     }
 
+
+    eventRequiresChosenPlayer(payload) {
+        const chosenTarget = 'ChosenPlayer';
+
+        const fixedRequiresChoice = Array.isArray(payload?.fixedOutcomes)
+            && payload.fixedOutcomes.some(outcome => outcome?.target === chosenTarget || outcome?.target === 1);
+
+        const rollRequiresChoice = Array.isArray(payload?.rollOutcomes)
+            && payload.rollOutcomes.some(item => item?.outcome?.target === chosenTarget || item?.outcome?.target === 1);
+
+        return fixedRequiresChoice || rollRequiresChoice;
+    }
+
+    resolveChosenPlayerId(currentlyOver) {
+        if (Array.isArray(currentlyOver)) {
+            for (const gameObject of currentlyOver) {
+                const hit = this.players.find(player => player.sprite === gameObject || player.outline === gameObject);
+                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead) {
+                    return hit.playerId;
+                }
+            }
+        }
+
+        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead);
+        if (candidates.length === 1) {
+            return candidates[0].playerId;
+        }
+
+        return null;
+    }
+
     turnEnded(payload) {
         console.log('Turn Ended: ' + JSON.stringify(payload));
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
+        this.turnRequiresChosenPlayer = false;
 
         if (this.didLocalPlayerDie(payload)) {
             this.showDeathScreen({

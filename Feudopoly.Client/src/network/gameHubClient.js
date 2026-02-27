@@ -86,8 +86,8 @@ export class GameHubClient {
         await this.connection.invoke('BeginTurn', sessionId);
     }
 
-    async finishTurn(sessionId) {
-        await this.connection.invoke('FinishTurn', sessionId);
+    async finishTurn(sessionId, chosenPlayerId = null) {
+        await this.connection.invoke('FinishTurn', sessionId, chosenPlayerId);
     }
 
     async syncState(sessionId) {
