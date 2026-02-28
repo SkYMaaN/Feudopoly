@@ -159,7 +159,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                               ?? throw new HubException("No roll range matched outcome.");
 
                 session.LastRollValue = rolled;
-                ApplyOutcome(caller, outcome, ref session.PendingRepeatTurn);
+                var pendingRepeatTurn = session.PendingRepeatTurn;
+                ApplyOutcome(caller, outcome, ref pendingRepeatTurn);
+                session.PendingRepeatTurn = pendingRepeatTurn;
                 session.PendingResolutionEntries.Add(new ResolvedOutcomeState { PlayerId = caller.PlayerId, Roll = rolled, Outcome = outcome });
                 session.PendingRollPlayerIds.Remove(caller.PlayerId);
 
