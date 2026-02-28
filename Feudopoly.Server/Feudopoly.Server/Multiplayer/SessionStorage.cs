@@ -50,6 +50,7 @@ public sealed class SessionStorage
                 : null,
             LastRollValue = session.LastRollValue,
             IsTurnInProgress = session.IsTurnInProgress,
+            PendingRollPlayerIds = session.PendingRollPlayerIds.ToArray(),
             Players = session.Players.Select(player => new PlayerDto
             {
                 PlayerId = player.PlayerId,

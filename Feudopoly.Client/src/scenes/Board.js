@@ -49,6 +49,7 @@ export class Board extends Phaser.Scene {
         this.diceRollDurationMs = 3200;
         this.pendingRepeatRoll = false;
         this.turnRequiresChosenPlayer = false;
+        this.pendingRollPlayerIds = [];
 
         this.addBoard();
         this.buildCells();
@@ -138,6 +139,9 @@ export class Board extends Phaser.Scene {
         this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
         this.lastRollValue = state.lastRollValue ?? 0;
         this.isTurnInProgress = Boolean(state.isTurnInProgress);
+        this.pendingRollPlayerIds = Array.isArray(state.pendingRollPlayerIds)
+            ? state.pendingRollPlayerIds.map(id => String(id))
+            : [];
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -162,7 +166,7 @@ export class Board extends Phaser.Scene {
             player.isDead = Boolean(playerState.isDead);
 
             // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
-            if (this.isTurnInProgress && this.localPlayerId == playerId) {
+            if (this.animatingPlayerId === playerId) {
                 return;
             }
 
@@ -355,9 +359,10 @@ export class Board extends Phaser.Scene {
 
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
-        const canRoll = isLocalTurn && !this.isTurnInProgress;
+        const mustRollForEvent = this.isTurnInProgress && this.pendingRollPlayerIds.includes(this.localPlayerId);
+        const canRoll = (isLocalTurn && !this.isTurnInProgress) || mustRollForEvent;
 
-        if (isLocalTurn && this.isTurnInProgress) {
+        if (isLocalTurn && this.isTurnInProgress && !mustRollForEvent) {
             return;
         }
 
@@ -367,8 +372,12 @@ export class Board extends Phaser.Scene {
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         }
 
-        if (!isLocalTurn) {
+        if (!isLocalTurn && !mustRollForEvent) {
             this.turnSubtitleText.setText('Waiting for opponent\'s move...');
+        }
+
+        if (mustRollForEvent) {
+            this.turnSubtitleText.setText('Event requires your dice roll.');
         }
 
         if (canRoll) {
@@ -388,7 +397,9 @@ export class Board extends Phaser.Scene {
     }
 
     async requestRoll() {
-        if (this.isRolling || this.isTurnInProgress) {
+        const mustRollForEvent = this.isTurnInProgress && this.pendingRollPlayerIds.includes(this.localPlayerId);
+
+        if (this.isRolling || (this.isTurnInProgress && !mustRollForEvent)) {
             return;
         }
 
@@ -434,6 +445,11 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox.setText('').layout().start(notificationText, 30);
 
+        if (payload?.resolutionMode === 'Roll' || payload?.resolutionMode === 1) {
+            this.refreshTurnUI();
+            return;
+        }
+
         const onClick = (_pointer, currentlyOver) => {
             const chosenPlayerId = this.turnRequiresChosenPlayer
                 ? this.resolveChosenPlayerId(currentlyOver)
@@ -469,7 +485,7 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox.setVisible(false).stop(true);
 
-        //this.refreshTurnUI();
+        this.refreshTurnUI();
     }
 
     eventRequiresChosenPlayer(payload) {
@@ -683,7 +699,9 @@ export class Board extends Phaser.Scene {
             this.hideDice();
 
             try {
-                await gameHubClient.beginTurn(this.sessionId);
+                if (payload?.startsTurnEvent !== false && String(payload.playerId) === this.localPlayerId) {
+                    await gameHubClient.beginTurn(this.sessionId);
+                }
             } catch (error) {
                 console.error(error);
                 this.setStatus(`Turn completion failed: ${error.message ?? 'Unknown error'}`);

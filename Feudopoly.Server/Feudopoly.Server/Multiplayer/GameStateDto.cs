@@ -7,4 +7,5 @@ public sealed class GameStateDto
     public required Guid? ActiveTurnPlayerId { get; init; }
     public required int LastRollValue { get; init; }
     public required bool IsTurnInProgress { get; init; }
+    public required IReadOnlyList<Guid> PendingRollPlayerIds { get; init; }
 }
