@@ -201,7 +201,15 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         string groupName = sessionId.ToString();
-        await Clients.Caller.SendAsync("DiceRolled", new { playerId = caller.PlayerId, rollValue = rolled, newPosition, isEventPhaseRoll });
+        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition };
+        if (isEventPhaseRoll)
+        {
+            await Clients.Caller.SendAsync("EventDiceRolled", rollPayload);
+        }
+        else
+        {
+            await Clients.Caller.SendAsync("DiceRolled", rollPayload);
+        }
 
         if (phaseResolution is not null)
         {

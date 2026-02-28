@@ -104,6 +104,9 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('diceRolled', (payload) => {
                 this.playDiceResult(payload);
             }),
+            gameHubClient.on('eventDiceRolled', (payload) => {
+                this.playDiceResult({ ...payload, isEventPhaseRoll: true });
+            }),
             gameHubClient.on('turnBegan', (payload) => {
                 this.turnBegan(payload);
             }),

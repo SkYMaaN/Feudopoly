@@ -10,6 +10,7 @@ export class GameHubClient {
             playerJoined: [],
             playerLeft: [],
             diceRolled: [],
+            eventDiceRolled: [],
             turnBegan: [],
             turnEnded: [],
             error: []
@@ -57,6 +58,10 @@ export class GameHubClient {
 
         this.connection.on('DiceRolled', (payload) => {
             this.emit('diceRolled', payload);
+        });
+
+        this.connection.on('EventDiceRolled', (payload) => {
+            this.emit('eventDiceRolled', payload);
         });
 
         this.connection.on('TurnBegan', (payload) => {
