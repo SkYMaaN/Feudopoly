@@ -51,6 +51,9 @@ export class Board extends Phaser.Scene {
         this.turnRequiresChosenPlayer = false;
         this.isEventRollPhase = false;
         this.pendingEventRollPlayerIds = [];
+        this.turnBeganClickHandler = null;
+        this.turnResultDismissHandler = null;
+        this.isTurnResultNotificationActive = false;
 
         this.addBoard();
         this.buildCells();
@@ -72,6 +75,7 @@ export class Board extends Phaser.Scene {
             }
         )
             .setOrigin(0.5)
+            .setDepth(2100)
             .setVisible(false);
 
         try {
@@ -357,6 +361,16 @@ export class Board extends Phaser.Scene {
     }
 
     refreshTurnUI() {
+        if (this.isTurnResultNotificationActive) {
+            const isLocalTurnAgain = this.activeTurnPlayerId === this.localPlayerId && !this.isTurnInProgress;
+            if (isLocalTurnAgain) {
+                this.hideTurnResultNotification();
+            } else {
+                this.turnOverlay.setVisible(false);
+                return;
+            }
+        }
+
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
             return;
@@ -438,6 +452,7 @@ export class Board extends Phaser.Scene {
     turnBegan(payload) {
         console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
 
+        this.hideTurnResultNotification();
         this.hideDeathScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
@@ -451,7 +466,7 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox.setText('').layout().start(notificationText, 30);
 
-        const onClick = (_pointer, currentlyOver) => {
+        this.turnBeganClickHandler = (_pointer, currentlyOver) => {
             const chosenPlayerId = this.turnRequiresChosenPlayer
                 ? this.resolveChosenPlayerId(currentlyOver)
                 : null;
@@ -463,10 +478,13 @@ export class Board extends Phaser.Scene {
 
             gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
 
-            this.input.off('pointerdown', onClick);
+            if (this.turnBeganClickHandler) {
+                this.input.off('pointerdown', this.turnBeganClickHandler);
+                this.turnBeganClickHandler = null;
+            }
         };
 
-        this.input.on('pointerdown', onClick);
+        this.input.on('pointerdown', this.turnBeganClickHandler);
     }
 
     turnEnded(payload) {
@@ -484,9 +502,60 @@ export class Board extends Phaser.Scene {
             this.hideDeathScreen();
         }
 
-        this.notificationTextBox.setVisible(false).stop(true);
+        if (this.turnBeganClickHandler) {
+            this.input.off('pointerdown', this.turnBeganClickHandler);
+            this.turnBeganClickHandler = null;
+        }
+
+        this.showTurnResultNotification(payload);
 
         //this.refreshTurnUI();
+    }
+
+    showTurnResultNotification(payload) {
+        const eventTitle = payload?.event?.title ?? 'Turn result';
+        const eventDescription = payload?.event?.description ?? '';
+
+        const entriesText = Array.isArray(payload?.entries)
+            ? payload.entries
+                .map(entry => {
+                    const playerId = String(entry?.playerId ?? '');
+                    const playerName = this.players.find(player => player.playerId === playerId)?.displayName ?? 'Player';
+                    const outcomeText = entry?.outcome?.description ?? '';
+
+                    return outcomeText ? `${playerName}: ${outcomeText}` : '';
+                })
+                .filter(Boolean)
+                .join('\n')
+            : '';
+
+        const notificationText = [eventDescription, entriesText].filter(Boolean).join('\n\n');
+
+        this.notificationTextBox.setVisible(true).stop(true);
+        this.notificationTextBox.getElement('title')?.setText(eventTitle);
+        this.notificationTextBox.setText('').layout().start(notificationText, 30);
+        this.isTurnResultNotificationActive = true;
+
+        if (this.turnResultDismissHandler) {
+            this.input.off('pointerdown', this.turnResultDismissHandler);
+        }
+
+        this.turnResultDismissHandler = () => {
+            this.hideTurnResultNotification();
+            this.refreshTurnUI();
+        };
+
+        this.input.once('pointerdown', this.turnResultDismissHandler);
+    }
+
+    hideTurnResultNotification() {
+        this.isTurnResultNotificationActive = false;
+        this.notificationTextBox.setVisible(false).stop(true);
+
+        if (this.turnResultDismissHandler) {
+            this.input.off('pointerdown', this.turnResultDismissHandler);
+            this.turnResultDismissHandler = null;
+        }
     }
 
     eventRequiresChosenPlayer(payload) {
