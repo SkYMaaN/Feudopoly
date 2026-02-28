@@ -109,7 +109,7 @@ export class Board extends Phaser.Scene {
                 this.turnEnded(payload);
             }),
             gameHubClient.on('eventDiceRolled', (payload) => {
-                this.setStatus(`Event roll: ${payload?.roll ?? '?'} for player ${payload?.playerId ?? ''}`);
+                this.playEventDiceResult(payload);
             }),
             gameHubClient.on('error', (error) => {
                 this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
@@ -165,8 +165,8 @@ export class Board extends Phaser.Scene {
             player.isConnected = playerState.isConnected;
             player.isDead = Boolean(playerState.isDead);
 
-            // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
-            if (this.isTurnInProgress && this.localPlayerId == playerId) {
+            // To prevent double animation from two web socket events.
+            if (this.isTurnInProgress && this.animatingPlayerId === playerId) {
                 return;
             }
 
@@ -724,6 +724,66 @@ export class Board extends Phaser.Scene {
                 this.refreshTurnUI();
             }
         });
+    }
+
+    playEventDiceResult(payload) {
+        const playerId = String(payload?.playerId ?? '');
+        const player = this.players.find(item => item.playerId === playerId);
+
+        if (!player) {
+            return;
+        }
+
+        const rollValue = Number(payload?.roll ?? 0);
+        const outcome = payload?.outcome ?? null;
+        const outcomeText = outcome?.text?.trim() || 'Event outcome applied.';
+
+        this.setStatus(`${player.displayName}: event roll ${rollValue || '?'} — ${outcomeText}`);
+
+        if (playerId !== String(this.localPlayerId)) {
+            return;
+        }
+
+        this.turnOverlay.setVisible(false);
+        this.diceHintText.setVisible(true);
+        this.showDice(rollValue || '?');
+
+        if (rollValue > 0) {
+            this.animateDiceToValue(rollValue);
+        }
+
+        this.diceRollSfx?.stop();
+
+        const currentPosition = Number(player.currentPosition ?? 0);
+        let targetPosition = currentPosition;
+        const outcomeKind = outcome?.kind;
+
+        if (outcomeKind === 'MoveByOffset' || outcomeKind === 1) {
+            const offset = Number(outcome?.moveOffset ?? 0);
+            targetPosition = this.normalizeCellIndex(currentPosition + offset);
+        } else if (outcomeKind === 'MoveToCell' || outcomeKind === 2) {
+            targetPosition = this.normalizeCellIndex(Number(outcome?.moveToCell ?? currentPosition));
+        }
+
+        const steps = this.getStepsToPosition(currentPosition, targetPosition);
+        const onComplete = () => {
+            this.hideDice();
+            this.isRolling = false;
+            this.animatingPlayerId = null;
+            this.refreshTurnUI();
+        };
+
+        if (steps > 0) {
+            this.movePlayer(playerId, steps, targetPosition, onComplete);
+            return;
+        }
+
+        this.time.delayedCall(500, onComplete);
+    }
+
+    normalizeCellIndex(position) {
+        const total = this.cells.length;
+        return ((position % total) + total) % total;
     }
 
 
