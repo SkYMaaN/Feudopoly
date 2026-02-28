@@ -49,6 +49,9 @@ export class Board extends Phaser.Scene {
         this.diceRollDurationMs = 3200;
         this.pendingRepeatRoll = false;
         this.turnRequiresChosenPlayer = false;
+        this.isCurrentTurnEventRoll = false;
+        this.requiredRollPlayerIds = new Set();
+        this.eventRolledPlayerIds = new Set();
 
         this.addBoard();
         this.buildCells();
@@ -355,20 +358,30 @@ export class Board extends Phaser.Scene {
 
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
-        const canRoll = isLocalTurn && !this.isTurnInProgress;
+        const localMustRollEvent = this.isCurrentTurnEventRoll
+            && this.requiredRollPlayerIds.has(this.localPlayerId)
+            && !this.eventRolledPlayerIds.has(this.localPlayerId);
 
-        if (isLocalTurn && this.isTurnInProgress) {
-            return;
-        }
+        const canRoll = (isLocalTurn && !this.isTurnInProgress) || localMustRollEvent;
 
         this.turnTitleText.setText(`${current?.displayName ?? 'Player'} turn`);
 
-        if (this.pendingRepeatRoll) {
-            this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
-        }
+        if (this.isCurrentTurnEventRoll) {
+            const pendingCount = Math.max(0, this.requiredRollPlayerIds.size - this.eventRolledPlayerIds.size);
 
-        if (!isLocalTurn) {
+            if (localMustRollEvent) {
+                this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
+            } else if (pendingCount > 0) {
+                this.turnSubtitleText.setText(`Waiting for event rolls: ${pendingCount} left.`);
+            } else {
+                this.turnSubtitleText.setText('All event rolls completed. Resolving...');
+            }
+        } else if (this.pendingRepeatRoll && isLocalTurn) {
+            this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
+        } else if (!isLocalTurn) {
             this.turnSubtitleText.setText('Waiting for opponent\'s move...');
+        } else {
+            this.turnSubtitleText.setText('Roll the dice to continue.');
         }
 
         if (canRoll) {
@@ -388,7 +401,11 @@ export class Board extends Phaser.Scene {
     }
 
     async requestRoll() {
-        if (this.isRolling || this.isTurnInProgress) {
+        const isEventRollAllowed = this.isCurrentTurnEventRoll
+            && this.requiredRollPlayerIds.has(this.localPlayerId)
+            && !this.eventRolledPlayerIds.has(this.localPlayerId);
+
+        if (this.isRolling || (this.isTurnInProgress && !isEventRollAllowed)) {
             return;
         }
 
@@ -423,16 +440,30 @@ export class Board extends Phaser.Scene {
 
         this.hideDeathScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
+        this.isCurrentTurnEventRoll = Boolean(payload?.requiresUiRoll);
+        this.requiredRollPlayerIds = new Set((payload?.requiredRollPlayerIds ?? []).map(item => String(item)));
+        this.eventRolledPlayerIds.clear();
 
         this.notificationTextBox.setVisible(true).stop(true);
         this.notificationTextBox.getElement('title')?.setText(payload.title ?? '');
         let notificationText = payload.description ?? '';
 
         if (this.turnRequiresChosenPlayer) {
-            notificationText + ' Choose player.';
+            notificationText += ' Choose player.';
+        }
+
+        if (this.isCurrentTurnEventRoll) {
+            notificationText += '\nAll required players must roll in UI before the turn can continue.';
         }
 
         this.notificationTextBox.setText('').layout().start(notificationText, 30);
+
+        this.input.off('pointerdown');
+
+        if (this.isCurrentTurnEventRoll) {
+            this.refreshTurnUI();
+            return;
+        }
 
         const onClick = (_pointer, currentlyOver) => {
             const chosenPlayerId = this.turnRequiresChosenPlayer
@@ -450,6 +481,7 @@ export class Board extends Phaser.Scene {
         };
 
         this.input.on('pointerdown', onClick);
+        this.refreshTurnUI();
     }
 
     turnEnded(payload) {
@@ -457,6 +489,9 @@ export class Board extends Phaser.Scene {
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
         this.turnRequiresChosenPlayer = false;
+        this.isCurrentTurnEventRoll = false;
+        this.requiredRollPlayerIds.clear();
+        this.eventRolledPlayerIds.clear();
 
         if (this.didLocalPlayerDie(payload)) {
             this.showDeathScreen({
@@ -469,7 +504,7 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox.setVisible(false).stop(true);
 
-        //this.refreshTurnUI();
+        this.refreshTurnUI();
     }
 
     eventRequiresChosenPlayer(payload) {
@@ -666,6 +701,38 @@ export class Board extends Phaser.Scene {
     playDiceResult(payload) {
         const player = this.players.find(item => item.playerId === String(payload.playerId));
         if (!player) {
+            return;
+        }
+
+        if (payload?.isEventRoll) {
+            this.turnOverlay.setVisible(false);
+            this.eventRolledPlayerIds.add(player.playerId);
+            this.showDice(payload.rollValue);
+            this.animateDiceToValue(payload.rollValue);
+            this.diceRollSfx?.stop();
+
+            this.time.delayedCall(900, async () => {
+                this.hideDice();
+
+                try {
+                    const current = this.players.find(item => item.playerId === this.activeTurnPlayerId);
+                    const isLocalTurn = current?.playerId === this.localPlayerId;
+                    const allRolled = this.requiredRollPlayerIds.size > 0
+                        && this.eventRolledPlayerIds.size >= this.requiredRollPlayerIds.size;
+
+                    if (isLocalTurn && allRolled) {
+                        await gameHubClient.finishTurn(this.sessionId);
+                    }
+                } catch (error) {
+                    console.error(error);
+                    this.setStatus(`Turn completion failed: ${error.message ?? 'Unknown error'}`);
+                } finally {
+                    this.isRolling = false;
+                    this.animatingPlayerId = null;
+                    this.refreshTurnUI();
+                }
+            });
+
             return;
         }
 
