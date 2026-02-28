@@ -436,7 +436,7 @@ export class Board extends Phaser.Scene {
     }
 
     turnBegan(payload) {
-        console.log('Turn Began: ' + JSON.stringify(payload));
+        console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
 
         this.hideDeathScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
@@ -470,7 +470,7 @@ export class Board extends Phaser.Scene {
     }
 
     turnEnded(payload) {
-        console.log('Turn Ended: ' + JSON.stringify(payload));
+        console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
         this.turnRequiresChosenPlayer = false;
