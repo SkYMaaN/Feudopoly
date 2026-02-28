@@ -15,7 +15,11 @@ public sealed class SessionStorage
             ActiveTurnPlayerId = Guid.Empty,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
-            IsTurnInProgress = false
+            IsTurnInProgress = false,
+            IsEventRollPhase = false,
+            EventRollOwnerPlayerId = Guid.Empty,
+            PendingEventRollPlayerIds = [],
+            PendingEventRollEvent = null
         });
     }
 
@@ -50,6 +54,8 @@ public sealed class SessionStorage
                 : null,
             LastRollValue = session.LastRollValue,
             IsTurnInProgress = session.IsTurnInProgress,
+            IsEventRollPhase = session.IsEventRollPhase,
+            PendingEventRollPlayerIds = session.PendingEventRollPlayerIds.ToArray(),
             Players = session.Players.Select(player => new PlayerDto
             {
                 PlayerId = player.PlayerId,
