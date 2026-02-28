@@ -13,12 +13,14 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
     {
         if (!TryGetSessionId(out var sessionId))
         {
+            logger.LogDebug("Connection {ConnectionId} disconnected without a tracked session", Context.ConnectionId);
             await base.OnDisconnectedAsync(exception);
             return;
         }
 
         if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
+            logger.LogDebug("Connection {ConnectionId} disconnected from missing session {SessionId}", Context.ConnectionId, sessionId);
             await base.OnDisconnectedAsync(exception);
             return;
         }
@@ -77,6 +79,12 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     public async Task JoinGame(Guid? sessionId, string displayName, bool isMan, bool isMuslim)
     {
+        logger.LogInformation(
+            "JoinGame requested by connection {ConnectionId} for session {SessionId} with display name '{DisplayName}'",
+            Context.ConnectionId,
+            sessionId,
+            displayName);
+
         if (sessionId is null || sessionId == Guid.Empty)
         {
             throw new HubException("Session id is required.");
@@ -124,10 +132,19 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await Clients.Caller.SendAsync("Joined", joinedPlayer.PlayerId, state);
         await Clients.OthersInGroup(groupName).SendAsync("PlayerJoined", SessionStorage.ToDto(session));
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
+
+        logger.LogInformation(
+            "Player {PlayerName}:{PlayerId} joined session {SessionId}. Players in session: {PlayerCount}",
+            joinedPlayer.DisplayName,
+            joinedPlayer.PlayerId,
+            sessionId,
+            state.Players.Count);
     }
 
     public async Task RollDice(Guid sessionId)
     {
+        logger.LogDebug("RollDice requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
+
         if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
@@ -217,10 +234,20 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
+
+        logger.LogInformation(
+            "Player {PlayerId} rolled {RollValue} in session {SessionId}. EventPhase: {IsEventPhase}. NewPosition: {NewPosition}",
+            caller.PlayerId,
+            rolled,
+            sessionId,
+            isEventPhaseRoll,
+            newPosition);
     }
 
     public async Task BeginTurn(Guid sessionId)
     {
+        logger.LogDebug("BeginTurn requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
+
         if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
@@ -248,10 +275,18 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         string groupName = sessionId.ToString();
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
         await Clients.Caller.SendAsync("TurnBegan", cellEvent);
+
+        logger.LogInformation(
+            "Turn began in session {SessionId} for connection {ConnectionId} on event '{EventTitle}'",
+            sessionId,
+            Context.ConnectionId,
+            cellEvent.Title);
     }
 
     public async Task FinishTurn(Guid sessionId, Guid? chosenPlayerId = null)
     {
+        logger.LogDebug("FinishTurn requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
+
         if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
@@ -297,10 +332,20 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         string groupName = sessionId.ToString();
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
         await Clients.Caller.SendAsync("TurnEnded", resolution);
+
+        logger.LogInformation(
+            "Turn finished in session {SessionId}. Event '{EventTitle}', entries: {EntriesCount}, repeat turn: {RepeatTurn}, event roll phase: {IsEventRollPhase}",
+            sessionId,
+            resolution.Event.Title,
+            resolution.Entries.Count,
+            resolution.RepeatTurn,
+            resolution.IsEventRollPhase);
     }
 
     public async Task SyncState(Guid sessionId)
     {
+        logger.LogDebug("SyncState requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
+
         if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
             throw new HubException("Session not found.");
