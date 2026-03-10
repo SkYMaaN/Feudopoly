@@ -174,8 +174,9 @@ export class Board extends Phaser.Scene {
             player.isConnected = playerState.isConnected;
             player.isDead = Boolean(playerState.isDead);
 
-            // To prevent double animation from two web socket events. Active Turn Player moving by diceRolled event.
-            if (this.isTurnInProgress && this.localPlayerId == playerId) {
+            // To prevent double animation from two web socket events.
+            // Local player is already animated by DiceRolled/EventDiceRolled payloads.
+            if (this.localPlayerId === playerId && (this.isTurnInProgress || this.isRolling)) {
                 return;
             }
 
@@ -491,6 +492,17 @@ export class Board extends Phaser.Scene {
         console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
+
+        if (payload?.isEventRollPhase) {
+            this.pendingRepeatRoll = false;
+            this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
+                .filter(playerId => playerId !== String(this.localPlayerId ?? ''));
+
+            if (payload?.eventRollCompleted) {
+                this.isEventRollPhase = false;
+            }
+        }
+
         this.turnRequiresChosenPlayer = false;
 
         if (this.didLocalPlayerDie(payload)) {
@@ -516,12 +528,20 @@ export class Board extends Phaser.Scene {
         const eventTitle = payload?.event?.title ?? 'Turn result';
         const eventDescription = payload?.event?.description ?? '';
 
+        const hasDiceEntries = Array.isArray(payload?.entries)
+            && payload.entries.some(entry => Number(entry?.roll) > 0);
+
         const entriesText = Array.isArray(payload?.entries)
             ? payload.entries
                 .map(entry => {
                     const playerId = String(entry?.playerId ?? '');
                     const playerName = this.players.find(player => player.playerId === playerId)?.displayName ?? 'Player';
                     const outcomeText = entry?.outcome?.description ?? '';
+                    const roll = Number(entry?.roll ?? 0);
+
+                    if (roll > 0) {
+                        return `${playerName}: 🎲 ${roll}${outcomeText ? ` — ${outcomeText}` : ''}`;
+                    }
 
                     return outcomeText ? `${playerName}: ${outcomeText}` : '';
                 })
@@ -529,7 +549,9 @@ export class Board extends Phaser.Scene {
                 .join('\n')
             : '';
 
-        const notificationText = [eventDescription, entriesText].filter(Boolean).join('\n\n');
+        const notificationText = hasDiceEntries
+            ? entriesText
+            : [eventDescription, entriesText].filter(Boolean).join('\n\n');
 
         this.notificationTextBox.setVisible(true).stop(true);
         this.notificationTextBox.getElement('title')?.setText(eventTitle);
