@@ -54,6 +54,7 @@ export class Board extends Phaser.Scene {
         this.turnBeganClickHandler = null;
         this.turnResultDismissHandler = null;
         this.isTurnResultNotificationActive = false;
+        this.awaitingEventRollStateSync = false;
 
         this.addBoard();
         this.buildCells();
@@ -151,6 +152,12 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = Array.isArray(state.pendingEventRollPlayerIds)
             ? state.pendingEventRollPlayerIds.map(id => String(id))
             : [];
+
+        const localPlayerId = String(this.localPlayerId ?? '');
+        const localPendingEventRoll = this.pendingEventRollPlayerIds.includes(localPlayerId);
+        if (!this.isEventRollPhase || !localPendingEventRoll) {
+            this.awaitingEventRollStateSync = false;
+        }
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -379,7 +386,10 @@ export class Board extends Phaser.Scene {
 
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
-        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const localPlayerId = String(this.localPlayerId ?? '');
+        const mustRollForEvent = this.isEventRollPhase
+            && this.pendingEventRollPlayerIds.includes(localPlayerId)
+            && !this.awaitingEventRollStateSync;
         const canRoll = !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (isLocalTurn && this.isTurnInProgress) {
@@ -417,7 +427,10 @@ export class Board extends Phaser.Scene {
     async requestRoll() {
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
-        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const localPlayerId = String(this.localPlayerId ?? '');
+        const mustRollForEvent = this.isEventRollPhase
+            && this.pendingEventRollPlayerIds.includes(localPlayerId)
+            && !this.awaitingEventRollStateSync;
         const canRoll = !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (this.isRolling || !canRoll) {
@@ -428,6 +441,7 @@ export class Board extends Phaser.Scene {
             this.isRolling = true;
             this.animatingPlayerId = this.localPlayerId;
             this.pendingRepeatRoll = false;
+            this.awaitingEventRollStateSync = mustRollForEvent;
             this.turnOverlay.setVisible(false);
 
             this.diceHintText.setVisible(false);
@@ -496,12 +510,6 @@ export class Board extends Phaser.Scene {
 
         if (payload?.isEventRollPhase) {
             this.pendingRepeatRoll = false;
-            this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
-                .filter(playerId => playerId !== String(this.localPlayerId ?? ''));
-
-            if (payload?.eventRollCompleted) {
-                this.isEventRollPhase = false;
-            }
         }
 
         this.turnRequiresChosenPlayer = false;
