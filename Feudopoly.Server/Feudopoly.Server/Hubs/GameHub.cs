@@ -309,17 +309,25 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 throw new HubException($"Event for {caller.Position} position does not exist!");
             }
 
-            resolution = ResolveEvent(session, caller, cellEvent, chosenPlayerId);
-
-            if (ShouldStartEventRollPhase(session, cellEvent, resolution))
+            if (ShouldStartEventRollPhase(session, caller, cellEvent))
             {
                 StartEventRollPhase(session, caller.PlayerId, cellEvent);
                 session.IsTurnInProgress = false;
-                resolution = resolution with { IsEventRollPhase = true, EventRollCompleted = false, RepeatTurn = false };
+
+                resolution = new TurnResolutionPayload
+                {
+                    Event = cellEvent,
+                    Entries = [],
+                    RepeatTurn = false,
+                    IsEventRollPhase = true,
+                    EventRollCompleted = false
+                };
             }
             else
             {
+                resolution = ResolveEvent(session, caller, cellEvent, chosenPlayerId);
                 session.IsTurnInProgress = false;
+
                 if (!resolution.RepeatTurn)
                 {
                     AdvanceTurn(session);
@@ -360,12 +368,25 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await Clients.Caller.SendAsync("StateUpdated", state);
     }
 
-    private static bool ShouldStartEventRollPhase(GameSession session, GameCellEvent gameEvent, TurnResolutionPayload resolution)
+    private static bool ShouldStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
     {
-        return gameEvent.ResolutionMode == EventResolutionMode.Roll
-               && !resolution.RepeatTurn
-               && resolution.Entries.All(entry => entry.Outcome.Target == OutcomeTarget.AllPlayers)
-               && session.Players.Any(player => !player.IsDead && player.PlayerId != session.ActiveTurnPlayerId);
+        if (gameEvent.ResolutionMode != EventResolutionMode.Roll)
+        {
+            return false;
+        }
+
+        if (gameEvent.RollOutcomes.Count == 0)
+        {
+            return false;
+        }
+
+        var allOutcomesTargetAllPlayers = gameEvent.RollOutcomes.All(item => item.Outcome.Target == OutcomeTarget.AllPlayers);
+        if (!allOutcomesTargetAllPlayers)
+        {
+            return false;
+        }
+
+        return session.Players.Any(player => !player.IsDead && player.PlayerId != currentPlayer.PlayerId);
     }
 
     private static void StartEventRollPhase(GameSession session, Guid ownerPlayerId, GameCellEvent gameEvent)
