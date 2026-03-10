@@ -477,6 +477,7 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
+            this.notificationTextBox.setVisible(false).stop(true);
             gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
 
             if (this.turnBeganClickHandler) {
@@ -519,7 +520,15 @@ export class Board extends Phaser.Scene {
             this.turnBeganClickHandler = null;
         }
 
-        this.showTurnResultNotification(payload);
+        const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
+        const shouldSuppressTurnResult = payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries;
+
+        if (!shouldSuppressTurnResult) {
+            this.showTurnResultNotification(payload);
+        } else {
+            this.hideTurnResultNotification();
+            this.refreshTurnUI();
+        }
 
         //this.refreshTurnUI();
     }
