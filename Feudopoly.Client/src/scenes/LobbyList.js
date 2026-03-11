@@ -132,17 +132,7 @@ export class LobbyList extends Phaser.Scene {
         rect.on('pointerdown', onClick);
 
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
-
-        this.tweens.add({
-            targets: container,
-            scaleX: 1.02,
-            scaleY: 1.02,
-            duration: 1000,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.InOut'
-        });
-
+        
         return container;
     }
 
