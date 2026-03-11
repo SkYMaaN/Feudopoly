@@ -3,6 +3,12 @@ namespace Feudopoly.Server.Multiplayer;
 public sealed class GameSession
 {
     public required Guid SessionId { get; init; }
+    public required string Name { get; set; }
+    public required LobbyAccessType AccessType { get; set; }
+    public string? Password { get; set; }
+    public required int MaxPlayers { get; set; }
+    public required LobbyStatus Status { get; set; }
+    public required Guid OwnerPlayerId { get; set; }
     public required List<PlayerState> Players { get; init; }
     public required Guid ActiveTurnPlayerId { get; set; }
     public required int LastRollValue { get; set; }

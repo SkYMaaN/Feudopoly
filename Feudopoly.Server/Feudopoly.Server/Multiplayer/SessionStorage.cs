@@ -4,14 +4,39 @@ namespace Feudopoly.Server.Multiplayer;
 
 public sealed class SessionStorage
 {
-    private readonly ConcurrentDictionary<Guid, GameSession> _sessions = new();
+    private const int MinPlayers = 2;
+    private const int MaxPlayersLimit = 4;
 
-    public GameSession GetOrCreateSession(Guid sessionId)
+    private readonly ConcurrentDictionary<Guid, GameSession> _sessions = new();
+    private readonly ConcurrentDictionary<Guid, Guid> _playerToSession = new();
+
+    public GameSession CreateSession(string name, LobbyAccessType accessType, string? password, int maxPlayers, PlayerState owner)
     {
-        return _sessions.GetOrAdd(sessionId, key => new GameSession
+        if (maxPlayers < MinPlayers || maxPlayers > MaxPlayersLimit)
         {
-            SessionId = key,
-            Players = [],
+            throw new InvalidDataException("Max players must be in range [2..4].");
+        }
+
+        if (accessType == LobbyAccessType.Closed && string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidDataException("Password is required for closed lobbies.");
+        }
+
+        if (_playerToSession.ContainsKey(owner.PlayerId))
+        {
+            throw new InvalidDataException("Player already belongs to a lobby.");
+        }
+
+        var session = new GameSession
+        {
+            SessionId = Guid.NewGuid(),
+            Name = name.Trim(),
+            AccessType = accessType,
+            Password = string.IsNullOrWhiteSpace(password) ? null : password.Trim(),
+            MaxPlayers = maxPlayers,
+            Status = LobbyStatus.WaitingForPlayers,
+            OwnerPlayerId = owner.PlayerId,
+            Players = [owner],
             ActiveTurnPlayerId = Guid.Empty,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
@@ -20,13 +45,130 @@ public sealed class SessionStorage
             EventRollOwnerPlayerId = Guid.Empty,
             PendingEventRollPlayerIds = [],
             PendingEventRollEvent = null
-        });
+        };
+
+        _sessions.TryAdd(session.SessionId, session);
+        _playerToSession[owner.PlayerId] = session.SessionId;
+        UpdateStatus(session);
+        return session;
     }
 
-    public bool TryGetSession(Guid sessionId, out GameSession? session)
+    public bool TryGetSession(Guid sessionId, out GameSession? session) => _sessions.TryGetValue(sessionId, out session);
+
+    public IReadOnlyCollection<GameSession> GetSessions() => _sessions.Values.OrderByDescending(x => x.CreatedAtUtc).ToArray();
+
+    public void JoinLobby(GameSession session, Guid playerId, string displayName, bool isMan, bool isMuslim, string? password)
     {
-        return _sessions.TryGetValue(sessionId, out session);
+        lock (session)
+        {
+            if (session.Status is LobbyStatus.Launching or LobbyStatus.InProgress or LobbyStatus.Completed)
+            {
+                throw new InvalidDataException("Cannot join this session in current status.");
+            }
+
+            if (session.Players.Count >= session.MaxPlayers)
+            {
+                throw new InvalidDataException("Session is full.");
+            }
+
+            if (_playerToSession.ContainsKey(playerId))
+            {
+                throw new InvalidDataException("Player already belongs to a lobby.");
+            }
+
+            if (session.AccessType == LobbyAccessType.Closed && !string.Equals(session.Password, password?.Trim(), StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Invalid lobby password.");
+            }
+
+            session.Players.Add(new PlayerState
+            {
+                PlayerId = playerId,
+                DisplayName = displayName.Trim(),
+                IsMan = isMan,
+                IsMuslim = isMuslim,
+                Position = 0,
+                IsConnected = false,
+                IsDead = false,
+                TurnsToSkip = 0
+            });
+
+            _playerToSession[playerId] = session.SessionId;
+            UpdateStatus(session);
+        }
     }
+
+    public void LeaveLobby(GameSession session, Guid playerId)
+    {
+        lock (session)
+        {
+            var player = session.Players.FirstOrDefault(p => p.PlayerId == playerId)
+                ?? throw new InvalidDataException("Player not in lobby.");
+
+            if (session.Status is LobbyStatus.InProgress or LobbyStatus.Completed)
+            {
+                throw new InvalidDataException("Cannot leave after game start.");
+            }
+
+            session.Players.Remove(player);
+            _playerToSession.TryRemove(playerId, out _);
+
+            if (session.Players.Count == 0)
+            {
+                _sessions.TryRemove(session.SessionId, out _);
+                return;
+            }
+
+            if (session.OwnerPlayerId == playerId)
+            {
+                session.OwnerPlayerId = session.Players.First(p => !p.IsDead).PlayerId;
+            }
+
+            UpdateStatus(session);
+
+            if (session.Players.Count < MinPlayers)
+            {
+                session.Status = LobbyStatus.Completed;
+                _sessions.TryRemove(session.SessionId, out _);
+                foreach (var left in session.Players)
+                {
+                    _playerToSession.TryRemove(left.PlayerId, out _);
+                }
+            }
+        }
+    }
+
+    public void StartLobby(GameSession session, Guid callerId)
+    {
+        lock (session)
+        {
+            if (session.OwnerPlayerId != callerId)
+            {
+                throw new InvalidDataException("Only owner can start.");
+            }
+
+            UpdateStatus(session);
+            if (session.Status != LobbyStatus.Ready)
+            {
+                throw new InvalidDataException("Not enough players to start.");
+            }
+
+            session.Status = LobbyStatus.Launching;
+        }
+    }
+
+    public void MarkInProgress(GameSession session)
+    {
+        lock (session)
+        {
+            if (session.Status is LobbyStatus.Launching or LobbyStatus.Ready)
+            {
+                session.Status = LobbyStatus.InProgress;
+            }
+        }
+    }
+
+    public bool TryGetSessionForPlayer(Guid playerId, out Guid sessionId) => _playerToSession.TryGetValue(playerId, out sessionId);
 
     public void RemoveSessionIfEmpty(Guid sessionId)
     {
@@ -42,6 +184,16 @@ public sealed class SessionStorage
                 _sessions.TryRemove(sessionId, out _);
             }
         }
+    }
+
+    public static void UpdateStatus(GameSession session)
+    {
+        if (session.Status is LobbyStatus.Launching or LobbyStatus.InProgress or LobbyStatus.Completed)
+        {
+            return;
+        }
+
+        session.Status = session.Players.Count >= MinPlayers ? LobbyStatus.Ready : LobbyStatus.WaitingForPlayers;
     }
 
     public static GameStateDto ToDto(GameSession session)

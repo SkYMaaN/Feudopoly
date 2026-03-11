@@ -1,5 +1,7 @@
 import { Start } from './scenes/Start.js';
 import { Board } from './scenes/Board.js';
+import { LobbyList } from './scenes/LobbyList.js';
+import { LobbyRoom } from './scenes/LobbyRoom.js';
 
 const config = {
     type: Phaser.AUTO,
@@ -12,6 +14,8 @@ const config = {
     pixelArt: false,
     scene: [
         Start,
+        LobbyList,
+        LobbyRoom,
         Board
     ],
     scale: {
