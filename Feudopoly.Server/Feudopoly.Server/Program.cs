@@ -19,6 +19,7 @@ namespace Feudopoly.Server
             });
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
+            builder.Services.AddSingleton<Feudopoly.Server.Lobbies.LobbyService>();
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("ClientPolicy", policy =>

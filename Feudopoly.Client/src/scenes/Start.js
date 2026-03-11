@@ -1,527 +1,252 @@
+import { createLobby, getLobby, getLobbies, joinLobby, leaveLobby, setLobbyStatus } from '../network/lobbyApi.js';
+
+const STATUS_LABELS = {
+    0: 'Ожидание игроков',
+    1: 'Готово',
+    2: 'Запуск',
+    3: 'Игра идёт',
+    4: 'Завершено'
+};
+
+const ACCESS_LABELS = {
+    0: 'Открытое',
+    1: 'Закрытое'
+};
+
 export class Start extends Phaser.Scene {
     constructor() {
         super('Start');
-        this.nickname = '';
-        this.sessionId = '';
-        this.activeInput = null;
-        this.gender = 'Male';
-        this.religion = 'Islam';
-        this.openDropdown = null;
-    }
-
-    preload() {
-        this.load.scenePlugin({
-            key: 'rexuiplugin',
-            url: "plugins/rexuiplugin.min.js",
-            sceneKey: 'rexUI'
-        });
+        this.userId = localStorage.getItem('feudopoly_user_id') || crypto.randomUUID();
+        localStorage.setItem('feudopoly_user_id', this.userId);
+        this.currentLobby = null;
     }
 
     create() {
         const { width, height } = this.scale.gameSize;
-
         this.add.rectangle(width / 2, height / 2, width, height, 0x1a1207, 1).setOrigin(0.5);
-        this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.35).setOrigin(0.5);
-        this.add.rectangle(width / 2 + 10, height / 2 + 10, 980, 920, 0x000000, 0.45);
-        this.add.rectangle(width / 2, height / 2, 980, 920, 0x2d1f11, 0.95).setStrokeStyle(10, 0x8d6a3b, 1);
-
-        this.add.text(width / 2, height / 2 - 360, 'FEUDOPOLY', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '120px',
-            color: '#e8d2a9',
-            stroke: '#3a230c',
-            strokeThickness: 14,
-            fontStyle: 'bold'
+        this.add.text(width / 2, 80, 'FEUDOPOLY LOBBIES', {
+            fontFamily: 'Georgia, serif', fontSize: '68px', color: '#f2e4c3'
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height / 2 - 270, 'A medieval board of feuds and fortune', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '34px',
-            color: '#d9c39a',
-            stroke: '#2a1707',
-            strokeThickness: 8
-        }).setOrigin(0.5);
-
-        this.add.text(width / 2, height / 2 - 220, 'Nickname', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#f2e4c3'
-        }).setOrigin(0.5);
-
-        this.nicknameField = this.createInputField(width / 2, height / 2 - 160, 'Enter your nickname', 28);
-        this.activeInput = this.nicknameField;
-
-        this.genderLabel = this.add.text(width / 2, height / 2 - 100, 'Gender', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#f2e4c3'
-        }).setOrigin(0.5);
-
-        this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
-            { label: 'Male', value: 'Male' },
-            { label: 'Female', value: 'Female' },
-            { label: 'Other', value: 'Other' }
-        ], this.gender, (value) => {
-            this.gender = value;
-        });
-
-        this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#f2e4c3'
-        }).setOrigin(0.5);
-
-        this.religionDropdown = this.createDropdown(width / 2, height / 2 + 85, [
-            { label: 'Other', value: 'Other' },
-            { label: 'Islam', value: 'Islam' }
-        ], this.religion, (value) => {
-            this.religion = value;
-        });
-
-        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 150, 'Game code (for joining)', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#f2e4c3'
-        }).setOrigin(0.5).setVisible(false);
-
-        this.sessionField = this.createInputField(width / 2, height / 2 + 210, 'Paste game code here', 36);
-        this.setJoinCodeVisibility(false);
-
-        this.createNewButton = this.createButton(width / 2, height / 2 + 200, 420, 96, 'CREATE NEW', () => {
-            const nickname = this.nickname.trim();
-            if (!nickname) {
-                this.showMessage('Enter a nickname before creating a game.');
-                return;
-            }
-
-            this.scene.start('Board', {
-                mode: 'create',
-                displayName: nickname,
-                sessionId: crypto.randomUUID(),
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
-        });
-
-        this.joinGameButton = this.createButton(width / 2, height / 2 + 330, 420, 96, 'JOIN', () => {
-            const nickname = this.nickname.trim();
-
-            if (!nickname) {
-                this.showMessage('Enter your nickname before connecting.');
-                return;
-            }
-
-            if (!this.joinCodeVisible) {
-                this.setConnectGameButtonVisibility(true);
-                this.setJoinCodeVisibility(true);
-                this.setGameButtonsVisibility(false);
-                this.setBackButtonVisibility(true);
-                this.activeInput = this.sessionField;
-                this.refreshInputStyles();
-                this.showMessage('Enter the session code to connect.');
-                return;
-            }
-
-            const sessionId = this.sessionId.trim();
-            if (!sessionId) {
-                this.showMessage('Please enter the game code to connect.');
-                return;
-            }
-
-            this.scene.start('Board', {
-                mode: 'join',
-                displayName: nickname,
-                sessionId,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
-        });
-
-        this.setGameButtonsVisibility(true);
-
-        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 320, 300, 96, 'CONNECT', () => {
-            const nickname = this.nickname.trim();
-
-            if (!nickname) {
-                this.showMessage('Enter your nickname before connecting.');
-                return;
-            }
-
-            const sessionId = this.sessionId.trim();
-            if (!sessionId) {
-                this.showMessage('Please enter the game code to connect.');
-                return;
-            }
-
-            this.scene.start('Board', {
-                mode: 'join',
-                displayName: nickname,
-                sessionId,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
-        });
-        this.setConnectGameButtonVisibility(false);
-
-        this.backButton = this.createButton(width / 2 + 180, height / 2 + 320, 300, 96, 'BACK', () => {
-            this.setJoinCodeVisibility(false);
-            this.setGameButtonsVisibility(true);
-            this.setBackButtonVisibility(false);
-            this.setConnectGameButtonVisibility(false);
-        });
-        this.setBackButtonVisibility(false);
-
-        this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '26px',
-            color: '#ffd9a0',
-            stroke: '#2a1707',
-            strokeThickness: 6,
-            align: 'center'
-        }).setOrigin(0.5);
-
-        this.setupKeyboardInput();
-        this.refreshInputStyles();
-
-        this.input.on('pointerdown', (pointer, currentlyOver) => {
-            if (!this.openDropdown) {
-                return;
-            }
-
-            const hoveredObjects = currentlyOver || [];
-            const isClickInsideDropdown = hoveredObjects.some((gameObject) => this.isInDropdownHierarchy(gameObject));
-            if (!isClickInsideDropdown) {
-                this.closeDropdown(this.openDropdown);
-            }
-        });
+        this.createDomOverlay();
+        this.loadLobbies();
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroyDomOverlay());
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => this.destroyDomOverlay());
     }
 
-    createInputField(x, y, placeholder, maxLength) {
-        const bg = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0x1f1308, 1)
-            .setStrokeStyle(5, 0x8d6a3b, 0.9);
+    createDomOverlay() {
+        this.overlay = document.createElement('div');
+        this.overlay.style.cssText = 'position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-start;pointer-events:none;z-index:20;padding-top:140px;';
 
-        const text = this.add.text(0, 0, placeholder, {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '30px',
-            color: '#9f8b69'
-        }).setOrigin(0, 0.5);
+        this.panel = document.createElement('div');
+        this.panel.style.cssText = 'width:1100px;max-height:760px;overflow:auto;background:rgba(35,22,12,.95);color:#f8e8c9;border:2px solid #8d6a3b;border-radius:14px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:16px;pointer-events:auto;font-family:Arial,sans-serif;';
+        this.overlay.appendChild(this.panel);
+        document.body.appendChild(this.overlay);
 
-        const label = this.rexUI.add.label({
-            x,
-            y,
-            background: bg,
-            text,
-            align: 'left',
-            space: {
-                left: 25,
-                right: 25,
-                top: 10,
-                bottom: 10
-            }
-        }).layout().setInteractive({ useHandCursor: true });
+        this.panel.innerHTML = `
+        <section>
+          <h3>Создание лобби</h3>
+          <input id="displayName" placeholder="Ваш ник" style="width:100%;margin-bottom:8px;" />
+          <input id="lobbyName" placeholder="Название лобби" style="width:100%;margin-bottom:8px;" />
+          <select id="accessType" style="width:100%;margin-bottom:8px;">
+            <option value="0">Открытое</option>
+            <option value="1">Закрытое</option>
+          </select>
+          <input id="password" placeholder="Пароль" style="width:100%;margin-bottom:8px;display:none;" />
+          <select id="maxPlayers" style="width:100%;margin-bottom:8px;">
+            <option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+          </select>
+          <button id="createLobbyBtn">Создать</button>
+          <p id="message"></p>
+          <hr/>
+          <div id="currentLobby"></div>
+        </section>
+        <section>
+          <h3>Список лобби</h3>
+          <input id="search" placeholder="Поиск по названию" style="width:100%;margin-bottom:8px;" />
+          <button id="refreshBtn">Обновить</button>
+          <div id="lobbyList" style="margin-top:10px;"></div>
+        </section>`;
 
-        const field = { container: label, bg, text, placeholder, maxLength };
+        this.messageEl = this.panel.querySelector('#message');
+        this.currentLobbyEl = this.panel.querySelector('#currentLobby');
+        this.lobbyListEl = this.panel.querySelector('#lobbyList');
 
-        label.on('pointerdown', () => {
-            if (field === this.sessionField && !this.joinCodeVisible) {
-                return;
-            }
-
-            this.activeInput = field;
-            this.refreshInputStyles();
+        const accessSelect = this.panel.querySelector('#accessType');
+        const passwordInput = this.panel.querySelector('#password');
+        accessSelect.addEventListener('change', () => {
+            passwordInput.style.display = accessSelect.value === '1' ? 'block' : 'none';
         });
 
-        return field;
+        this.panel.querySelector('#createLobbyBtn').addEventListener('click', () => this.handleCreateLobby());
+        this.panel.querySelector('#refreshBtn').addEventListener('click', () => this.loadLobbies());
+        this.panel.querySelector('#search').addEventListener('input', () => this.loadLobbies());
     }
 
-    createButton(x, y, width, height, label, onClick) {
-        const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, 0x6f4b23, 1)
-            .setStrokeStyle(7, 0xc89b58, 1);
-
-        const buttonText = this.add.text(0, 0, label, {
-            fontFamily: 'Georgia, serif',
-            fontSize: '38px',
-            color: '#f2e4c3',
-            stroke: '#3a230c',
-            strokeThickness: 8,
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        const button = this.rexUI.add.label({
-            x,
-            y,
-            width,
-            height,
-            background,
-            text: buttonText,
-            align: 'center'
-        }).layout().setInteractive({ useHandCursor: true });
-
-        button.on('pointerover', () => background.setFillStyle(0x3E5A2E, 1));
-        button.on('pointerout', () => background.setFillStyle(0x6f4b23, 1));
-        button.on('pointerdown', onClick);
-
-        this.tweens.add({
-            targets: button,
-            scaleX: 1.02,
-            scaleY: 1.02,
-            duration: 1000,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.InOut'
-        });
-
-        return button;
+    destroyDomOverlay() {
+        this.overlay?.remove();
+        this.overlay = null;
     }
 
-    createDropdown(x, y, options, initialValue, onSelect) {
-        const background = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0x1f1308, 1)
-            .setStrokeStyle(5, 0x8d6a3b, 0.9);
-
-        const text = this.add.text(0, 0, initialValue, {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#f2e4c3',
-            stroke: '#2a1707',
-            strokeThickness: 5
-        }).setOrigin(0, 0.5);
-
-        const arrow = this.add.text(0, 0, '▼', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#d9c39a',
-            stroke: '#2a1707',
-            strokeThickness: 5
-        }).setOrigin(0.5);
-
-        const dropdown = this.rexUI.add.label({
-            x,
-            y,
-            width: 330,
-            height: 40,
-            background,
-            text,
-            icon: arrow,
-            align: 'left',
-            space: {
-                left: 25,
-                right: 20,
-                top: 10,
-                bottom: 10,
-                icon: 18
-            }
-        }).layout().setInteractive({ useHandCursor: true, pixelPerfect: false });
-
-        const optionButtons = options.map((option, index) => {
-            const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x1f1308, 1)
-                .setStrokeStyle(4, 0x8d6a3b, 0.8);
-
-            const optionText = this.add.text(0, 0, option.label, {
-                fontFamily: 'Georgia, serif',
-                fontSize: '28px',
-                color: '#f2e4c3',
-                stroke: '#2a1707',
-                strokeThickness: 4
-            }).setOrigin(0, 0.5);
-
-            const button = this.rexUI.add.label({
-                x: 0,
-                y: 40 + index * 68,
-                width: 200,
-                height: 20,
-                background: optionBackground,
-                text: optionText,
-                align: 'left',
-                space: {
-                    left: 20,
-                    right: 20,
-                    top: 8,
-                    bottom: 8
-                }
-            }).layout().setOrigin(0.5, 0).setInteractive({ useHandCursor: true, pixelPerfect: false });
-
-            button.on('pointerover', () => optionBackground.setFillStyle(0x3E5A2E, 1));
-            button.on('pointerout', () => optionBackground.setFillStyle(0x1f1308, 1));
-            button.on('pointerdown', () => {
-                text.setText(option.label);
-                onSelect(option.value);
-                this.closeDropdown(dropdownData);
-            });
-
-            return button;
-        });
-
-        const panelHeight = options.length * 68 + 10;
-        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 230, panelHeight, 16, 0x120b04, 0.98)
-            .setStrokeStyle(5, 0xc89b58, 1)
-            .setOrigin(0.5, 0);
-        const panel = this.add.container(x, y + 40, [panelBackground, ...optionButtons]).setVisible(false).setDepth(250);
-
-        const dropdownData = { container: dropdown, panel, arrow, background, optionButtons };
-
-        dropdown.on('pointerdown', () => {
-            if (this.openDropdown && this.openDropdown !== dropdownData) {
-                this.closeDropdown(this.openDropdown);
-            }
-
-            if (panel.visible) {
-                this.closeDropdown(dropdownData);
-                return;
-            }
-
-            this.openDropdown = dropdownData;
-            panel.setVisible(true);
-            arrow.setText('▲');
-            background.setStrokeStyle(5, 0xe5b96d, 1);
-        });
-
-        return dropdownData;
+    showMessage(text, isError = false) {
+        this.messageEl.textContent = text;
+        this.messageEl.style.color = isError ? '#ff8f8f' : '#bdf0b7';
     }
 
-    closeDropdown(dropdown) {
-        if (!dropdown) {
+    async handleCreateLobby() {
+        const displayName = this.panel.querySelector('#displayName').value.trim();
+        const name = this.panel.querySelector('#lobbyName').value.trim();
+        const accessType = Number(this.panel.querySelector('#accessType').value);
+        const password = this.panel.querySelector('#password').value;
+        const maxPlayers = Number(this.panel.querySelector('#maxPlayers').value);
+
+        if (!displayName || !name) {
+            this.showMessage('Заполните ник и название лобби.', true);
             return;
         }
 
-        dropdown.panel.setVisible(false);
-        dropdown.arrow.setText('▼');
-        dropdown.background.setStrokeStyle(5, 0x8d6a3b, 0.9);
-
-        if (this.openDropdown === dropdown) {
-            this.openDropdown = null;
-        }
-    }
-
-    isInDropdownHierarchy(gameObject) {
-        if (!this.openDropdown || !gameObject) {
-            return false;
-        }
-
-        if (gameObject === this.openDropdown.container || gameObject === this.openDropdown.panel) {
-            return true;
-        }
-
-        if (this.openDropdown.optionButtons.includes(gameObject)) {
-            return true;
-        }
-
-        return this.openDropdown.panel.list?.includes(gameObject) ?? false;
-    }
-
-    setBackButtonVisibility(isVisible) {
-        this.backButton.setVisible(isVisible);
-    }
-
-    setGameButtonsVisibility(isVisible) {
-        this.createNewButton.setVisible(isVisible);
-        this.joinGameButton.setVisible(isVisible);
-    }
-
-    setConnectGameButtonVisibility(isVisible) {
-        this.connectGameButton.setVisible(isVisible);
-    }
-
-    setJoinCodeVisibility(isVisible) {
-        this.joinCodeVisible = isVisible;
-        this.joinCodeLabel.setVisible(isVisible);
-        this.sessionField.container.setVisible(isVisible);
-
-        if (!isVisible && this.activeInput === this.sessionField) {
-            this.activeInput = this.nicknameField;
-        }
-
-        this.refreshInputStyles();
-    }
-
-    refreshInputStyles() {
-        [this.nicknameField, this.sessionField].forEach((field) => {
-            const hidden = field === this.sessionField && !this.joinCodeVisible;
-            if (hidden) {
-                return;
-            }
-
-            const isActive = this.activeInput === field;
-            field.bg.setStrokeStyle(5, isActive ? 0xe5b96d : 0x8d6a3b, 1);
-        });
-    }
-
-    setupKeyboardInput() {
-        this.input.keyboard.on('keydown', (event) => {
-            if (!this.activeInput) {
-                return;
-            }
-
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
-                event.preventDefault();
-                this.pasteFromClipboard();
-                return;
-            }
-
-            const isNickname = this.activeInput === this.nicknameField;
-            const value = isNickname ? this.nickname : this.sessionId;
-            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
-
-            if (event.key === 'Backspace') {
-                this.setFieldValue(isNickname, value.slice(0, -1));
-                return;
-            }
-
-            if (event.key === 'Tab') {
-                event.preventDefault();
-                this.activeInput = this.joinCodeVisible && isNickname ? this.sessionField : this.nicknameField;
-                this.refreshInputStyles();
-                return;
-            }
-
-            if (event.key.length === 1 && value.length < maxLength) {
-                this.setFieldValue(isNickname, value + event.key);
-            }
-        });
-    }
-
-    async pasteFromClipboard() {
-        if (!navigator.clipboard?.readText || !this.activeInput) {
+        if (accessType === 1 && !password.trim()) {
+            this.showMessage('Для закрытого лобби обязателен пароль.', true);
             return;
         }
 
         try {
-            const isNickname = this.activeInput === this.nicknameField;
-            const value = isNickname ? this.nickname : this.sessionId;
-            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
-
-            const clipboardText = await navigator.clipboard.readText();
-            const cleanText = clipboardText.replace(/[\r\n]+/g, ' ').trim();
-            const nextValue = (value + cleanText).slice(0, maxLength);
-
-            this.setFieldValue(isNickname, nextValue);
-        } catch {
-            this.showMessage('Clipboard access is unavailable.');
+            const lobby = await createLobby({ name, accessType, password, maxPlayers, userId: this.userId, displayName });
+            this.currentLobby = lobby;
+            this.renderCurrentLobby();
+            await this.loadLobbies();
+            this.showMessage('Лобби создано.');
+        } catch (error) {
+            this.showMessage(error.message, true);
         }
     }
 
-    setFieldValue(isNickname, value) {
-        const field = isNickname ? this.nicknameField : this.sessionField;
+    async loadLobbies() {
+        const search = this.panel.querySelector('#search').value.trim();
 
-        if (isNickname) {
-            this.nickname = value;
-        } else {
-            this.sessionId = value;
+        try {
+            const lobbies = await getLobbies(search);
+            this.renderLobbyList(lobbies);
+        } catch (error) {
+            this.showMessage(error.message, true);
         }
-
-        field.text.setText(value || field.placeholder);
-        field.text.setColor(value ? '#f2e4c3' : '#9f8b69');
     }
 
-    showMessage(text) {
-        this.messageText.setText(text);
-        this.tweens.killTweensOf(this.messageText);
-        this.messageText.setAlpha(1);
+    renderLobbyList(lobbies) {
+        this.lobbyListEl.innerHTML = '';
 
-        this.tweens.add({
-            targets: this.messageText,
-            alpha: 0,
-            delay: 2500,
-            duration: 600
+        lobbies.forEach((lobby) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'border:1px solid #6f4b23;padding:8px;border-radius:8px;margin-bottom:8px;';
+            row.innerHTML = `<strong>${lobby.name}</strong><br/>Игроки: ${lobby.currentPlayers}/${lobby.maxPlayers}<br/>Статус: ${STATUS_LABELS[lobby.status]}<br/>Доступ: ${ACCESS_LABELS[lobby.accessType]}`;
+
+            const joinBtn = document.createElement('button');
+            joinBtn.textContent = 'Присоединиться';
+            joinBtn.onclick = async () => {
+                try {
+                    const displayName = this.panel.querySelector('#displayName').value.trim();
+                    if (!displayName) {
+                        this.showMessage('Введите ник перед входом в лобби.', true);
+                        return;
+                    }
+
+                    const password = lobby.accessType === 1 ? prompt('Введите пароль лобби:') : '';
+                    const details = await joinLobby(lobby.lobbyId, { userId: this.userId, displayName, password });
+                    this.currentLobby = details;
+                    this.renderCurrentLobby();
+                    this.showMessage('Вы вошли в лобби.');
+                    await this.loadLobbies();
+                } catch (error) {
+                    this.showMessage(error.message, true);
+                }
+            };
+
+            row.appendChild(document.createElement('br'));
+            row.appendChild(joinBtn);
+            this.lobbyListEl.appendChild(row);
         });
+    }
+
+    renderCurrentLobby() {
+        if (!this.currentLobby) {
+            this.currentLobbyEl.innerHTML = '';
+            return;
+        }
+
+        const me = this.currentLobby.players.find((player) => player.userId === this.userId);
+        const isOwner = Boolean(me?.isOwner);
+
+        this.currentLobbyEl.innerHTML = `<h4>Текущее лобби: ${this.currentLobby.name}</h4>
+            <div>Статус: ${STATUS_LABELS[this.currentLobby.status]}</div>
+            <div>Игроки:</div>
+            <ul>${this.currentLobby.players.map((player) => `<li>${player.displayName}${player.isOwner ? ' (владелец)' : ''}</li>`).join('')}</ul>`;
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.textContent = 'Обновить лобби';
+        refreshBtn.onclick = async () => {
+            this.currentLobby = await getLobby(this.currentLobby.lobbyId);
+            this.renderCurrentLobby();
+            this.loadLobbies();
+        };
+
+        const leaveBtn = document.createElement('button');
+        leaveBtn.textContent = 'Выйти из лобби';
+        leaveBtn.onclick = async () => {
+            try {
+                await leaveLobby(this.currentLobby.lobbyId, { userId: this.userId });
+                this.currentLobby = null;
+                this.renderCurrentLobby();
+                await this.loadLobbies();
+                this.showMessage('Вы вышли из лобби.');
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        };
+
+        this.currentLobbyEl.appendChild(refreshBtn);
+        this.currentLobbyEl.appendChild(document.createTextNode(' '));
+        this.currentLobbyEl.appendChild(leaveBtn);
+
+
+        if (this.currentLobby.status === 3) {
+            const openGameBtn = document.createElement('button');
+            openGameBtn.textContent = 'Перейти в игру';
+            openGameBtn.onclick = () => {
+                this.scene.start('Board', {
+                    mode: 'join',
+                    displayName: this.panel.querySelector('#displayName').value.trim(),
+                    sessionId: this.currentLobby.sessionId,
+                    lobbyId: this.currentLobby.lobbyId,
+                    isMan: true,
+                    isMuslim: false
+                });
+            };
+
+            this.currentLobbyEl.appendChild(document.createTextNode(' '));
+            this.currentLobbyEl.appendChild(openGameBtn);
+        }
+        if (isOwner && this.currentLobby.status === 1) {
+            const startBtn = document.createElement('button');
+            startBtn.textContent = 'Запустить игру';
+            startBtn.onclick = async () => {
+                try {
+                    await setLobbyStatus(this.currentLobby.lobbyId, 2);
+                    await setLobbyStatus(this.currentLobby.lobbyId, 3);
+                    this.scene.start('Board', {
+                        mode: 'join',
+                        displayName: this.panel.querySelector('#displayName').value.trim(),
+                        sessionId: this.currentLobby.sessionId,
+                        lobbyId: this.currentLobby.lobbyId,
+                        isMan: true,
+                        isMuslim: false
+                    });
+                } catch (error) {
+                    this.showMessage(error.message, true);
+                }
+            };
+
+            this.currentLobbyEl.appendChild(document.createTextNode(' '));
+            this.currentLobbyEl.appendChild(startBtn);
+        }
     }
 }
