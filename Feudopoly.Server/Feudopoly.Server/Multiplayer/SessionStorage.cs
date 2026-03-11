@@ -98,7 +98,7 @@ public sealed class SessionStorage
         }
     }
 
-    public void LeaveLobby(GameSession session, Guid playerId)
+    public bool LeaveLobby(GameSession session, Guid playerId)
     {
         lock (session)
         {
@@ -116,7 +116,7 @@ public sealed class SessionStorage
             if (session.Players.Count == 0)
             {
                 _sessions.TryRemove(session.SessionId, out _);
-                return;
+                return true;
             }
 
             if (session.OwnerPlayerId == playerId)
@@ -134,7 +134,11 @@ public sealed class SessionStorage
                 {
                     _playerToSession.TryRemove(left.PlayerId, out _);
                 }
+
+                return true;
             }
+
+            return false;
         }
     }
 
