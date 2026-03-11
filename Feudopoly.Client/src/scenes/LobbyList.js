@@ -114,10 +114,35 @@ export class LobbyList extends Phaser.Scene {
     }
 
     createButton(x, y, width, height, label, onClick) {
-        const rect = this.add.rectangle(x, y, width, height, 0x6f4b23, 1).setStrokeStyle(3, 0xc89b58, 1).setInteractive({ useHandCursor: true });
-        const text = this.add.text(x, y, label, { fontFamily: 'Georgia, serif', fontSize: '22px', color: '#f2e4c3' }).setOrigin(0.5);
+        const rect = this.add.rectangle(x, y, width, height, 0x6f4b23, 1)
+            .setStrokeStyle(6, 0xc89b58, 1)
+            .setInteractive({ useHandCursor: true });
+
+        const text = this.add.text(x, y, label, {
+            fontFamily: 'Georgia, serif',
+            fontSize: '26px',
+            color: '#f2e4c3',
+            stroke: '#3a230c',
+            strokeThickness: 6,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        rect.on('pointerover', () => rect.setFillStyle(0x3E5A2E, 1));
+        rect.on('pointerout', () => rect.setFillStyle(0x6f4b23, 1));
         rect.on('pointerdown', onClick);
-        const container = this.add.container(0, 0, [rect, text]);
+
+        const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
+
+        this.tweens.add({
+            targets: container,
+            scaleX: 1.02,
+            scaleY: 1.02,
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut'
+        });
+
         return container;
     }
 
