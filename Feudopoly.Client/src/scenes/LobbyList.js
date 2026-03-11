@@ -1,4 +1,5 @@
 import { lobbyApi } from '../network/lobbyApi.js';
+import { lobbyHubClient } from '../network/lobbyHubClient.js';
 import { getOrCreateProfile, saveProfile } from '../network/profileStorage.js';
 
 export class LobbyList extends Phaser.Scene {
@@ -6,6 +7,8 @@ export class LobbyList extends Phaser.Scene {
         super('LobbyList');
         this.search = '';
         this.rows = [];
+        this.lobbies = [];
+        this.hubUnsubscribers = [];
     }
 
     create(data) {
@@ -24,15 +27,57 @@ export class LobbyList extends Phaser.Scene {
         this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: '#ffd9a0' }).setOrigin(0.5);
 
         this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
-        this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.loadLobbies());
+        this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
         this.createButton(1700, 230, 260, 60, 'CREATE', () => this.createLobby());
 
         this.listContainer = this.add.container(70, 200);
         this.input.keyboard.on('keydown', (e) => this.onKey(e));
-        this.loadLobbies();
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupHub, this);
+        this.events.once(Phaser.Scenes.Events.DESTROY, this.cleanupHub, this);
+
+        this.bootLobbyRealtime();
     }
 
-    async loadLobbies() {
+    async bootLobbyRealtime() {
+        await this.syncLobbies();
+
+        try {
+            this.registerHubHandlers();
+            await lobbyHubClient.connect();
+            await lobbyHubClient.subscribeLobbyList();
+            this.showMessage('');
+        } catch (e) {
+            this.showMessage(`Realtime disabled: ${e.message}`);
+        }
+    }
+
+    registerHubHandlers() {
+        this.hubUnsubscribers.forEach(unsubscribe => unsubscribe());
+        this.hubUnsubscribers = [
+            lobbyHubClient.on('lobbyListChanged', (lobby) => {
+                this.upsertLobby(lobby);
+                this.renderRows();
+            }),
+            lobbyHubClient.on('lobbyListDeleted', (lobbyId) => {
+                this.removeLobby(lobbyId);
+                this.renderRows();
+            }),
+            lobbyHubClient.on('reconnecting', () => {
+                this.showMessage('Realtime reconnecting...');
+            }),
+            lobbyHubClient.on('reconnected', async () => {
+                await lobbyHubClient.subscribeLobbyList();
+                await this.syncLobbies();
+                this.showMessage('');
+            }),
+            lobbyHubClient.on('error', () => {
+                this.showMessage('Realtime connection closed. Press Refresh to sync.');
+            })
+        ];
+    }
+
+    async syncLobbies() {
         try {
             this.lobbies = await lobbyApi.list(this.search);
             this.renderRows();
@@ -42,13 +87,29 @@ export class LobbyList extends Phaser.Scene {
         }
     }
 
+    upsertLobby(lobby) {
+        const idx = this.lobbies.findIndex(item => item.lobbyId === lobby.lobbyId);
+        if (idx === -1) {
+            this.lobbies.push(lobby);
+            return;
+        }
+
+        this.lobbies[idx] = lobby;
+    }
+
+    removeLobby(lobbyId) {
+        this.lobbies = this.lobbies.filter(lobby => lobby.lobbyId !== lobbyId);
+    }
+
     renderRows() {
         this.listContainer.removeAll(true);
         this.rows = [];
 
         this.searchText.setText(`Search: ${this.search || '-'}`);
+        const normalizedSearch = this.search.trim().toLowerCase();
+        const visibleLobbies = this.lobbies.filter(lobby => !normalizedSearch || lobby.name.toLowerCase().includes(normalizedSearch));
 
-        this.lobbies.forEach((lobby, idx) => {
+        visibleLobbies.forEach((lobby, idx) => {
             const y = idx * 75;
             const bg = this.add.rectangle(0, y, 1275, 64, 0x2d1f11, 0.95).setOrigin(0, 0);
             const text = this.add.text(20, y + 16,
@@ -121,13 +182,26 @@ export class LobbyList extends Phaser.Scene {
     onKey(event) {
         if (event.key === 'Backspace') {
             this.search = this.search.slice(0, -1);
-            this.loadLobbies();
+            this.renderRows();
             return;
         }
         if (event.key.length === 1 && this.search.length < 32) {
             this.search += event.key;
-            this.loadLobbies();
+            this.renderRows();
         }
+    }
+
+    async cleanupHub() {
+        this.hubUnsubscribers.forEach(unsubscribe => unsubscribe());
+        this.hubUnsubscribers = [];
+
+        try {
+            await lobbyHubClient.unsubscribeLobbyList();
+        } catch {
+            // ignore network teardown errors
+        }
+
+        await lobbyHubClient.disconnect();
     }
 
     createButton(x, y, width, height, label, onClick) {
