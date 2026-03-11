@@ -101,20 +101,6 @@ export class Start extends Phaser.Scene {
             });
         });
 
-        this.joinGameButton = this.createButton(width / 2, height / 2 + 330, 420, 96, 'OPEN LOBBIES', () => {
-            const nickname = this.nickname.trim();
-            if (!nickname) {
-                this.showMessage('Enter your nickname first.');
-                return;
-            }
-
-            this.scene.start('LobbyList', {
-                displayName: nickname,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
-        });
-
         this.setGameButtonsVisibility(true);
 
         this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 320, 300, 96, 'CONNECT', () => {
@@ -392,7 +378,6 @@ export class Start extends Phaser.Scene {
 
     setGameButtonsVisibility(isVisible) {
         this.createNewButton.setVisible(isVisible);
-        this.joinGameButton.setVisible(isVisible);
     }
 
     setConnectGameButtonVisibility(isVisible) {
