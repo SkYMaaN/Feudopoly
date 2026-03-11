@@ -2,7 +2,7 @@ namespace Feudopoly.Server.Multiplayer;
 
 public sealed class PlayerState
 {
-    public required string ConnectionId { get; init; }
+    public string ConnectionId { get; set; } = string.Empty;
     public required Guid PlayerId { get; init; }
     public required string DisplayName { get; set; }
     public required bool IsMan { get; set; }

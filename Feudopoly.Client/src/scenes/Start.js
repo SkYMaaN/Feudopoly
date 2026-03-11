@@ -87,51 +87,29 @@ export class Start extends Phaser.Scene {
         this.sessionField = this.createInputField(width / 2, height / 2 + 210, 'Paste game code here', 36);
         this.setJoinCodeVisibility(false);
 
-        this.createNewButton = this.createButton(width / 2, height / 2 + 200, 420, 96, 'CREATE NEW', () => {
+        this.createNewButton = this.createButton(width / 2, height / 2 + 200, 420, 96, 'LOBBIES', () => {
             const nickname = this.nickname.trim();
             if (!nickname) {
-                this.showMessage('Enter a nickname before creating a game.');
+                this.showMessage('Enter a nickname first.');
                 return;
             }
 
-            this.scene.start('Board', {
-                mode: 'create',
+            this.scene.start('LobbyList', {
                 displayName: nickname,
-                sessionId: crypto.randomUUID(),
                 isMan: this.gender === 'Male',
                 isMuslim: this.religion === 'Islam'
             });
         });
 
-        this.joinGameButton = this.createButton(width / 2, height / 2 + 330, 420, 96, 'JOIN', () => {
+        this.joinGameButton = this.createButton(width / 2, height / 2 + 330, 420, 96, 'OPEN LOBBIES', () => {
             const nickname = this.nickname.trim();
-
             if (!nickname) {
-                this.showMessage('Enter your nickname before connecting.');
+                this.showMessage('Enter your nickname first.');
                 return;
             }
 
-            if (!this.joinCodeVisible) {
-                this.setConnectGameButtonVisibility(true);
-                this.setJoinCodeVisibility(true);
-                this.setGameButtonsVisibility(false);
-                this.setBackButtonVisibility(true);
-                this.activeInput = this.sessionField;
-                this.refreshInputStyles();
-                this.showMessage('Enter the session code to connect.');
-                return;
-            }
-
-            const sessionId = this.sessionId.trim();
-            if (!sessionId) {
-                this.showMessage('Please enter the game code to connect.');
-                return;
-            }
-
-            this.scene.start('Board', {
-                mode: 'join',
+            this.scene.start('LobbyList', {
                 displayName: nickname,
-                sessionId,
                 isMan: this.gender === 'Male',
                 isMuslim: this.religion === 'Islam'
             });

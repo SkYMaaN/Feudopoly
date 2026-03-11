@@ -6,7 +6,6 @@ namespace Feudopoly.Server.Hubs;
 public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventStorage, ILogger<GameHub> logger) : Hub
 {
     private const int BoardCellsCount = 30;
-    private const int MaxPlayers = 4;
     private const string SessionIdContextKey = "sessionId";
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -38,7 +37,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             else
             {
                 var wasActive = removedPlayer.PlayerId == session.ActiveTurnPlayerId;
-                session.Players.Remove(removedPlayer);
+                removedPlayer.IsConnected = false;
+                removedPlayer.ConnectionId = string.Empty;
 
                 if (session.IsEventRollPhase)
                 {
@@ -48,11 +48,6 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                         EndEventRollPhase(session);
                         AdvanceTurn(session);
                     }
-                }
-                else if (session.Players.Count == 0)
-                {
-                    session.ActiveTurnPlayerId = Guid.Empty;
-                    session.IsTurnInProgress = false;
                 }
                 else if (wasActive)
                 {
@@ -70,7 +65,6 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
             await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayer.PlayerId);
             await Clients.Group(groupName).SendAsync("StateUpdated", state);
-            _sessionStore.RemoveSessionIfEmpty(sessionId);
 
             logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId);
         }
@@ -78,51 +72,35 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task JoinGame(Guid? sessionId, string displayName, bool isMan, bool isMuslim)
+    public async Task JoinGame(Guid? sessionId, Guid playerId)
     {
         logger.LogInformation(
-            "JoinGame requested by connection {ConnectionId} for session {SessionId} with display name '{DisplayName}'",
+            "JoinGame requested by connection {ConnectionId} for session {SessionId} and player {PlayerId}",
             Context.ConnectionId,
             sessionId,
-            displayName);
+            playerId);
 
         if (sessionId is null || sessionId == Guid.Empty)
         {
             throw new HubException("Session id is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(displayName))
+        if (!_sessionStore.TryGetSession(sessionId.Value, out var session) || session is null)
         {
-            throw new InvalidDataException("Display name is required.");
+            throw new HubException("Session not found.");
         }
-
-        displayName = displayName.Trim();
-        var session = _sessionStore.GetOrCreateSession(sessionId.Value);
 
         PlayerState joinedPlayer;
         GameStateDto state;
 
         lock (session)
         {
-            if (session.Players.Count >= MaxPlayers)
-            {
-                throw new HubException("Game session is full.");
-            }
+            joinedPlayer = session.Players.FirstOrDefault(p => p.PlayerId == playerId)
+                ?? throw new HubException("Player is not part of lobby.");
 
-            joinedPlayer = new PlayerState
-            {
-                ConnectionId = Context.ConnectionId,
-                PlayerId = Guid.NewGuid(),
-                DisplayName = displayName,
-                IsMan = isMan,
-                IsMuslim = isMuslim,
-                Position = 0,
-                IsConnected = true,
-                IsDead = false,
-                TurnsToSkip = 0
-            };
-
-            session.Players.Add(joinedPlayer);
+            joinedPlayer.ConnectionId = Context.ConnectionId;
+            joinedPlayer.IsConnected = true;
+            _sessionStore.MarkInProgress(session);
             state = SessionStorage.ToDto(session);
         }
 
