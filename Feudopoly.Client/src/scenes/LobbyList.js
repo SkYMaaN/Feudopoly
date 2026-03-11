@@ -27,7 +27,7 @@ export class LobbyList extends Phaser.Scene {
         this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.loadLobbies());
         this.createButton(1700, 230, 260, 60, 'CREATE', () => this.createLobby());
 
-        this.listContainer = this.add.container(70, 190);
+        this.listContainer = this.add.container(70, 200);
         this.input.keyboard.on('keydown', (e) => this.onKey(e));
         this.loadLobbies();
     }
@@ -50,15 +50,27 @@ export class LobbyList extends Phaser.Scene {
 
         this.lobbies.forEach((lobby, idx) => {
             const y = idx * 75;
-            const bg = this.add.rectangle(0, y, 1500, 64, 0x2d1f11, 0.95).setOrigin(0, 0);
+            const bg = this.add.rectangle(0, y, 1275, 64, 0x2d1f11, 0.95).setOrigin(0, 0);
             const text = this.add.text(20, y + 16,
-                `${lobby.name} | ${lobby.currentPlayers}/${lobby.maxPlayers} | ${lobby.status} | ${lobby.accessType}`,
+                `\'${lobby.name}\' | [${lobby.currentPlayers}/${lobby.maxPlayers}]  ${this.getLobbyStatusText(lobby.status)} | ${lobby.accessType == 1 ? 'Private' : 'Public'}`,
                 { fontSize: '26px', color: '#f2e4c3' });
-            const detailsBtn = this.createButton(1200, y + 32, 180, 50, 'DETAILS', () => this.openLobby(lobby));
-            const joinBtn = this.createButton(1400, y + 32, 180, 50, 'JOIN', async () => this.joinLobby(lobby));
+            const detailsBtn = this.createButton(1000, y + 32, 150, 40, 'DETAILS', () => this.openLobby(lobby));
+            const joinBtn = this.createButton(1170, y + 32, 150, 40, 'JOIN', async () => this.joinLobby(lobby));
             this.listContainer.add([bg, text, detailsBtn, joinBtn]);
             this.rows.push({ bg, text, detailsBtn, joinBtn });
         });
+    }
+
+    getLobbyStatusText(statusNumber) {
+        const statuses = {
+            0: "Waiting for players",
+            1: "Ready",
+            2: "Launching",
+            3: "In progress",
+            4: "Completed"
+        };
+
+        return statuses[statusNumber] ?? "Unknown status";
     }
 
     async createLobby() {
@@ -137,7 +149,7 @@ export class LobbyList extends Phaser.Scene {
         rect.on('pointerdown', onClick);
 
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
-        
+
         return container;
     }
 
