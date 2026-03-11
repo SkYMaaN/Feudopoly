@@ -1,6 +1,6 @@
+using Feudopoly.Server.Contracts;
 using Feudopoly.Server.Hubs;
 using Feudopoly.Server.Multiplayer;
-using Feudopoly.Server.Multiplayer.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
