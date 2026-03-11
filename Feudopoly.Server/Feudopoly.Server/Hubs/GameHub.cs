@@ -45,7 +45,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     session.PendingEventRollPlayerIds.Remove(removedPlayer.PlayerId);
                     if (session.PendingEventRollPlayerIds.Count == 0)
                     {
-                        CompleteEventRollPhase(session);
+                        EndEventRollPhase(session);
+                        AdvanceTurn(session);
                     }
                 }
                 else if (session.Players.Count == 0)
@@ -182,7 +183,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 session.PendingEventRollPlayerIds.Remove(caller.PlayerId);
                 if (session.PendingEventRollPlayerIds.Count == 0)
                 {
-                    CompleteEventRollPhase(session);
+                    EndEventRollPhase(session);
+                    AdvanceTurn(session);
                 }
 
                 newPosition = caller.Position;
@@ -401,13 +403,12 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             .Select(player => player.PlayerId));
     }
 
-    private static void CompleteEventRollPhase(GameSession session)
+    private static void EndEventRollPhase(GameSession session)
     {
         session.IsEventRollPhase = false;
         session.PendingEventRollEvent = null;
         session.PendingEventRollPlayerIds.Clear();
         session.EventRollOwnerPlayerId = Guid.Empty;
-        AdvanceTurn(session);
     }
 
     private static int NormalizePosition(int position)
