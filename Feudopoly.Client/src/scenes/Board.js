@@ -96,6 +96,7 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('joined', ({ playerId, state }) => {
                 this.localPlayerId = String(playerId);
                 this.applyState(state);
+                this.applyStackOffsets(0);
             }),
             gameHubClient.on('stateUpdated', (state) => {
                 this.applyState(state);
