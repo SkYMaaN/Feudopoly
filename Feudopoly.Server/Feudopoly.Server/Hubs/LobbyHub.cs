@@ -4,6 +4,18 @@ namespace Feudopoly.Server.Hubs;
 
 public sealed class LobbyHub : Hub
 {
+    public const string LobbyListGroup = "lobby-list";
+
+    public Task SubscribeLobbyList()
+    {
+        return Groups.AddToGroupAsync(Context.ConnectionId, LobbyListGroup);
+    }
+
+    public Task UnsubscribeLobbyList()
+    {
+        return Groups.RemoveFromGroupAsync(Context.ConnectionId, LobbyListGroup);
+    }
+
     public Task SubscribeLobby(Guid lobbyId)
     {
         if (lobbyId == Guid.Empty)

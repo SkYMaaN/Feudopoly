@@ -1,8 +1,8 @@
-using Feudopoly.Server.Contracts;
 using Feudopoly.Server.Hubs;
 using Feudopoly.Server.Multiplayer;
-using Microsoft.AspNetCore.SignalR;
+using Feudopoly.Server.Multiplayer.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Feudopoly.Server.Controllers;
 
@@ -37,7 +37,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
     }
 
     [HttpPost]
-    public ActionResult<LobbyDetailsDto> CreateLobby([FromBody] CreateLobbyRequest request)
+    public async Task<ActionResult<LobbyDetailsDto>> CreateLobby([FromBody] CreateLobbyRequest request)
     {
         if (!ModelState.IsValid)
         {
@@ -63,6 +63,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
                     TurnsToSkip = 0
                 });
 
+            await NotifyLobbyListChanged(lobbyHub, session);
             return CreatedAtAction(nameof(GetLobby), new { lobbyId = session.SessionId }, ToDetails(session));
         }
         catch (InvalidDataException ex)
@@ -83,6 +84,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         {
             sessionStorage.JoinLobby(session, request.PlayerId, request.DisplayName, request.IsMan, request.IsMuslim, request.Password);
             await NotifyLobbyUpdated(lobbyHub, session);
+            await NotifyLobbyListChanged(lobbyHub, session);
             return Ok(ToDetails(session));
         }
         catch (InvalidDataException ex)
@@ -105,10 +107,12 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
             if (removed)
             {
                 await lobbyHub.Clients.Group(lobbyId.ToString()).SendAsync("LobbyDeleted", lobbyId);
+                await NotifyLobbyListDeleted(lobbyHub, lobbyId);
                 return NoContent();
             }
 
             await NotifyLobbyUpdated(lobbyHub, session);
+            await NotifyLobbyListChanged(lobbyHub, session);
             return NoContent();
         }
         catch (InvalidDataException ex)
@@ -129,6 +133,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         {
             sessionStorage.StartLobby(session, request.PlayerId);
             await NotifyLobbyUpdated(lobbyHub, session);
+            await NotifyLobbyListChanged(lobbyHub, session);
             return Ok(ToDetails(session));
         }
         catch (InvalidDataException ex)
@@ -174,5 +179,21 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         }
 
         return lobbyHub.Clients.Group(session.SessionId.ToString()).SendAsync("LobbyUpdated", details);
+    }
+
+    private static Task NotifyLobbyListChanged(IHubContext<LobbyHub> lobbyHub, GameSession session)
+    {
+        LobbyListItemDto item;
+        lock (session)
+        {
+            item = ToListItem(session);
+        }
+
+        return lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListChanged", item);
+    }
+
+    private static Task NotifyLobbyListDeleted(IHubContext<LobbyHub> lobbyHub, Guid lobbyId)
+    {
+        return lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListDeleted", lobbyId);
     }
 }

@@ -7,6 +7,8 @@ export class LobbyHubClient {
         this.handlers = {
             lobbyUpdated: [],
             lobbyDeleted: [],
+            lobbyListChanged: [],
+            lobbyListDeleted: [],
             reconnected: [],
             reconnecting: [],
             error: []
@@ -30,11 +32,25 @@ export class LobbyHubClient {
 
         this.connection.on('LobbyUpdated', (lobby) => this.emit('lobbyUpdated', lobby));
         this.connection.on('LobbyDeleted', (lobbyId) => this.emit('lobbyDeleted', lobbyId));
+        this.connection.on('LobbyListChanged', (lobby) => this.emit('lobbyListChanged', lobby));
+        this.connection.on('LobbyListDeleted', (lobbyId) => this.emit('lobbyListDeleted', lobbyId));
         this.connection.onreconnected(() => this.emit('reconnected'));
         this.connection.onreconnecting((error) => this.emit('reconnecting', error));
         this.connection.onclose((error) => this.emit('error', error ?? new Error('Connection closed.')));
 
         await this.connection.start();
+    }
+
+    async subscribeLobbyList() {
+        await this.connection.invoke('SubscribeLobbyList');
+    }
+
+    async unsubscribeLobbyList() {
+        if (!this.connection || this.connection.state !== signalR.HubConnectionState.Connected) {
+            return;
+        }
+
+        await this.connection.invoke('UnsubscribeLobbyList');
     }
 
     async subscribeLobby(lobbyId) {
