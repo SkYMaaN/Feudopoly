@@ -545,7 +545,7 @@ export class Board extends Phaser.Scene {
                 .map(entry => {
                     const playerId = String(entry?.playerId ?? '');
                     const playerName = this.players.find(player => player.playerId === playerId)?.displayName ?? 'Player';
-                    const outcomeText = entry?.outcome?.description ?? '';
+                    const outcomeText = entry?.outcome?.text ?? '';
                     const roll = Number(entry?.roll ?? 0);
 
                     if (roll > 0) {
@@ -784,6 +784,11 @@ export class Board extends Phaser.Scene {
         const player = this.players.find(item => item.playerId === String(payload.playerId));
         if (!player) {
             return;
+        }
+
+        if (payload?.isEventPhaseRoll && String(payload.playerId) === String(this.localPlayerId)) {
+            this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
+                .filter(id => id !== String(this.localPlayerId));
         }
 
         const steps = this.getStepsToPosition(player.currentPosition, payload.newPosition);

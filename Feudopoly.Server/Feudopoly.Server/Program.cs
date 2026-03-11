@@ -11,7 +11,12 @@ namespace Feudopoly.Server
 
             builder.Services.AddControllers();
             builder.Services.AddOpenApi();
-            builder.Services.AddSignalR();
+            builder.Services.AddSignalR(options =>
+            {
+                options.ClientTimeoutInterval = TimeSpan.FromMinutes(20);
+                options.KeepAliveInterval = TimeSpan.FromMinutes(2);
+                options.EnableDetailedErrors = true;
+            });
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
             builder.Services.AddCors(options =>
