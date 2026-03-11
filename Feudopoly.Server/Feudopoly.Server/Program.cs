@@ -44,6 +44,7 @@ namespace Feudopoly.Server
 
             app.MapControllers();
             app.MapHub<GameHub>("/hubs/game");
+            app.MapHub<LobbyHub>("/hubs/lobby");
 
             app.Run();
         }

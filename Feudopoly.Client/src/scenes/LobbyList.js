@@ -54,9 +54,10 @@ export class LobbyList extends Phaser.Scene {
             const text = this.add.text(20, y + 16,
                 `${lobby.name} | ${lobby.currentPlayers}/${lobby.maxPlayers} | ${lobby.status} | ${lobby.accessType}`,
                 { fontSize: '26px', color: '#f2e4c3' });
+            const detailsBtn = this.createButton(1200, y + 32, 180, 50, 'DETAILS', () => this.openLobby(lobby));
             const joinBtn = this.createButton(1400, y + 32, 180, 50, 'JOIN', async () => this.joinLobby(lobby));
-            this.listContainer.add([bg, text, joinBtn]);
-            this.rows.push({ bg, text, joinBtn });
+            this.listContainer.add([bg, text, detailsBtn, joinBtn]);
+            this.rows.push({ bg, text, detailsBtn, joinBtn });
         });
     }
 
@@ -83,6 +84,10 @@ export class LobbyList extends Phaser.Scene {
         } catch (e) {
             this.showMessage(e.message);
         }
+    }
+
+    openLobby(lobby) {
+        this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
     }
 
     async joinLobby(lobby) {
