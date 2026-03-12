@@ -1,5 +1,7 @@
 const HUB_PATH = '/hubs/lobby';
 const ServerBaseUrl = 'https://localhost:7049';
+const ServerTimeoutInMilliseconds = 5 * 60 * 1000;
+const KeepAliveIntervalInMilliseconds = 60 * 1000;
 
 export class LobbyHubClient {
     constructor() {
@@ -29,6 +31,9 @@ export class LobbyHubClient {
             .withAutomaticReconnect([0, 2000, 5000, 10000])
             .configureLogging(signalR.LogLevel.Warning)
             .build();
+
+        this.connection.serverTimeoutInMilliseconds = ServerTimeoutInMilliseconds;
+        this.connection.keepAliveIntervalInMilliseconds = KeepAliveIntervalInMilliseconds;
 
         this.connection.on('LobbyUpdated', (lobby) => this.emit('lobbyUpdated', lobby));
         this.connection.on('LobbyDeleted', (lobbyId) => this.emit('lobbyDeleted', lobbyId));
