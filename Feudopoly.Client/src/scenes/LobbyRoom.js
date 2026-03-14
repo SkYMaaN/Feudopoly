@@ -13,11 +13,11 @@ export class LobbyRoom extends Phaser.Scene {
         this.lobbyId = data.lobbyId;
 
         const { width, height } = this.scale.gameSize;
-        this.add.rectangle(width / 2, height / 2, width, height, 0x1a1207, 1);
-        this.title = this.add.text(width / 2, 70, 'Lobby', { fontFamily: 'Georgia, serif', fontSize: '56px', color: '#f2e4c3' }).setOrigin(0.5);
-        this.statusText = this.add.text(100, 150, '', { fontSize: '30px', color: '#ffffff' });
-        this.playersText = this.add.text(100, 210, '', { fontSize: '28px', color: '#f2e4c3' });
-        this.messageText = this.add.text(width / 2, height - 50, '', { fontSize: '24px', color: '#ffd9a0' }).setOrigin(0.5);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x9cbfd9, 1);
+        this.title = this.add.text(width / 2, 70, 'Lobby', { fontFamily: 'Georgia, serif', fontSize: '56px', color: '#FF0000' }).setOrigin(0.5);
+        this.statusText = this.add.text(100, 150, '', { fontSize: '30px', color: '#FF0000' });
+        this.playersText = this.add.text(100, 210, '', { fontSize: '28px', color: '#FF0000' });
+        this.messageText = this.add.text(width / 2, height - 50, '', { fontSize: '24px', color: '#FF0000' }).setOrigin(0.5);
 
         this.backBtn = this.createButton(1700, 80, 260, 64, 'BACK', () => this.goBack());
         this.leaveBtn = this.createButton(1700, 160, 260, 64, 'LEAVE', () => this.leaveLobby());
@@ -152,15 +152,15 @@ export class LobbyRoom extends Phaser.Scene {
     }
 
     createButton(x, y, width, height, label, onClick) {
-        const rect = this.add.rectangle(x, y, width, height, 0x6f4b23, 1)
-            .setStrokeStyle(6, 0xc89b58, 1)
+        const rect = this.add.rectangle(x, y, width, height, 0x4682b4, 1)
+            .setStrokeStyle(6, 0x2b5e8a, 1)
             .setInteractive({ useHandCursor: true });
 
         const text = this.add.text(x, y, label, {
             fontFamily: 'Georgia, serif',
             fontSize: '26px',
-            color: '#f2e4c3',
-            stroke: '#3a230c',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 6,
             fontStyle: 'bold'
         }).setOrigin(0.5);
@@ -170,10 +170,10 @@ export class LobbyRoom extends Phaser.Scene {
                 return;
             }
 
-            rect.setFillStyle(0x3E5A2E, 1);
+            rect.setFillStyle(0x2b5e8a, 1);
         });
         rect.on('pointerout', () => {
-            rect.setFillStyle(0x6f4b23, 1);
+            rect.setFillStyle(0x4682b4, 1);
         });
         rect.on('pointerdown', () => {
             if (rect.input?.enabled) {
@@ -198,7 +198,7 @@ export class LobbyRoom extends Phaser.Scene {
             button.buttonRect.setInteractive({ useHandCursor: true });
         }
 
-        button.buttonRect.setFillStyle(disabled ? 0x453528 : 0x6f4b23, 1);
+        button.buttonRect.setFillStyle(disabled ? 0x6d9dc5 : 0x4682b4, 1);
         button.buttonText.setAlpha(disabled ? 0.55 : 1);
     }
 
