@@ -20,16 +20,16 @@ export class Start extends Phaser.Scene {
     create() {
         const { width, height } = this.scale.gameSize;
 
-        this.add.rectangle(width / 2, height / 2, width, height, 0x1a1207, 1).setOrigin(0.5);
-        this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.35).setOrigin(0.5);
-        this.add.rectangle(width / 2 + 10, height / 2 + 10, 980, 920, 0x000000, 0.45);
-        this.add.rectangle(width / 2, height / 2, 980, 920, 0x2d1f11, 0.95).setStrokeStyle(10, 0x8d6a3b, 1);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x9cbfd9, 1).setOrigin(0.5);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 0.25).setOrigin(0.5);
+        this.add.rectangle(width / 2 + 10, height / 2 + 10, 980, 920, 0x214c74, 0.35);
+        this.add.rectangle(width / 2, height / 2, 980, 920, 0x7faed3, 0.98).setStrokeStyle(10, 0x2b5e8a, 1);
 
         this.add.text(width / 2, height / 2 - 360, 'FEUDOPOLY', {
             fontFamily: 'Georgia, serif',
             fontSize: '120px',
-            color: '#e8d2a9',
-            stroke: '#3a230c',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 14,
             fontStyle: 'bold'
         }).setOrigin(0.5);
@@ -37,15 +37,15 @@ export class Start extends Phaser.Scene {
         this.add.text(width / 2, height / 2 - 270, 'A medieval board of feuds and fortune', {
             fontFamily: 'Georgia, serif',
             fontSize: '34px',
-            color: '#d9c39a',
-            stroke: '#2a1707',
+            color: '#FF0000',
+            stroke: '#2b5e8a',
             strokeThickness: 8
         }).setOrigin(0.5);
 
         this.add.text(width / 2, height / 2 - 220, 'Nickname', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#f2e4c3'
+            color: '#FF0000'
         }).setOrigin(0.5);
 
         this.nicknameField = this.createInputField(width / 2, height / 2 - 160, 'Enter your nickname', 28);
@@ -54,7 +54,7 @@ export class Start extends Phaser.Scene {
         this.genderLabel = this.add.text(width / 2, height / 2 - 100, 'Gender', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#f2e4c3'
+            color: '#FF0000'
         }).setOrigin(0.5);
 
         this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
@@ -68,7 +68,7 @@ export class Start extends Phaser.Scene {
         this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#f2e4c3'
+            color: '#FF0000'
         }).setOrigin(0.5);
 
         this.religionDropdown = this.createDropdown(width / 2, height / 2 + 85, [
@@ -81,7 +81,7 @@ export class Start extends Phaser.Scene {
         this.joinCodeLabel = this.add.text(width / 2, height / 2 + 150, 'Game code (for joining)', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#f2e4c3'
+            color: '#FF0000'
         }).setOrigin(0.5).setVisible(false);
 
         this.sessionField = this.createInputField(width / 2, height / 2 + 210, 'Paste game code here', 36);
@@ -138,8 +138,8 @@ export class Start extends Phaser.Scene {
         this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
             fontFamily: 'Georgia, serif',
             fontSize: '26px',
-            color: '#ffd9a0',
-            stroke: '#2a1707',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5);
@@ -161,13 +161,13 @@ export class Start extends Phaser.Scene {
     }
 
     createInputField(x, y, placeholder, maxLength) {
-        const bg = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0x1f1308, 1)
-            .setStrokeStyle(5, 0x8d6a3b, 0.9);
+        const bg = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0xffffff, 1)
+            .setStrokeStyle(5, 0x2b5e8a, 0.95);
 
         const text = this.add.text(0, 0, placeholder, {
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
-            color: '#9f8b69'
+            color: '#FF0000'
         }).setOrigin(0, 0.5);
 
         const label = this.rexUI.add.label({
@@ -199,14 +199,14 @@ export class Start extends Phaser.Scene {
     }
 
     createButton(x, y, width, height, label, onClick) {
-        const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, 0x6f4b23, 1)
-            .setStrokeStyle(7, 0xc89b58, 1);
+        const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, 0x4682b4, 1)
+            .setStrokeStyle(7, 0x2b5e8a, 1);
 
         const buttonText = this.add.text(0, 0, label, {
             fontFamily: 'Georgia, serif',
             fontSize: '38px',
-            color: '#f2e4c3',
-            stroke: '#3a230c',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 8,
             fontStyle: 'bold'
         }).setOrigin(0.5);
@@ -221,8 +221,8 @@ export class Start extends Phaser.Scene {
             align: 'center'
         }).layout().setInteractive({ useHandCursor: true });
 
-        button.on('pointerover', () => background.setFillStyle(0x3E5A2E, 1));
-        button.on('pointerout', () => background.setFillStyle(0x6f4b23, 1));
+        button.on('pointerover', () => background.setFillStyle(0x2b5e8a, 1));
+        button.on('pointerout', () => background.setFillStyle(0x4682b4, 1));
         button.on('pointerdown', onClick);
 
         this.tweens.add({
@@ -239,22 +239,22 @@ export class Start extends Phaser.Scene {
     }
 
     createDropdown(x, y, options, initialValue, onSelect) {
-        const background = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0x1f1308, 1)
-            .setStrokeStyle(5, 0x8d6a3b, 0.9);
+        const background = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0xffffff, 1)
+            .setStrokeStyle(5, 0x2b5e8a, 0.95);
 
         const text = this.add.text(0, 0, initialValue, {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#f2e4c3',
-            stroke: '#2a1707',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 5
         }).setOrigin(0, 0.5);
 
         const arrow = this.add.text(0, 0, '▼', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#d9c39a',
-            stroke: '#2a1707',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 5
         }).setOrigin(0.5);
 
@@ -277,14 +277,14 @@ export class Start extends Phaser.Scene {
         }).layout().setInteractive({ useHandCursor: true, pixelPerfect: false });
 
         const optionButtons = options.map((option, index) => {
-            const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x1f1308, 1)
-                .setStrokeStyle(4, 0x8d6a3b, 0.8);
+            const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x6d9dc5, 1)
+                .setStrokeStyle(4, 0x2b5e8a, 1);
 
             const optionText = this.add.text(0, 0, option.label, {
                 fontFamily: 'Georgia, serif',
                 fontSize: '28px',
-                color: '#f2e4c3',
-                stroke: '#2a1707',
+                color: '#FF0000',
+                stroke: '#214c74',
                 strokeThickness: 4
             }).setOrigin(0, 0.5);
 
@@ -304,8 +304,8 @@ export class Start extends Phaser.Scene {
                 }
             }).layout().setOrigin(0.5, 0).setInteractive({ useHandCursor: true, pixelPerfect: false });
 
-            button.on('pointerover', () => optionBackground.setFillStyle(0x3E5A2E, 1));
-            button.on('pointerout', () => optionBackground.setFillStyle(0x1f1308, 1));
+            button.on('pointerover', () => optionBackground.setFillStyle(0x2b5e8a, 1));
+            button.on('pointerout', () => optionBackground.setFillStyle(0x6d9dc5, 1));
             button.on('pointerdown', () => {
                 text.setText(option.label);
                 onSelect(option.value);
@@ -316,8 +316,8 @@ export class Start extends Phaser.Scene {
         });
 
         const panelHeight = options.length * 68 + 10;
-        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 230, panelHeight, 16, 0x120b04, 0.98)
-            .setStrokeStyle(5, 0xc89b58, 1)
+        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 230, panelHeight, 16, 0x7faed3, 0.98)
+            .setStrokeStyle(5, 0x2b5e8a, 1)
             .setOrigin(0.5, 0);
         const panel = this.add.container(x, y + 40, [panelBackground, ...optionButtons]).setVisible(false).setDepth(250);
 
@@ -336,7 +336,7 @@ export class Start extends Phaser.Scene {
             this.openDropdown = dropdownData;
             panel.setVisible(true);
             arrow.setText('▲');
-            background.setStrokeStyle(5, 0xe5b96d, 1);
+            background.setStrokeStyle(5, 0x214c74, 1);
         });
 
         return dropdownData;
@@ -349,7 +349,7 @@ export class Start extends Phaser.Scene {
 
         dropdown.panel.setVisible(false);
         dropdown.arrow.setText('▼');
-        dropdown.background.setStrokeStyle(5, 0x8d6a3b, 0.9);
+        dropdown.background.setStrokeStyle(5, 0x2b5e8a, 0.95);
 
         if (this.openDropdown === dropdown) {
             this.openDropdown = null;
@@ -404,7 +404,7 @@ export class Start extends Phaser.Scene {
             }
 
             const isActive = this.activeInput === field;
-            field.bg.setStrokeStyle(5, isActive ? 0xe5b96d : 0x8d6a3b, 1);
+            field.bg.setStrokeStyle(5, isActive ? 0x214c74 : 0x2b5e8a, 1);
         });
     }
 
@@ -472,7 +472,7 @@ export class Start extends Phaser.Scene {
         }
 
         field.text.setText(value || field.placeholder);
-        field.text.setColor(value ? '#f2e4c3' : '#9f8b69');
+        field.text.setColor('#FF0000');
     }
 
     showMessage(text) {
