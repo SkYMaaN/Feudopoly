@@ -20,11 +20,11 @@ export class LobbyList extends Phaser.Scene {
             isMuslim: data.isMuslim
         });
 
-        this.add.rectangle(width / 2, height / 2, width, height, 0x1a1207, 1);
-        this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: '#f2e4c3' }).setOrigin(0.5);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x9cbfd9, 1);
+        this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: '#FF0000' }).setOrigin(0.5);
 
-        this.searchText = this.add.text(80, 130, 'Search: ', { fontSize: '28px', color: '#ffffff' });
-        this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: '#ffd9a0' }).setOrigin(0.5);
+        this.searchText = this.add.text(80, 130, 'Search: ', { fontSize: '28px', color: '#FF0000' });
+        this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: '#FF0000' }).setOrigin(0.5);
 
         this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
         this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
@@ -111,10 +111,10 @@ export class LobbyList extends Phaser.Scene {
 
         visibleLobbies.forEach((lobby, idx) => {
             const y = idx * 75;
-            const bg = this.add.rectangle(0, y, 1275, 64, 0x2d1f11, 0.95).setOrigin(0, 0);
+            const bg = this.add.rectangle(0, y, 1275, 64, 0x7faed3, 0.95).setOrigin(0, 0);
             const text = this.add.text(20, y + 16,
                 `\'${lobby.name}\' | [${lobby.currentPlayers}/${lobby.maxPlayers}]  ${this.getLobbyStatusText(lobby.status)} | ${lobby.accessType == 1 ? 'Private' : 'Public'}`,
-                { fontSize: '26px', color: '#f2e4c3' });
+                { fontSize: '26px', color: '#FF0000' });
             const detailsBtn = this.createButton(1000, y + 32, 150, 40, 'DETAILS', () => this.openLobby(lobby));
             const joinBtn = this.createButton(1170, y + 32, 150, 40, 'JOIN', async () => this.joinLobby(lobby));
             this.listContainer.add([bg, text, detailsBtn, joinBtn]);
@@ -205,21 +205,21 @@ export class LobbyList extends Phaser.Scene {
     }
 
     createButton(x, y, width, height, label, onClick) {
-        const rect = this.add.rectangle(x, y, width, height, 0x6f4b23, 1)
-            .setStrokeStyle(6, 0xc89b58, 1)
+        const rect = this.add.rectangle(x, y, width, height, 0x4682b4, 1)
+            .setStrokeStyle(6, 0x2b5e8a, 1)
             .setInteractive({ useHandCursor: true });
 
         const text = this.add.text(x, y, label, {
             fontFamily: 'Georgia, serif',
             fontSize: '26px',
-            color: '#f2e4c3',
-            stroke: '#3a230c',
+            color: '#FF0000',
+            stroke: '#214c74',
             strokeThickness: 6,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        rect.on('pointerover', () => rect.setFillStyle(0x3E5A2E, 1));
-        rect.on('pointerout', () => rect.setFillStyle(0x6f4b23, 1));
+        rect.on('pointerover', () => rect.setFillStyle(0x2b5e8a, 1));
+        rect.on('pointerout', () => rect.setFillStyle(0x4682b4, 1));
         rect.on('pointerdown', onClick);
 
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
