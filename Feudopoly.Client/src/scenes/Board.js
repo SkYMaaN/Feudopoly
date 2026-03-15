@@ -1395,7 +1395,7 @@ export class Board extends Phaser.Scene {
 
             align: {
                 title: 'center',
-                action: 'center'
+                action: 'bottom'
             }
         })
             .setOrigin(0)
