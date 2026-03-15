@@ -19,6 +19,7 @@ export class Board extends Phaser.Scene {
         this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
         this.load.image('deathScreen', 'assets/backgrounds/death_screen.png');
+        this.load.video('startGameIntroVideo', 'assets/videos/StartGameIntro.mp4');
 
         for (let i = 0; i < 30; i++) {
             this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
@@ -54,6 +55,7 @@ export class Board extends Phaser.Scene {
         this.turnBeganClickHandler = null;
         this.turnResultDismissHandler = null;
         this.isTurnResultNotificationActive = false;
+        this.hasShownStartGameIntro = false;
 
         this.addBoard();
         this.buildCells();
@@ -78,6 +80,13 @@ export class Board extends Phaser.Scene {
             .setDepth(2100)
             .setVisible(false);
 
+        this.notificationVideo = this.add.video(width / 2, height / 2 - 160, 'startGameIntroVideo')
+            .setDepth(2090)
+            .setVisible(false)
+            .setMute(false)
+            .setLoop(false)
+            .setScale(0.6);
+
         try {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
             const playerId = data?.playerId;
@@ -85,10 +94,25 @@ export class Board extends Phaser.Scene {
             await gameHubClient.connect();
             await gameHubClient.joinGame(this.sessionId, playerId);
             this.setStatus(`Joined session ${this.sessionId}.`);
+            this.showStartGameIntro();
         } catch (error) {
             console.error(error);
             this.setStatus(`SignalR error: ${error.message ?? 'Unknown error'}`);
         }
+    }
+
+    showStartGameIntro() {
+        if (this.hasShownStartGameIntro) {
+            return;
+        }
+
+        this.hasShownStartGameIntro = true;
+        this.showNotification({
+            title: 'Introduction',
+            text: 'Listen to the narrator before your first move.',
+            videoKey: 'startGameIntroVideo',
+            typingSpeed: 25
+        });
     }
 
     registerHubEvents() {
@@ -456,15 +480,17 @@ export class Board extends Phaser.Scene {
         this.hideDeathScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
-        this.notificationTextBox.setVisible(true).stop(true);
-        this.notificationTextBox.getElement('title')?.setText(payload.title ?? '');
         let notificationText = payload.description ?? '';
 
         if (this.turnRequiresChosenPlayer) {
             notificationText += ' Choose player.';
         }
 
-        this.notificationTextBox.setText('').layout().start(notificationText, 30);
+        this.showNotification({
+            title: payload.title ?? '',
+            text: notificationText,
+            typingSpeed: 30
+        });
 
         this.turnBeganClickHandler = (_pointer, currentlyOver) => {
             const chosenPlayerId = this.turnRequiresChosenPlayer
@@ -476,7 +502,7 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
-            this.notificationTextBox.setVisible(false).stop(true);
+            this.hideNotification();
             gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
 
             if (this.turnBeganClickHandler) {
@@ -561,9 +587,11 @@ export class Board extends Phaser.Scene {
             ? entriesText
             : [eventDescription, entriesText].filter(Boolean).join('\n\n');
 
-        this.notificationTextBox.setVisible(true).stop(true);
-        this.notificationTextBox.getElement('title')?.setText(eventTitle);
-        this.notificationTextBox.setText('').layout().start(notificationText, 30);
+        this.showNotification({
+            title: eventTitle,
+            text: notificationText,
+            typingSpeed: 30
+        });
         this.isTurnResultNotificationActive = true;
 
         if (this.turnResultDismissHandler) {
@@ -580,7 +608,7 @@ export class Board extends Phaser.Scene {
 
     hideTurnResultNotification() {
         this.isTurnResultNotificationActive = false;
-        this.notificationTextBox.setVisible(false).stop(true);
+        this.hideNotification();
 
         if (this.turnResultDismissHandler) {
             this.input.off('pointerdown', this.turnResultDismissHandler);
@@ -598,6 +626,45 @@ export class Board extends Phaser.Scene {
             && payload.rollOutcomes.some(item => item?.outcome?.target === chosenTarget || item?.outcome?.target === 1);
 
         return fixedRequiresChoice || rollRequiresChoice;
+    }
+
+    showNotification({ title = '', text = '', videoKey = null, typingSpeed = 30 } = {}) {
+        const { width, height } = this.scale.gameSize;
+        const hasVideo = Boolean(videoKey);
+
+        this.notificationTextBox
+            .setPosition(width / 2, hasVideo ? height - 180 : height / 2)
+            .setVisible(true)
+            .stop(true);
+        this.notificationTextBox.getElement('title')?.setText(title);
+        this.notificationTextBox.setText('').layout().start(text, typingSpeed);
+
+        if (!this.notificationVideo) {
+            return;
+        }
+
+        if (hasVideo) {
+            this.notificationVideo
+                .setPosition(width / 2, height / 2 - 180)
+                .setVisible(true)
+                .setDepth(2090)
+                .stop();
+
+            this.notificationVideo.play(false);
+            return;
+        }
+
+        this.notificationVideo.stop();
+        this.notificationVideo.setVisible(false);
+    }
+
+    hideNotification() {
+        this.notificationTextBox?.setVisible(false).stop(true);
+
+        if (this.notificationVideo) {
+            this.notificationVideo.stop();
+            this.notificationVideo.setVisible(false);
+        }
     }
 
     resolveChosenPlayerId(currentlyOver) {
