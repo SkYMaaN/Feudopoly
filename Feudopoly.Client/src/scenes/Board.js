@@ -1374,11 +1374,12 @@ export class Board extends Phaser.Scene {
             expandTextWidth: (width > 0),
             expandTextHeight: (height > 0),
 
-            action: scene.rexUI.add.aioSpinner({
-                width: 30, height: 30,
-                duration: 1000,
-                animationMode: 'ball'
-            }).setVisible(false),
+            action: scene.add.text(0, 0, 'Click to continue', {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '18px',
+                fontStyle: 'italic',
+                color: '#d7ccc8'
+            }),
 
             title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '30px', }) : undefined,
 
@@ -1394,7 +1395,7 @@ export class Board extends Phaser.Scene {
 
             align: {
                 title: 'center',
-                action: 'bottom'
+                action: 'center'
             }
         })
             .setOrigin(0)
@@ -1404,27 +1405,12 @@ export class Board extends Phaser.Scene {
             .setInteractive()
             .on('pointerdown', function () {
                 if (typingMode === 'page') {
-
-                    var icon = this.getElement('action');
-                    icon.stop().setVisible(false);
-                    this.resetChildVisibleState(icon);
-
                     if (this.isTyping) {
                         this.stop(true);
                     } else {
                         this.typeNextPage();
                     }
                 }
-            }, textBox)
-            .on('pageend', function () {
-                if (this.isLastPage) {
-                    return;
-                }
-
-                var icon = this.getElement('action');
-                icon.setVisible(true).start();
-                this.resetChildVisibleState(icon);
-
             }, textBox)
             .on('complete', function () {
                 console.log('all pages typing complete')
