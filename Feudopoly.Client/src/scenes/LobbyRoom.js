@@ -13,7 +13,7 @@ export class LobbyRoom extends Phaser.Scene {
         this.lobbyId = data.lobbyId;
 
         const { width, height } = this.scale.gameSize;
-        this.add.rectangle(width / 2, height / 2, width, height, 0x9cbfd9, 1);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
         this.title = this.add.text(width / 2, 70, 'Lobby', { fontFamily: 'Georgia, serif', fontSize: '56px', color: '#FF0000' }).setOrigin(0.5);
         this.statusText = this.add.text(100, 150, '', { fontSize: '30px', color: '#FF0000' });
         this.playersText = this.add.text(100, 210, '', { fontSize: '28px', color: '#FF0000' });
@@ -152,7 +152,7 @@ export class LobbyRoom extends Phaser.Scene {
     }
 
     createButton(x, y, width, height, label, onClick) {
-        const rect = this.add.rectangle(x, y, width, height, 0x4682b4, 1)
+        const rect = this.add.rectangle(x, y, width, height, 0x9cbfd9, 1)
             .setStrokeStyle(6, 0x2b5e8a, 1)
             .setInteractive({ useHandCursor: true });
 
@@ -160,9 +160,7 @@ export class LobbyRoom extends Phaser.Scene {
             fontFamily: 'Georgia, serif',
             fontSize: '26px',
             color: '#FF0000',
-            stroke: '#214c74',
-            strokeThickness: 6,
-            fontStyle: 'bold'
+            fontStyle: 'bold',
         }).setOrigin(0.5);
 
         rect.on('pointerover', () => {
@@ -170,10 +168,10 @@ export class LobbyRoom extends Phaser.Scene {
                 return;
             }
 
-            rect.setFillStyle(0x2b5e8a, 1);
+            rect.setFillStyle(0x8FA9BF, 1);
         });
         rect.on('pointerout', () => {
-            rect.setFillStyle(0x4682b4, 1);
+            rect.setFillStyle(0x9cbfd9, 1);
         });
         rect.on('pointerdown', () => {
             if (rect.input?.enabled) {

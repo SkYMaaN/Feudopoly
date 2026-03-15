@@ -20,7 +20,7 @@ export class LobbyList extends Phaser.Scene {
             isMuslim: data.isMuslim
         });
 
-        this.add.rectangle(width / 2, height / 2, width, height, 0x9cbfd9, 1);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
         this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: '#FF0000' }).setOrigin(0.5);
 
         this.searchText = this.add.text(80, 130, 'Search: ', { fontSize: '28px', color: '#FF0000' });
@@ -205,7 +205,7 @@ export class LobbyList extends Phaser.Scene {
     }
 
     createButton(x, y, width, height, label, onClick) {
-        const rect = this.add.rectangle(x, y, width, height, 0x4682b4, 1)
+        const rect = this.add.rectangle(x, y, width, height, 0x9cbfd9, 1)
             .setStrokeStyle(6, 0x2b5e8a, 1)
             .setInteractive({ useHandCursor: true });
 
@@ -213,13 +213,11 @@ export class LobbyList extends Phaser.Scene {
             fontFamily: 'Georgia, serif',
             fontSize: '26px',
             color: '#FF0000',
-            stroke: '#214c74',
-            strokeThickness: 6,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        rect.on('pointerover', () => rect.setFillStyle(0x2b5e8a, 1));
-        rect.on('pointerout', () => rect.setFillStyle(0x4682b4, 1));
+        rect.on('pointerover', () => rect.setFillStyle(0x8FA9BF, 1));
+        rect.on('pointerout', () => rect.setFillStyle(0x9cbfd9, 1));
         rect.on('pointerdown', onClick);
 
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
