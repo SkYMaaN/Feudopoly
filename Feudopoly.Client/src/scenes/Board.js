@@ -374,7 +374,8 @@ export class Board extends Phaser.Scene {
         }
 
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
-        const isLocalTurn = current?.playerId === this.localPlayerId;
+        const activeTurnPlayerId = current?.playerId ?? this.activeTurnPlayerId;
+        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
         const canRoll = !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
@@ -390,7 +391,9 @@ export class Board extends Phaser.Scene {
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         } else if (this.isEventRollPhase) {
             this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
-        } else if (!isLocalTurn) {
+        } else if (isLocalTurn) {
+            this.turnSubtitleText.setText('It is your turn. Roll the dice!');
+        } else {
             this.turnSubtitleText.setText("Waiting for opponent's move...");
         }
 
