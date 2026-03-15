@@ -1441,8 +1441,8 @@ export class Board extends Phaser.Scene {
             .setFixedSize(fixedWidth, fixedHeight);
     }
 
-    getBBcodeText(scene, wrapWidth, fixedWidth, fixedHeight) {
-        return scene.rexUI.add.BBCodeText(0, 0, '', {
+    getBBcodeText(scene, wrapWidth, fixedWidth, fixedHeight, maxLines = 0) {
+        const textConfig = {
             fixedWidth: fixedWidth,
             fixedHeight: fixedHeight,
 
@@ -1450,8 +1450,13 @@ export class Board extends Phaser.Scene {
             wrap: {
                 mode: 'word',
                 width: wrapWidth
-            },
-            maxLines: 3
-        })
+            }
+        };
+
+        if (maxLines > 0) {
+            textConfig.maxLines = maxLines;
+        }
+
+        return scene.rexUI.add.BBCodeText(0, 0, '', textConfig)
     }
 }
