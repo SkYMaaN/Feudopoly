@@ -587,15 +587,16 @@ export class Board extends Phaser.Scene {
                 .join('\n')
             : '';
 
-        const notificationText = hasDiceEntries
-            ? entriesText
-            : [eventDescription, entriesText].filter(Boolean).join('\n\n');
+        if (!hasDiceEntries) {
+            return;
+        }
 
         this.showNotification({
             title: eventTitle,
-            text: notificationText,
+            text: entriesText,
             typingSpeed: 30
         });
+
         this.isTurnResultNotificationActive = true;
 
         if (this.turnResultDismissHandler) {
