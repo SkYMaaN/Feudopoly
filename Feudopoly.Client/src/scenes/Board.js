@@ -581,11 +581,10 @@ export class Board extends Phaser.Scene {
 
         this.turnRequiresChosenPlayer = false;
 
-        if (this.didLocalPlayerDie(payload)) {
-            this.showDeathScreen({
-                title: payload?.event?.title,
-                description: payload?.event?.description
-            });
+        const didLocalPlayerDie = this.didLocalPlayerDie(payload);
+
+        if (didLocalPlayerDie) {
+            this.showDeathScreen();
         } else {
             this.hideDeathScreen();
         }
@@ -598,7 +597,7 @@ export class Board extends Phaser.Scene {
         this.stopTurnBeganCountdown();
 
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
-        const shouldSuppressTurnResult = payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries;
+        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie;
 
         if (!shouldSuppressTurnResult) {
             this.showTurnResultNotification(payload);
@@ -1022,13 +1021,24 @@ export class Board extends Phaser.Scene {
         }
     }
 
-    showDeathScreen(payload) {
+    showDeathScreen() {
         if (!this.deathScreenContainer) {
             return;
         }
 
+        /*const outcomeText = payload?.entries?.find(entry => {
+            const entryPlayerId = String(entry?.playerId ?? '');
+            const kind = entry?.outcome?.kind;
+
+            return entryPlayerId === localId && (kind === 'Eliminate' || kind === 5);
+        })?.outcome?.text ?? null;
+
+        const deathDescriptionText = outcomeText
+            ? 'The darkness has consumed your fate. \n(' + outcomeText + ')'
+            : 'The darkness has consumed your fate.';*/
+
         this.deathTitle.setText('YOU DIED');
-        this.deathSubtitle.setText('The darkness has consumed your fate');
+        this.deathSubtitle.setText('The darkness has consumed your fate.');
 
         this.deathScreenContainer.setVisible(true);
         this.deathScreenContainer.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
