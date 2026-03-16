@@ -496,7 +496,7 @@ export class Board extends Phaser.Scene {
             typingSpeed: 30
         });
 
-        this.turnBeganClickHandler = (_pointer, currentlyOver) => {
+        const finishTurnFromTurnStart = (_pointer, currentlyOver) => {
             const chosenPlayerId = this.turnRequiresChosenPlayer
                 ? this.resolveChosenPlayerId(currentlyOver)
                 : null;
@@ -515,7 +515,17 @@ export class Board extends Phaser.Scene {
             }
         };
 
+        this.turnBeganClickHandler = finishTurnFromTurnStart;
+
         this.input.on('pointerdown', this.turnBeganClickHandler);
+
+        this.time.delayedCall(30000, () => {
+            if (this.turnBeganClickHandler !== finishTurnFromTurnStart) {
+                return;
+            }
+
+            finishTurnFromTurnStart();
+        });
     }
 
     turnEnded(payload) {
