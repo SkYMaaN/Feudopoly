@@ -70,7 +70,7 @@ export class Board extends Phaser.Scene {
 
         this.registerHubEvents();
 
-        this.notificationTextBox = this.createTextBox(this, width / 2, height / 2,
+        this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
                 width: 600,
                 height: 250,
