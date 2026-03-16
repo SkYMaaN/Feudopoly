@@ -1,4 +1,5 @@
 import { gameHubClient } from '../network/gameHubClient.js';
+import { getOrCreateProfile } from '../network/profileStorage.js';
 
 export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
@@ -58,6 +59,11 @@ export class Board extends Phaser.Scene {
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
         this.hasShownStartGameIntro = false;
+        this.localPlayerIsDead = false;
+        this.localPlayerIsSpectator = false;
+        this.isDeathChoicePending = false;
+        this.isProcessingDeathChoice = false;
+        this.hasExitedMatch = false;
 
         this.addBoard();
         this.buildCells();
@@ -195,6 +201,7 @@ export class Board extends Phaser.Scene {
             player.displayName = playerState.displayName;
             player.isConnected = playerState.isConnected;
             player.isDead = Boolean(playerState.isDead);
+            player.isSpectator = Boolean(playerState.isSpectator);
 
             // To prevent double animation from two web socket events.
             // Local player is already animated by DiceRolled/EventDiceRolled payloads.
@@ -218,6 +225,29 @@ export class Board extends Phaser.Scene {
             });
 
         });
+
+        const localState = state.players.find(player => String(player.playerId) === String(this.localPlayerId ?? ""));
+        if (!localState && this.localPlayerId && !this.hasExitedMatch) {
+            this.hasExitedMatch = true;
+            this.setStatus("You left this match.");
+            this.scene.start("LobbyList", getOrCreateProfile());
+            return;
+        }
+
+        this.localPlayerIsDead = Boolean(localState?.isDead);
+        this.localPlayerIsSpectator = Boolean(localState?.isSpectator);
+        this.isDeathChoicePending = this.localPlayerIsDead && !this.localPlayerIsSpectator;
+        if (!this.isDeathChoicePending) {
+            this.isProcessingDeathChoice = false;
+        }
+
+        if (this.isDeathChoicePending) {
+            this.showDeathScreen();
+        } else {
+            this.hideDeathScreen();
+        }
+
+        this.updateDeathChoiceButtons();
 
         if (!this.isRolling) {
             this.refreshTurnUI();
@@ -266,7 +296,8 @@ export class Board extends Phaser.Scene {
             outline,
             currentPosition: startPosition,
             isConnected: true,
-            isDead: false
+            isDead: false,
+            isSpectator: false
         };
     }
 
@@ -363,7 +394,13 @@ export class Board extends Phaser.Scene {
                 fontStyle: 'bold'
             }).setOrigin(0, 0);
 
+            const isSpectator = Boolean(playerState.isSpectator);
+
             this.playersListRowsContainer.add(nicknameText);
+
+            if (isSpectator) {
+                nicknameText.setText(`${nickname} (spectator)`);
+            }
 
             const isDead = Boolean(
                 playerState.isDead
@@ -403,7 +440,8 @@ export class Board extends Phaser.Scene {
         const activeTurnPlayerId = current?.playerId ?? this.activeTurnPlayerId;
         const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const canRoll = !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator
+            && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (isLocalTurn && this.isTurnInProgress) {
             return;
@@ -443,7 +481,8 @@ export class Board extends Phaser.Scene {
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const canRoll = !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator
+            && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (this.isRolling || !canRoll) {
             return;
@@ -742,14 +781,14 @@ export class Board extends Phaser.Scene {
         if (Array.isArray(currentlyOver)) {
             for (const gameObject of currentlyOver) {
                 const hit = this.players.find(player => player.sprite === gameObject || player.outline === gameObject);
-                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead) {
+                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead && !hit.isSpectator) {
                     console.log('Selected playerId: ' + hit.playerId);
                     return hit.playerId;
                 }
             }
         }
 
-        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead);
+        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator);
         if (candidates.length === 1) {
             return candidates[0].playerId;
         }
@@ -811,7 +850,19 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.deathScreenContainer.add([deathBg, deathShade, deathPulse, scanlines, this.deathTitle, this.deathSubtitle]);
+        this.stayAsSpectatorButton = this.createDeathActionButton(-200, height / 2 - 110, 340, 72, 'Stay as spectator', () => this.chooseStayAsSpectator());
+        this.leaveAfterDeathButton = this.createDeathActionButton(200, height / 2 - 110, 340, 72, 'Leave match', () => this.chooseLeaveAfterDeath());
+
+        this.deathScreenContainer.add([
+            deathBg,
+            deathShade,
+            deathPulse,
+            scanlines,
+            this.deathTitle,
+            this.deathSubtitle,
+            this.stayAsSpectatorButton,
+            this.leaveAfterDeathButton
+        ]);
 
         this.deathPulseTween = this.tweens.add({
             targets: deathPulse,
@@ -866,6 +917,105 @@ export class Board extends Phaser.Scene {
         }).setDepth(1);
 
         this.deathScreenContainer.add(this.deathFog);
+    }
+
+
+    createDeathActionButton(x, y, width, height, label, onClick) {
+        const rect = this.add.rectangle(x, y, width, height, 0x9cbfd9, 1)
+            .setStrokeStyle(6, 0x2b5e8a, 1)
+            .setInteractive({ useHandCursor: true });
+
+        const text = this.add.text(x, y, label, {
+            fontFamily: 'Georgia, serif',
+            fontSize: '28px',
+            color: '#FF0000',
+            fontStyle: 'bold',
+            align: 'center'
+        }).setOrigin(0.5);
+
+        rect.on('pointerover', () => {
+            if (!rect.input?.enabled) {
+                return;
+            }
+
+            rect.setFillStyle(0x8FA9BF, 1);
+        });
+        rect.on('pointerout', () => {
+            rect.setFillStyle(0x9cbfd9, 1);
+        });
+        rect.on('pointerdown', () => {
+            if (rect.input?.enabled) {
+                onClick();
+            }
+        });
+
+        const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
+        container.buttonRect = rect;
+        container.buttonText = text;
+
+        return container;
+    }
+
+    setDeathActionButtonDisabled(button, disabled) {
+        if (!button?.buttonRect) {
+            return;
+        }
+
+        button.buttonRect.disableInteractive();
+        if (!disabled) {
+            button.buttonRect.setInteractive({ useHandCursor: true });
+        }
+
+        button.buttonRect.setFillStyle(disabled ? 0x6d9dc5 : 0x9cbfd9, 1);
+        button.buttonText.setAlpha(disabled ? 0.55 : 1);
+    }
+
+    updateDeathChoiceButtons() {
+        const showActions = this.isDeathChoicePending;
+
+        this.stayAsSpectatorButton?.setVisible(showActions);
+        this.leaveAfterDeathButton?.setVisible(showActions);
+
+        const disableActions = !showActions || this.isProcessingDeathChoice;
+        this.setDeathActionButtonDisabled(this.stayAsSpectatorButton, disableActions);
+        this.setDeathActionButtonDisabled(this.leaveAfterDeathButton, disableActions);
+    }
+
+    async chooseStayAsSpectator() {
+        if (!this.isDeathChoicePending || this.isProcessingDeathChoice) {
+            return;
+        }
+
+        this.isProcessingDeathChoice = true;
+        this.updateDeathChoiceButtons();
+
+        try {
+            await gameHubClient.becomeSpectator(this.sessionId);
+            this.setStatus('You are now a spectator until this match ends.');
+        } catch (error) {
+            this.setStatus(error?.message ?? 'Failed to switch to spectator mode.');
+            this.isProcessingDeathChoice = false;
+            this.updateDeathChoiceButtons();
+        }
+    }
+
+    async chooseLeaveAfterDeath() {
+        if (!this.isDeathChoicePending || this.isProcessingDeathChoice) {
+            return;
+        }
+
+        this.isProcessingDeathChoice = true;
+        this.updateDeathChoiceButtons();
+
+        try {
+            await gameHubClient.leaveGame(this.sessionId);
+            this.hasExitedMatch = true;
+            this.scene.start('LobbyList', getOrCreateProfile());
+        } catch (error) {
+            this.setStatus(error?.message ?? 'Failed to leave the match.');
+            this.isProcessingDeathChoice = false;
+            this.updateDeathChoiceButtons();
+        }
     }
 
     showDeathScreen(payload) {
