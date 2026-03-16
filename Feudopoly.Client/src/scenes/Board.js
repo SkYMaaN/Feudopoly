@@ -53,6 +53,7 @@ export class Board extends Phaser.Scene {
         this.isEventRollPhase = false;
         this.pendingEventRollPlayerIds = [];
         this.turnBeganClickHandler = null;
+        this.turnBeganCountdownEvent = null;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
@@ -480,6 +481,7 @@ export class Board extends Phaser.Scene {
     turnBegan(payload) {
         console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
 
+        this.stopTurnBeganCountdown();
         this.hideTurnResultNotification();
         this.hideDeathScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
@@ -506,6 +508,7 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
+            this.stopTurnBeganCountdown();
             this.hideNotification();
             gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
 
@@ -519,13 +522,7 @@ export class Board extends Phaser.Scene {
 
         this.input.on('pointerdown', this.turnBeganClickHandler);
 
-        this.time.delayedCall(30000, () => {
-            if (this.turnBeganClickHandler !== finishTurnFromTurnStart) {
-                return;
-            }
-
-            finishTurnFromTurnStart();
-        });
+        this.startTurnBeganCountdown(30000, finishTurnFromTurnStart);
     }
 
     turnEnded(payload) {
@@ -558,6 +555,8 @@ export class Board extends Phaser.Scene {
             this.input.off('pointerdown', this.turnBeganClickHandler);
             this.turnBeganClickHandler = null;
         }
+
+        this.stopTurnBeganCountdown();
 
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
         const shouldSuppressTurnResult = payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries;
@@ -685,6 +684,7 @@ export class Board extends Phaser.Scene {
 
     hideNotification() {
         this.notificationTextBox?.setVisible(false).stop(true);
+        this.updateTurnStartActionText();
 
         if (this.notificationDismissHandler) {
             this.input.off('pointerdown', this.notificationDismissHandler);
@@ -695,6 +695,51 @@ export class Board extends Phaser.Scene {
             this.notificationVideo.stop();
             this.notificationVideo.setVisible(false);
         }
+    }
+
+    startTurnBeganCountdown(durationMs, finishTurnFromTurnStart) {
+        const durationSeconds = Math.ceil(durationMs / 1000);
+        const deadline = Date.now() + durationMs;
+
+        this.updateTurnStartActionText(durationSeconds);
+
+        this.turnBeganCountdownEvent = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                if (this.turnBeganClickHandler !== finishTurnFromTurnStart) {
+                    this.stopTurnBeganCountdown();
+                    return;
+                }
+
+                const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                this.updateTurnStartActionText(secondsLeft);
+
+                if (secondsLeft <= 0) {
+                    finishTurnFromTurnStart();
+                }
+            }
+        });
+    }
+
+    stopTurnBeganCountdown() {
+        if (this.turnBeganCountdownEvent) {
+            this.turnBeganCountdownEvent.remove(false);
+            this.turnBeganCountdownEvent = null;
+        }
+
+        this.updateTurnStartActionText();
+    }
+
+    updateTurnStartActionText(secondsLeft = null) {
+        const actionText = this.notificationTextBox?.getElement('action');
+        if (!actionText?.setText) {
+            return;
+        }
+
+        const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
+        actionText.setText(`Click to continue${suffix}`);
+        this.notificationTextBox.layout();
     }
 
     resolveChosenPlayerId(currentlyOver) {
