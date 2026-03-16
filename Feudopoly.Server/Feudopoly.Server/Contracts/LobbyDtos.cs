@@ -10,7 +10,7 @@ public sealed class CreateLobbyRequest
     public LobbyAccessType AccessType { get; set; }
     [MaxLength(64)]
     public string? Password { get; set; }
-    [Range(2, 4)]
+    [Range(1, 4)]
     public int MaxPlayers { get; set; }
     public Guid CreatorId { get; set; }
     [Required, MinLength(2), MaxLength(28)]

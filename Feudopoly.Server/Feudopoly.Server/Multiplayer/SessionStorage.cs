@@ -4,7 +4,7 @@ namespace Feudopoly.Server.Multiplayer;
 
 public sealed class SessionStorage
 {
-    private const int MinPlayers = 2;
+    private const int MinPlayers = 1;
     private const int MaxPlayersLimit = 4;
 
     private readonly ConcurrentDictionary<Guid, GameSession> _sessions = new();
@@ -14,7 +14,7 @@ public sealed class SessionStorage
     {
         if (maxPlayers < MinPlayers || maxPlayers > MaxPlayersLimit)
         {
-            throw new InvalidDataException("Max players must be in range [2..4].");
+            throw new InvalidDataException("Max players must be in range [1..4].");
         }
 
         if (accessType == LobbyAccessType.Closed && string.IsNullOrWhiteSpace(password))
