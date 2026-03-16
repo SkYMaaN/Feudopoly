@@ -411,12 +411,15 @@ export class Board extends Phaser.Scene {
         this.turnTitleText.setText(this.isEventRollPhase ? 'Event roll phase' : `${current?.displayName ?? 'Player'} turn`);
 
         if (mustRollForEvent) {
+            this.hideNotification();
             this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
         } else if (this.pendingRepeatRoll) {
+            this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         } else if (this.isEventRollPhase) {
             this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
         } else if (isLocalTurn) {
+            this.hideNotification();
             this.turnSubtitleText.setText('It is your turn. Roll the dice!');
         } else {
             this.turnSubtitleText.setText("Waiting for opponent's move...");
