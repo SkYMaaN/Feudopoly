@@ -139,7 +139,12 @@ export class LobbyList extends Phaser.Scene {
             const name = window.prompt('Lobby name:');
             if (!name) return;
             const isClosed = window.confirm('Closed lobby? OK = closed, Cancel = open');
-            const maxPlayers = Number(window.prompt('Max players (2-4):', '4'));
+            const maxPlayers = Number(window.prompt('Max players (1-4):', '4'));
+            if (!Number.isInteger(maxPlayers) || maxPlayers < 1 || maxPlayers > 4) {
+                this.showMessage('Max players must be an integer from 1 to 4.');
+                return;
+            }
+
             const password = isClosed ? window.prompt('Password:') : null;
 
             const lobby = await lobbyApi.create({

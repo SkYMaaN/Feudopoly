@@ -330,6 +330,74 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             resolution.IsEventRollPhase);
     }
 
+
+    public async Task BecomeSpectator(Guid sessionId)
+    {
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        {
+            throw new HubException("Session not found.");
+        }
+
+        GameStateDto state;
+        lock (session)
+        {
+            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
+                ?? throw new HubException("Player is not part of this session.");
+
+            if (!caller.IsDead)
+            {
+                throw new HubException("Only dead players can become spectators.");
+            }
+
+            caller.IsSpectator = true;
+            state = SessionStorage.ToDto(session);
+        }
+
+        await Clients.Group(sessionId.ToString()).SendAsync("StateUpdated", state);
+    }
+
+    public async Task LeaveGame(Guid sessionId)
+    {
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
+        {
+            throw new HubException("Session not found.");
+        }
+
+        Guid removedPlayerId;
+        bool removedSession;
+        GameStateDto state;
+
+        lock (session)
+        {
+            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
+                ?? throw new HubException("Player is not part of this session.");
+
+            removedPlayerId = caller.PlayerId;
+            removedSession = _sessionStore.RemovePlayerFromSession(session, caller.PlayerId);
+
+            if (session.IsEventRollPhase && session.PendingEventRollPlayerIds.Count == 0)
+            {
+                EndEventRollPhase(session);
+                AdvanceTurn(session);
+            }
+            else if (session.ActiveTurnPlayerId == Guid.Empty && session.Players.Count > 0)
+            {
+                AdvanceTurn(session);
+            }
+
+            state = SessionStorage.ToDto(session);
+        }
+
+        var groupName = sessionId.ToString();
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+
+        if (!removedSession)
+        {
+            await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayerId);
+            await Clients.Group(groupName).SendAsync("StateUpdated", state);
+        }
+    }
+
     public async Task SyncState(Guid sessionId)
     {
         logger.LogDebug("SyncState requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
@@ -366,7 +434,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             return false;
         }
 
-        return session.Players.Any(player => !player.IsDead && player.PlayerId != currentPlayer.PlayerId);
+        return session.Players.Any(player => IsActiveParticipant(player) && player.PlayerId != currentPlayer.PlayerId);
     }
 
     private static void StartEventRollPhase(GameSession session, Guid ownerPlayerId, GameCellEvent gameEvent)
@@ -377,7 +445,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         session.PendingEventRollPlayerIds.Clear();
 
         session.PendingEventRollPlayerIds.AddRange(session.Players
-            .Where(player => !player.IsDead)
+             .Where(player => IsActiveParticipant(player))
             .Select(player => player.PlayerId));
     }
 
@@ -397,7 +465,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     private static void AdvanceTurn(GameSession session)
     {
-        var alive = session.Players.Where(p => !p.IsDead).ToList();
+        var alive = session.Players.Where(IsActiveParticipant).ToList();
         if (alive.Count == 0)
         {
             session.ActiveTurnPlayerId = Guid.Empty;
@@ -438,9 +506,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
         if (session.IsEventRollPhase)
         {
-            if (caller.IsDead)
+            if (!IsActiveParticipant(caller))
             {
-                throw new HubException("Dead players can't make turns.");
+                throw new HubException("Dead or spectator players can't make turns.");
             }
 
             if (!session.PendingEventRollPlayerIds.Contains(caller.PlayerId))
@@ -453,7 +521,13 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
         if (session.ActiveTurnPlayerId == Guid.Empty)
         {
-            session.ActiveTurnPlayerId = session.Players.First(p => !p.IsDead).PlayerId;
+            var nextActive = session.Players.FirstOrDefault(IsActiveParticipant);
+            if (nextActive is null)
+            {
+                throw new HubException("No active players left in session.");
+            }
+
+            session.ActiveTurnPlayerId = nextActive.PlayerId;
         }
 
         if (caller.PlayerId != session.ActiveTurnPlayerId)
@@ -461,9 +535,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             throw new HubException("Not your turn.");
         }
 
-        if (caller.IsDead)
+        if (!IsActiveParticipant(caller))
         {
-            throw new HubException("Dead players can't make turns.");
+            throw new HubException("Dead or spectator players can't make turns.");
         }
 
         return caller;
@@ -522,7 +596,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     private static void ApplyOutcome(PlayerState player, EventOutcome outcome, ref bool repeatTurn)
     {
-        if (player.IsDead)
+        if (!IsActiveParticipant(player))
         {
             return;
         }
@@ -548,6 +622,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 return;
             case OutcomeKind.Eliminate:
                 player.IsDead = true;
+                player.TurnsToSkip = 0;
                 return;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -560,16 +635,18 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         {
             OutcomeTarget.CurrentPlayer => [currentPlayer],
             OutcomeTarget.ChosenPlayer => [
-                session.Players.FirstOrDefault(p => p.PlayerId == chosenPlayerId && !p.IsDead)
-                ?? session.Players.FirstOrDefault(p => p.PlayerId != currentPlayer.PlayerId && !p.IsDead)
+                session.Players.FirstOrDefault(p => p.PlayerId == chosenPlayerId && IsActiveParticipant(p))
+                ?? session.Players.FirstOrDefault(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p))
                 ?? currentPlayer],
-            OutcomeTarget.AllPlayers => session.Players.Where(p => !p.IsDead),
-            OutcomeTarget.Women => session.Players.Where(p => !p.IsMan && !p.IsDead),
-            OutcomeTarget.Muslims => session.Players.Where(p => p.IsMuslim && !p.IsDead),
-            OutcomeTarget.NonMuslims => session.Players.Where(p => !p.IsMuslim && !p.IsDead),
+            OutcomeTarget.AllPlayers => session.Players.Where(IsActiveParticipant),
+            OutcomeTarget.Women => session.Players.Where(p => !p.IsMan && IsActiveParticipant(p)),
+            OutcomeTarget.Muslims => session.Players.Where(p => p.IsMuslim && IsActiveParticipant(p)),
+            OutcomeTarget.NonMuslims => session.Players.Where(p => !p.IsMuslim && IsActiveParticipant(p)),
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null)
         };
     }
+
+    private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator;
 
     private bool TryGetSessionId(out Guid sessionId)
     {

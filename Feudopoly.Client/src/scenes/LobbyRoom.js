@@ -77,13 +77,16 @@ export class LobbyRoom extends Phaser.Scene {
         this.lobby = lobby;
         const isMember = this.isCurrentUserMember();
         const hasFreeSlots = this.lobby.currentPlayers < this.lobby.maxPlayers;
+        const isOwner = this.lobby.ownerPlayerId === this.profile.playerId;
+        const canStart = this.lobby.status === 1;
 
         this.title.setText(`Lobby: ${this.lobby.name}`);
         this.statusText.setText(`Status: ${this.lobby.status} | ${this.lobby.currentPlayers}/${this.lobby.maxPlayers}`);
         this.playersText.setText(this.lobby.players.map(p => `${p.isOwner ? '👑 ' : ''}${p.displayName}${p.isConnected ? ' (online)' : ''}`).join('\n'));
 
         this.leaveBtn.setVisible(isMember);
-        this.startBtn.setVisible(isMember && this.lobby.ownerPlayerId === this.profile.playerId);
+        this.startBtn.setVisible(isMember && isOwner);
+        this.setButtonDisabled(this.startBtn, !canStart);
         this.playBtn.setVisible(isMember && (this.lobby.status === 2 || this.lobby.status === 3));
 
         this.joinBtn.setVisible(!isMember);
