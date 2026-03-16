@@ -1027,8 +1027,8 @@ export class Board extends Phaser.Scene {
             return;
         }
 
-        this.deathTitle.setText(payload?.title?.trim() || 'YOU DIED');
-        this.deathSubtitle.setText(payload?.description?.trim() || 'The darkness has consumed your fate');
+        this.deathTitle.setText('YOU DIED');
+        this.deathSubtitle.setText('The darkness has consumed your fate');
 
         this.deathScreenContainer.setVisible(true);
         this.deathScreenContainer.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
