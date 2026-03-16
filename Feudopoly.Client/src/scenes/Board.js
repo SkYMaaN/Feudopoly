@@ -54,6 +54,7 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = [];
         this.turnBeganClickHandler = null;
         this.turnResultDismissHandler = null;
+        this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
         this.hasShownStartGameIntro = false;
 
@@ -632,6 +633,16 @@ export class Board extends Phaser.Scene {
         const { width, height } = this.scale.gameSize;
         const hasVideo = Boolean(videoKey);
 
+        if (this.notificationDismissHandler) {
+            this.input.off('pointerdown', this.notificationDismissHandler);
+        }
+
+        this.notificationDismissHandler = () => {
+            this.hideNotification();
+        };
+
+        this.input.once('pointerdown', this.notificationDismissHandler);
+
         this.notificationTextBox
             .setPosition(width / 2, hasVideo ? height - 180 : height / 2)
             .setVisible(true)
@@ -660,6 +671,11 @@ export class Board extends Phaser.Scene {
 
     hideNotification() {
         this.notificationTextBox?.setVisible(false).stop(true);
+
+        if (this.notificationDismissHandler) {
+            this.input.off('pointerdown', this.notificationDismissHandler);
+            this.notificationDismissHandler = null;
+        }
 
         if (this.notificationVideo) {
             this.notificationVideo.stop();
