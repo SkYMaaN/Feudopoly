@@ -90,6 +90,7 @@ public sealed class SessionStorage
                 Position = 0,
                 IsConnected = false,
                 IsDead = false,
+                IsSpectator = false,
                 TurnsToSkip = 0
             });
 
@@ -174,6 +175,37 @@ public sealed class SessionStorage
 
     public bool TryGetSessionForPlayer(Guid playerId, out Guid sessionId) => _playerToSession.TryGetValue(playerId, out sessionId);
 
+    public bool RemovePlayerFromSession(GameSession session, Guid playerId)
+    {
+        lock (session)
+        {
+            var player = session.Players.FirstOrDefault(p => p.PlayerId == playerId)
+                ?? throw new InvalidDataException("Player not in session.");
+
+            session.Players.Remove(player);
+            _playerToSession.TryRemove(playerId, out _);
+            session.PendingEventRollPlayerIds.Remove(playerId);
+
+            if (session.Players.Count == 0)
+            {
+                _sessions.TryRemove(session.SessionId, out _);
+                return true;
+            }
+
+            if (session.OwnerPlayerId == playerId)
+            {
+                session.OwnerPlayerId = session.Players[0].PlayerId;
+            }
+
+            if (session.ActiveTurnPlayerId == playerId)
+            {
+                session.ActiveTurnPlayerId = Guid.Empty;
+            }
+
+            return false;
+        }
+    }
+
     public void RemoveSessionIfEmpty(Guid sessionId)
     {
         if (!_sessions.TryGetValue(sessionId, out var session))
@@ -220,7 +252,8 @@ public sealed class SessionStorage
                 IsMuslim = player.IsMuslim,
                 Position = player.Position,
                 IsConnected = player.IsConnected,
-                IsDead = player.IsDead
+                IsDead = player.IsDead,
+                IsSpectator = player.IsSpectator
             }).ToArray()
         };
     }

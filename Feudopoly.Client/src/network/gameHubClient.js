@@ -99,6 +99,15 @@ export class GameHubClient {
         await this.connection.invoke('SyncState', sessionId);
     }
 
+    async becomeSpectator(sessionId) {
+        await this.connection.invoke('BecomeSpectator', sessionId);
+    }
+
+    async leaveGame(sessionId) {
+        await this.connection.invoke('LeaveGame', sessionId);
+    }
+
+
     on(eventName, handler) {
         if (!this.handlers[eventName]) {
             throw new Error(`Unknown event name: ${eventName}`);
