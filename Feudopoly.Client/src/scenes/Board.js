@@ -64,6 +64,8 @@ export class Board extends Phaser.Scene {
         this.isDeathChoicePending = false;
         this.isProcessingDeathChoice = false;
         this.hasExitedMatch = false;
+        this.isLeavingMatch = false;
+        this.isInGameMenuOpen = false;
 
         this.addBoard();
         this.buildCells();
@@ -73,6 +75,7 @@ export class Board extends Phaser.Scene {
         this.createTurnUI();
         this.createStatusText();
         this.createPlayersListUI();
+        this.createInGameMenuUI();
         this.createDeathScreenUI();
 
         this.registerHubEvents();
@@ -106,6 +109,146 @@ export class Board extends Phaser.Scene {
         } catch (error) {
             console.error(error);
             this.setStatus(`SignalR error: ${error.message ?? 'Unknown error'}`);
+        }
+    }
+
+    createInGameMenuUI() {
+        const { width } = this.scale.gameSize;
+
+        this.menuToggleButtonBackground = this.rexUI.add.roundRectangle(0, 0, 220, 66, 16, 0x6f4b23, 1)
+            .setStrokeStyle(4, 0xc89b58, 1);
+
+        this.menuToggleButtonText = this.add.text(0, 0, 'Menu', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '30px',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.menuToggleButton = this.rexUI.add.label({
+            x: width - 140,
+            y: 64,
+            width: 220,
+            height: 66,
+            background: this.menuToggleButtonBackground,
+            text: this.menuToggleButtonText,
+            align: 'center'
+        }).layout().setDepth(1700).setInteractive({ useHandCursor: true });
+
+        this.menuToggleButton.on('pointerover', () => {
+            if (this.menuToggleButton.input?.enabled) {
+                this.menuToggleButtonBackground.setFillStyle(0x83592b, 1);
+            }
+        });
+
+        this.menuToggleButton.on('pointerout', () => {
+            this.menuToggleButtonBackground.setFillStyle(0x6f4b23, 1);
+        });
+
+        this.menuToggleButton.on('pointerdown', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+            this.toggleInGameMenu();
+        });
+
+        this.inGameMenuContainer = this.add.container(width - 230, 128)
+            .setDepth(1710)
+            .setVisible(false);
+
+        const menuBackground = this.add.rectangle(0, 0, 360, 210, 0x2d2018, 0.96)
+            .setStrokeStyle(4, 0xc89b58, 1)
+            .setOrigin(0, 0);
+
+        const menuTitle = this.add.text(180, 36, 'Player actions', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '30px',
+            color: '#ffe066',
+            stroke: '#000000',
+            strokeThickness: 6,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const leaveMatchButtonBg = this.rexUI.add.roundRectangle(0, 0, 300, 64, 14, 0x4a1e16, 1)
+            .setStrokeStyle(3, 0xb86b4f, 1);
+
+        this.leaveMatchMenuButtonText = this.add.text(0, 0, 'Покинуть игру', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '28px',
+            color: '#ffe6de',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.leaveMatchMenuButton = this.rexUI.add.label({
+            x: 180,
+            y: 118,
+            width: 300,
+            height: 64,
+            background: leaveMatchButtonBg,
+            text: this.leaveMatchMenuButtonText,
+            align: 'center'
+        }).layout().setInteractive({ useHandCursor: true });
+
+        this.leaveMatchMenuButton.on('pointerover', () => {
+            if (this.leaveMatchMenuButton.input?.enabled) {
+                leaveMatchButtonBg.setFillStyle(0x6a2b1f, 1);
+            }
+        });
+
+        this.leaveMatchMenuButton.on('pointerout', () => {
+            leaveMatchButtonBg.setFillStyle(0x4a1e16, 1);
+        });
+
+        this.leaveMatchMenuButton.on('pointerdown', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+            this.leaveCurrentMatch();
+        });
+
+        const closeHint = this.add.text(180, 180, 'Click Menu button again to close', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '18px',
+            color: '#d7ccc8',
+            fontStyle: 'italic'
+        }).setOrigin(0.5);
+
+        [menuBackground, menuTitle, closeHint].forEach(gameObject => {
+            gameObject.setInteractive({ useHandCursor: false });
+            gameObject.on('pointerdown', (_pointer, _localX, _localY, event) => {
+                event?.stopPropagation?.();
+            });
+        });
+
+        this.inGameMenuContainer.add([menuBackground, menuTitle, this.leaveMatchMenuButton, closeHint]);
+
+        this.menuToggleKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        this.menuToggleKey?.on('down', () => this.toggleInGameMenu());
+    }
+
+    toggleInGameMenu(forceVisible = null) {
+        if (!this.inGameMenuContainer || this.hasExitedMatch) {
+            return;
+        }
+
+        const shouldOpen = forceVisible ?? !this.isInGameMenuOpen;
+        this.isInGameMenuOpen = shouldOpen;
+        this.inGameMenuContainer.setVisible(shouldOpen);
+        this.menuToggleButtonText.setText(shouldOpen ? 'Close' : 'Menu');
+        this.menuToggleButtonBackground.setFillStyle(shouldOpen ? 0x83592b : 0x6f4b23, 1);
+    }
+
+    async leaveCurrentMatch() {
+        if (this.isLeavingMatch || this.hasExitedMatch) {
+            return;
+        }
+
+        this.isLeavingMatch = true;
+        this.toggleInGameMenu(false);
+
+        try {
+            await gameHubClient.leaveGame(this.sessionId);
+            this.hasExitedMatch = true;
+            this.scene.start('LobbyList', getOrCreateProfile());
+        } catch (error) {
+            this.isLeavingMatch = false;
+            this.setStatus(error?.message ?? 'Failed to leave the match.');
         }
     }
 
@@ -1086,12 +1229,8 @@ export class Board extends Phaser.Scene {
         this.isProcessingDeathChoice = true;
         this.updateDeathChoiceButtons();
 
-        try {
-            await gameHubClient.leaveGame(this.sessionId);
-            this.hasExitedMatch = true;
-            this.scene.start('LobbyList', getOrCreateProfile());
-        } catch (error) {
-            this.setStatus(error?.message ?? 'Failed to leave the match.');
+        await this.leaveCurrentMatch();
+        if (!this.hasExitedMatch) {
             this.isProcessingDeathChoice = false;
             this.updateDeathChoiceButtons();
         }
