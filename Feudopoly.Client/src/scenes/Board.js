@@ -921,37 +921,110 @@ export class Board extends Phaser.Scene {
 
 
     createDeathActionButton(x, y, width, height, label, onClick) {
-        const rect = this.add.rectangle(x, y, width, height, 0x9cbfd9, 1)
-            .setStrokeStyle(6, 0x2b5e8a, 1)
+        const baseStyle = {
+            fill: 0x250202,
+            fillAlpha: 0.9,
+            stroke: 0x9b1111,
+            strokeAlpha: 0.95,
+            textColor: '#ffdede',
+            textAlpha: 1,
+            glow: 0.35
+        };
+
+        const hoverStyle = {
+            fill: 0x430707,
+            fillAlpha: 0.95,
+            stroke: 0xd12b2b,
+            strokeAlpha: 1,
+            textColor: '#fff1f1',
+            textAlpha: 1,
+            glow: 0.6
+        };
+
+        const activeStyle = {
+            fill: 0x170000,
+            fillAlpha: 1,
+            stroke: 0x7c0808,
+            strokeAlpha: 1,
+            textColor: '#ffc7c7',
+            textAlpha: 1,
+            glow: 0.22
+        };
+
+        const disabledStyle = {
+            fill: 0x120404,
+            fillAlpha: 0.72,
+            stroke: 0x4a1a1a,
+            strokeAlpha: 0.8,
+            textColor: '#8d6666',
+            textAlpha: 0.72,
+            glow: 0
+        };
+
+        const rect = this.add.rectangle(x, y, width, height, baseStyle.fill, baseStyle.fillAlpha)
+            .setStrokeStyle(5, baseStyle.stroke, baseStyle.strokeAlpha)
             .setInteractive({ useHandCursor: true });
 
+        const glow = this.add.rectangle(x, y, width + 14, height + 14, 0x9b1111, baseStyle.glow)
+            .setBlendMode(Phaser.BlendModes.ADD);
+
         const text = this.add.text(x, y, label, {
-            fontFamily: 'Georgia, serif',
-            fontSize: '28px',
-            color: '#FF0000',
+            fontFamily: 'Arial Black, Arial, sans-serif',
+            fontSize: '30px',
+            color: baseStyle.textColor,
             fontStyle: 'bold',
+            stroke: '#1a0000',
+            strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5);
 
+        text.setShadow(0, 3, '#3a0000', 8, true, true);
+
+        const applyStyle = (style) => {
+            rect.setFillStyle(style.fill, style.fillAlpha);
+            rect.setStrokeStyle(5, style.stroke, style.strokeAlpha);
+            glow.setFillStyle(style.stroke, style.glow);
+            text.setColor(style.textColor);
+            text.setAlpha(style.textAlpha);
+        };
+
+        applyStyle(baseStyle);
+
         rect.on('pointerover', () => {
-            if (!rect.input?.enabled) {
+            if (!rect.input?.enabled || rect.getData('isDisabled')) {
                 return;
             }
 
-            rect.setFillStyle(0x8FA9BF, 1);
+            applyStyle(hoverStyle);
         });
         rect.on('pointerout', () => {
-            rect.setFillStyle(0x9cbfd9, 1);
+            if (rect.getData('isDisabled')) {
+                applyStyle(disabledStyle);
+                return;
+            }
+
+            applyStyle(baseStyle);
         });
         rect.on('pointerdown', () => {
-            if (rect.input?.enabled) {
-                onClick();
+            if (!rect.input?.enabled || rect.getData('isDisabled')) {
+                return;
             }
-        });
 
-        const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
+            applyStyle(activeStyle);
+        });
+        rect.on('pointerup', () => {
+            if (!rect.input?.enabled || rect.getData('isDisabled')) {
+                return;
+            }
+
+            applyStyle(hoverStyle);
+            onClick();
+        });
+        const container = this.add.container(0, 0, [glow, rect, text]).setSize(width, height);
         container.buttonRect = rect;
         container.buttonText = text;
+        container.buttonGlow = glow;
+        container.buttonStyles = { baseStyle, disabledStyle, applyStyle };
 
         return container;
     }
@@ -962,12 +1035,15 @@ export class Board extends Phaser.Scene {
         }
 
         button.buttonRect.disableInteractive();
+        button.buttonRect.setData('isDisabled', disabled);
         if (!disabled) {
             button.buttonRect.setInteractive({ useHandCursor: true });
         }
 
-        button.buttonRect.setFillStyle(disabled ? 0x6d9dc5 : 0x9cbfd9, 1);
-        button.buttonText.setAlpha(disabled ? 0.55 : 1);
+        const style = disabled
+            ? button.buttonStyles.disabledStyle
+            : button.buttonStyles.baseStyle;
+        button.buttonStyles.applyStyle(style);
     }
 
     updateDeathChoiceButtons() {
