@@ -1,5 +1,6 @@
+import { backendBaseUrl } from '../config.js';
+
 const HUB_PATH = '/hubs/lobby';
-const ServerBaseUrl = 'https://localhost:7049';
 const ServerTimeoutInMilliseconds = 5 * 60 * 1000;
 const KeepAliveIntervalInMilliseconds = 60 * 1000;
 
@@ -27,7 +28,7 @@ export class LobbyHubClient {
         }
 
         this.connection = new signalR.HubConnectionBuilder()
-            .withUrl(`${ServerBaseUrl}${HUB_PATH}`)
+            .withUrl(`${backendBaseUrl}${HUB_PATH}`)
             .withAutomaticReconnect([0, 2000, 5000, 10000])
             .configureLogging(signalR.LogLevel.Warning)
             .build();
