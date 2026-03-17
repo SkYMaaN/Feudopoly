@@ -150,7 +150,7 @@ export class Board extends Phaser.Scene {
             this.toggleInGameMenu();
         });
 
-        this.inGameMenuContainer = this.add.container(width - 230, 128)
+        this.inGameMenuContainer = this.add.container(width - 400, 128)
             .setDepth(1710)
             .setVisible(false);
 
@@ -170,7 +170,7 @@ export class Board extends Phaser.Scene {
         const leaveMatchButtonBg = this.rexUI.add.roundRectangle(0, 0, 300, 64, 14, 0x4a1e16, 1)
             .setStrokeStyle(3, 0xb86b4f, 1);
 
-        this.leaveMatchMenuButtonText = this.add.text(0, 0, 'Покинуть игру', {
+        this.leaveMatchMenuButtonText = this.add.text(0, 0, 'Disconnect', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '28px',
             color: '#ffe6de',
@@ -179,8 +179,8 @@ export class Board extends Phaser.Scene {
 
         this.leaveMatchMenuButton = this.rexUI.add.label({
             x: 180,
-            y: 118,
-            width: 300,
+            y: 100,
+            width: 180,
             height: 64,
             background: leaveMatchButtonBg,
             text: this.leaveMatchMenuButtonText,
