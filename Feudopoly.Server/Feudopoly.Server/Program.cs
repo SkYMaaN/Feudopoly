@@ -5,7 +5,8 @@ namespace Feudopoly.Server
 {
     public class Program
     {
-        private const string CORSKey = "FeudopolyCORS_054389w763";
+        private const string DefaultCorsPolicy = "FeudopolyCORS_054389w763";
+        public const string OpenCorsPolicy = "FeudopolyOpenCors";
 
         public static void Main(string[] args)
         {
@@ -22,24 +23,30 @@ namespace Feudopoly.Server
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
 
-            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy(CORSKey, policy =>
+                options.AddPolicy(DefaultCorsPolicy, policy =>
                 {
                     policy.WithOrigins(allowedOrigins)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
                 });
+
+                options.AddPolicy(OpenCorsPolicy, policy =>
+                {
+                    policy.AllowAnyOrigin()
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                });
             });
 
             var app = builder.Build();
             var logger = app.Services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Application started!");
-            // log allowedOrigins
-            logger.LogInformation("Allowed origins: " + String.Join("\n", allowedOrigins));
+            logger.LogInformation("Allowed origins: {AllowedOrigins}", string.Join("\n", allowedOrigins));
 
             if (app.Environment.IsDevelopment())
             {
@@ -47,7 +54,7 @@ namespace Feudopoly.Server
             }
 
             app.UseHttpsRedirection();
-            app.UseCors(CORSKey);
+            app.UseCors(DefaultCorsPolicy);
             app.UseAuthorization();
 
             app.MapControllers();
