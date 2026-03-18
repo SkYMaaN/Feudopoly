@@ -19,12 +19,23 @@ namespace Feudopoly.Server
             });
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
+
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? new[]
+                {
+                    "http://localhost:8083",
+                    "http://localhost:8084",
+                    "http://localhost:8085",
+                    "http://localhost:8086",
+                    "http://localhost:8087"
+                };
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("ClientPolicy", policy =>
                 {
                     policy
-                        .WithOrigins("http://localhost:8083", "http://localhost:8084", "http://localhost:8085", "http://localhost:8086", "http://localhost:8087")
+                        .WithOrigins(allowedOrigins)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();

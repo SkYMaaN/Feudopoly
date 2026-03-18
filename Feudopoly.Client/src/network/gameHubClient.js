@@ -1,5 +1,6 @@
+import { backendBaseUrl } from '../config.js';
+
 const HUB_PATH = '/hubs/game';
-const ServerBaseUrl = "https://localhost:7049";
 
 export class GameHubClient {
     constructor() {
@@ -27,7 +28,7 @@ export class GameHubClient {
             return;
         }
 
-        const hubUrl = `${ServerBaseUrl}${HUB_PATH}`;
+        const hubUrl = `${backendBaseUrl}${HUB_PATH}`;
 
         console.log("Hub Url: " + hubUrl);
 

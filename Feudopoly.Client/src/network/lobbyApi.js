@@ -1,7 +1,7 @@
-const ServerBaseUrl = 'https://localhost:7049';
+import { backendBaseUrl } from '../config.js';
 
 async function request(path, method = 'GET', body = null) {
-    const response = await fetch(`${ServerBaseUrl}${path}`, {
+    const response = await fetch(`${backendBaseUrl}${path}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : null
