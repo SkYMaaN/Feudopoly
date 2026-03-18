@@ -12,6 +12,7 @@ RUN dotnet publish Feudopoly.Server/Feudopoly.Server/Feudopoly.Server.csproj -c 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
+ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
