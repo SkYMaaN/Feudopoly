@@ -5,6 +5,8 @@ namespace Feudopoly.Server
 {
     public class Program
     {
+        private const string CORSKey = "FeudopolyCORS_054389w763";
+
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
@@ -20,22 +22,13 @@ namespace Feudopoly.Server
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
 
-            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                ?? new[]
-                {
-                    "http://localhost:8083",
-                    "http://localhost:8084",
-                    "http://localhost:8085",
-                    "http://localhost:8086",
-                    "http://localhost:8087"
-                };
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("ClientPolicy", policy =>
+                options.AddPolicy(CORSKey, policy =>
                 {
-                    policy
-                        .WithOrigins(allowedOrigins)
+                    policy.WithOrigins(allowedOrigins)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
@@ -43,6 +36,10 @@ namespace Feudopoly.Server
             });
 
             var app = builder.Build();
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Application started!");
+            // log allowedOrigins
+            logger.LogInformation("Allowed origins: " + String.Join("\n", allowedOrigins));
 
             if (app.Environment.IsDevelopment())
             {
@@ -50,7 +47,7 @@ namespace Feudopoly.Server
             }
 
             app.UseHttpsRedirection();
-            app.UseCors("ClientPolicy");
+            app.UseCors(CORSKey);
             app.UseAuthorization();
 
             app.MapControllers();
