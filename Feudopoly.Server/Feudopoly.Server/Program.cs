@@ -1,5 +1,6 @@
 using Feudopoly.Server.Hubs;
 using Feudopoly.Server.Multiplayer;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace Feudopoly.Server
 {
@@ -19,6 +20,12 @@ namespace Feudopoly.Server
             });
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
 
             var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                 ?? new[]
@@ -49,8 +56,9 @@ namespace Feudopoly.Server
                 app.MapOpenApi();
             }
 
-            app.UseHttpsRedirection();
+            app.UseForwardedHeaders();
             app.UseCors("ClientPolicy");
+            app.UseHttpsRedirection();
             app.UseAuthorization();
 
             app.MapControllers();

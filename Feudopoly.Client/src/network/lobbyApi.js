@@ -1,11 +1,14 @@
 import { backendBaseUrl } from '../config.js';
 
 async function request(path, method = 'GET', body = null) {
-    const response = await fetch(`${backendBaseUrl}${path}`, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : null
-    });
+    const requestOptions = { method };
+
+    if (body) {
+        requestOptions.headers = { 'Content-Type': 'application/json' };
+        requestOptions.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${backendBaseUrl}${path}`, requestOptions);
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
