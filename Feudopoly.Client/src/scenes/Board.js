@@ -54,6 +54,8 @@ export class Board extends Phaser.Scene {
         this.turnRequiresChosenPlayer = false;
         this.isEventRollPhase = false;
         this.pendingEventRollPlayerIds = [];
+        this.isAwaitingAdditionalEventRoll = false;
+        this.pendingAdditionalEventRollPlayerId = null;
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
         this.turnResultDismissHandler = null;
@@ -327,6 +329,10 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = Array.isArray(state.pendingEventRollPlayerIds)
             ? state.pendingEventRollPlayerIds.map(id => String(id))
             : [];
+        this.isAwaitingAdditionalEventRoll = Boolean(state.isAwaitingAdditionalEventRoll);
+        this.pendingAdditionalEventRollPlayerId = state.pendingAdditionalEventRollPlayerId
+            ? String(state.pendingAdditionalEventRollPlayerId)
+            : null;
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -612,8 +618,11 @@ export class Board extends Phaser.Scene {
         const activeTurnPlayerId = current?.playerId ?? this.activeTurnPlayerId;
         const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const mustRollForAdditionalEvent = this.isAwaitingAdditionalEventRoll
+            && String(this.pendingAdditionalEventRollPlayerId ?? '') === String(this.localPlayerId ?? '');
         const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+            && !this.isTurnInProgress
+            && (mustRollForEvent || mustRollForAdditionalEvent || (!this.isEventRollPhase && !this.isAwaitingAdditionalEventRoll && isLocalTurn));
 
         if (isLocalTurn && this.isTurnInProgress) {
             return;
@@ -624,11 +633,16 @@ export class Board extends Phaser.Scene {
         if (mustRollForEvent) {
             this.hideNotification();
             this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
+        } else if (mustRollForAdditionalEvent) {
+            this.hideNotification();
+            this.turnSubtitleText.setText('Resolve the cell event with an extra roll.');
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         } else if (this.isEventRollPhase) {
             this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
+        } else if (this.isAwaitingAdditionalEventRoll) {
+            this.turnSubtitleText.setText('Waiting for the current player to resolve the cell event...');
         } else if (isLocalTurn) {
             this.hideNotification();
             this.turnSubtitleText.setText('It is your turn. Roll the dice!');
@@ -640,13 +654,13 @@ export class Board extends Phaser.Scene {
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!');
+            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent || mustRollForAdditionalEvent ? 'Roll again!' : 'Roll!');
         }
         else {
             this.rollButton.setVisible(false);
             this.rollButton.disableInteractive();
             this.rollButtonBackground.setFillStyle(0x555555, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!');
+            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent || mustRollForAdditionalEvent ? 'Roll again!' : 'Roll!');
         }
 
         this.turnOverlay.setVisible(true);
@@ -656,8 +670,11 @@ export class Board extends Phaser.Scene {
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const mustRollForAdditionalEvent = this.isAwaitingAdditionalEventRoll
+            && String(this.pendingAdditionalEventRollPlayerId ?? '') === String(this.localPlayerId ?? '');
         const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+            && !this.isTurnInProgress
+            && (mustRollForEvent || mustRollForAdditionalEvent || (!this.isEventRollPhase && !this.isAwaitingAdditionalEventRoll && isLocalTurn));
 
         if (this.isRolling || !canRoll) {
             return;
@@ -752,6 +769,10 @@ export class Board extends Phaser.Scene {
             }
         }
 
+        if (payload?.requiresAdditionalEventRoll) {
+            this.pendingRepeatRoll = false;
+        }
+
         this.turnRequiresChosenPlayer = false;
 
         const didLocalPlayerDie = this.didLocalPlayerDie(payload);
@@ -771,7 +792,11 @@ export class Board extends Phaser.Scene {
         this.stopTurnBeganCountdown();
 
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
-        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie || this.isVictoryChoicePending;
+        const shouldSuppressTurnResult =
+            payload?.requiresAdditionalEventRoll
+            || (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries)
+            || didLocalPlayerDie
+            || this.isVictoryChoicePending;
 
         if (!shouldSuppressTurnResult) {
             this.showTurnResultNotification(payload);
@@ -1558,6 +1583,11 @@ export class Board extends Phaser.Scene {
                 .filter(id => id !== String(this.localPlayerId));
         }
 
+        if (payload?.isAdditionalEventRoll && String(payload.playerId) === String(this.localPlayerId)) {
+            this.isAwaitingAdditionalEventRoll = false;
+            this.pendingAdditionalEventRollPlayerId = null;
+        }
+
         const steps = this.getStepsToPosition(player.currentPosition, payload.newPosition, !payload?.isEventPhaseRoll);
         this.animatingPlayerId = player.playerId;
 
@@ -1569,6 +1599,10 @@ export class Board extends Phaser.Scene {
         this.diceRollSfx?.stop();
 
         this.movePlayer(player.playerId, steps, payload.newPosition, async () => {
+            if (steps === 0) {
+                await new Promise(resolve => setTimeout(resolve, 900));
+            }
+
             this.hideDice();
 
             try {
