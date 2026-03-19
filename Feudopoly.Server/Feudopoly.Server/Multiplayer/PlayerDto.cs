@@ -10,4 +10,5 @@ public sealed class PlayerDto
     public required bool IsConnected { get; init; }
     public required bool IsDead { get; init; }
     public required bool IsSpectator { get; init; }
+    public required bool IsWinner { get; init; }
 }

@@ -11,5 +11,6 @@ public sealed class PlayerState
     public required bool IsConnected { get; set; }
     public required bool IsDead { get; set; }
     public required bool IsSpectator { get; set; }
+    public required bool IsWinner { get; set; }
     public required int TurnsToSkip { get; set; }
 }
