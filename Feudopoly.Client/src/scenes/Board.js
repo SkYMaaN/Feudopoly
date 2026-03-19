@@ -743,10 +743,6 @@ export class Board extends Phaser.Scene {
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
 
         if (payload?.isEventRollPhase) {
-            this.pendingRepeatRoll = false;
-            this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
-                .filter(playerId => playerId !== String(this.localPlayerId ?? ''));
-
             if (payload?.eventRollCompleted) {
                 this.isEventRollPhase = false;
             }
