@@ -44,7 +44,8 @@ public sealed class SessionStorage
             IsEventRollPhase = false,
             EventRollOwnerPlayerId = Guid.Empty,
             PendingEventRollPlayerIds = [],
-            PendingEventRollEvent = null
+            PendingEventRollEvent = null,
+            PendingEventRollChosenPlayerId = null
         };
 
         _sessions.TryAdd(session.SessionId, session);
