@@ -1,5 +1,7 @@
 using Feudopoly.Server.Hubs;
+using Feudopoly.Server.Infrastructure;
 using Feudopoly.Server.Multiplayer;
+using Microsoft.OpenApi.Models;
 
 namespace Feudopoly.Server
 {
@@ -13,7 +15,20 @@ namespace Feudopoly.Server
             var builder = WebApplication.CreateBuilder(args);
 
             builder.Services.AddControllers();
-            builder.Services.AddOpenApi();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.Configure<SwaggerAdminOptions>(_ =>
+            {
+                _.Password = Environment.GetEnvironmentVariable(SwaggerAdminOptions.PasswordEnvironmentVariable);
+            });
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.SwaggerDoc("v1", new OpenApiInfo
+                {
+                    Title = "Feudopoly Admin API",
+                    Version = "v1",
+                    Description = "Internal lobby administration endpoints."
+                });
+            });
             builder.Services.AddSignalR(options =>
             {
                 options.ClientTimeoutInterval = TimeSpan.FromMinutes(20);
@@ -44,13 +59,30 @@ namespace Feudopoly.Server
             });
 
             var app = builder.Build();
+            var swaggerAdminOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<SwaggerAdminOptions>>().Value;
             var logger = app.Services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Application started!");
             logger.LogInformation("Allowed origins: {AllowedOrigins}", string.Join("\n", allowedOrigins));
 
-            if (app.Environment.IsDevelopment())
+            if (swaggerAdminOptions.IsEnabled)
             {
-                app.MapOpenApi();
+                app.UseMiddleware<SwaggerBasicAuthMiddleware>();
+                app.UseSwagger(options =>
+                {
+                    options.RouteTemplate = SwaggerAdminOptions.JsonRouteTemplate;
+                });
+                app.UseSwaggerUI(options =>
+                {
+                    options.RoutePrefix = SwaggerAdminOptions.UiRoutePrefix;
+                    options.SwaggerEndpoint(SwaggerAdminOptions.JsonEndpoint, "Feudopoly Admin API v1");
+                    options.DocumentTitle = "Feudopoly Admin";
+                });
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Swagger UI is disabled because environment variable {EnvironmentVariable} is not set.",
+                    SwaggerAdminOptions.PasswordEnvironmentVariable);
             }
 
             app.UseHttpsRedirection();

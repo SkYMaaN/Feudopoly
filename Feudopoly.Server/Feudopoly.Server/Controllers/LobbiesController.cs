@@ -1,6 +1,7 @@
 using Feudopoly.Server.Contracts;
 using Feudopoly.Server.Hubs;
 using Feudopoly.Server.Multiplayer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
@@ -11,6 +12,7 @@ namespace Feudopoly.Server.Controllers;
 public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext<LobbyHub> lobbyHub) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyCollection<LobbyListItemDto>), StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyCollection<LobbyListItemDto>> GetLobbies([FromQuery] string? search = null)
     {
         var query = sessionStorage.GetSessions().AsEnumerable();
@@ -23,6 +25,8 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
     }
 
     [HttpGet("{lobbyId:guid}")]
+    [ProducesResponseType(typeof(LobbyDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<LobbyDetailsDto> GetLobby(Guid lobbyId)
     {
         if (!sessionStorage.TryGetSession(lobbyId, out var session) || session is null)
@@ -37,6 +41,8 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(LobbyDetailsDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<LobbyDetailsDto>> CreateLobby([FromBody] CreateLobbyRequest request)
     {
         if (!ModelState.IsValid)
@@ -141,6 +147,26 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpDelete("{lobbyId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteLobby(Guid lobbyId)
+    {
+        if (!sessionStorage.TryGetSession(lobbyId, out var session) || session is null)
+        {
+            return NotFound();
+        }
+
+        if (!sessionStorage.DeleteLobby(session))
+        {
+            return NotFound();
+        }
+
+        await lobbyHub.Clients.Group(lobbyId.ToString()).SendAsync("LobbyDeleted", lobbyId);
+        await NotifyLobbyListDeleted(lobbyHub, lobbyId);
+        return NoContent();
     }
 
     private static LobbyListItemDto ToListItem(GameSession session) => new()
