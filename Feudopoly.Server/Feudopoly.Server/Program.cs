@@ -1,7 +1,8 @@
 using Feudopoly.Server.Hubs;
 using Feudopoly.Server.Infrastructure;
 using Feudopoly.Server.Multiplayer;
-using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
 
 namespace Feudopoly.Server
 {
@@ -18,7 +19,7 @@ namespace Feudopoly.Server
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.Configure<SwaggerAdminOptions>(_ =>
             {
-                _.Password = Environment.GetEnvironmentVariable(SwaggerAdminOptions.PasswordEnvironmentVariable);
+                _.Password = Environment.GetEnvironmentVariable(SwaggerAdminOptions.PasswordEnvironmentVariable, EnvironmentVariableTarget.User);
             });
             builder.Services.AddSwaggerGen(options =>
             {
@@ -59,7 +60,7 @@ namespace Feudopoly.Server
             });
 
             var app = builder.Build();
-            var swaggerAdminOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<SwaggerAdminOptions>>().Value;
+            var swaggerAdminOptions = app.Services.GetRequiredService<IOptions<SwaggerAdminOptions>>().Value;
             var logger = app.Services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Application started!");
             logger.LogInformation("Allowed origins: {AllowedOrigins}", string.Join("\n", allowedOrigins));
