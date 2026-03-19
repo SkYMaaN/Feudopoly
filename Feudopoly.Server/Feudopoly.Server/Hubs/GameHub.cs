@@ -184,7 +184,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     throw new HubException("Turn is not finished yet.");
                 }
 
-                if (caller.TurnsToSkip > 0)
+                if (caller.TurnsToSkip > 0 && !TryConsumeSoloSkipPenalty(session, caller))
                 {
                     throw new HubException($"You must skip {caller.TurnsToSkip} more turn(s).");
                 }
@@ -494,6 +494,14 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             return;
         }
 
+        if (alive.Count == 1)
+        {
+            var solePlayer = alive[0];
+            solePlayer.TurnsToSkip = 0;
+            session.ActiveTurnPlayerId = solePlayer.PlayerId;
+            return;
+        }
+
         var currentIndex = alive.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
         if (currentIndex < 0)
         {
@@ -514,6 +522,24 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         session.ActiveTurnPlayerId = alive[(currentIndex + 1) % alive.Count].PlayerId;
+    }
+
+    private static bool TryConsumeSoloSkipPenalty(GameSession session, PlayerState player)
+    {
+        if (player.TurnsToSkip <= 0)
+        {
+            return false;
+        }
+
+        var activeParticipantsCount = session.Players.Count(IsActiveParticipant);
+        if (activeParticipantsCount != 1)
+        {
+            return false;
+        }
+
+        player.TurnsToSkip = 0;
+        session.ActiveTurnPlayerId = player.PlayerId;
+        return true;
     }
 
     private PlayerState ValidateCallerAndGetCurrent(GameSession session)
