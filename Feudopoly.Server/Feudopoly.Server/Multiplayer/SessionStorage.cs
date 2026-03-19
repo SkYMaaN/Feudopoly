@@ -109,6 +109,7 @@ public sealed class SessionStorage
                 IsConnected = false,
                 IsDead = false,
                 IsSpectator = false,
+                IsWinner = false,
                 TurnsToSkip = 0
             });
 
@@ -271,7 +272,8 @@ public sealed class SessionStorage
                 Position = player.Position,
                 IsConnected = player.IsConnected,
                 IsDead = player.IsDead,
-                IsSpectator = player.IsSpectator
+                IsSpectator = player.IsSpectator,
+                IsWinner = player.IsWinner
             }).ToArray()
         };
     }

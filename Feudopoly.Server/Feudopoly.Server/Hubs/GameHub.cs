@@ -133,6 +133,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         int rolled;
         int newPosition;
         bool isEventPhaseRoll;
+        bool completedWinningLap = false;
         TurnResolutionPayload? phaseResolution = null;
         GameStateDto state;
 
@@ -188,8 +189,20 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     throw new HubException($"You must skip {caller.TurnsToSkip} more turn(s).");
                 }
 
+                var startPosition = caller.Position;
                 caller.Position = NormalizePosition(caller.Position + rolled);
-                session.IsTurnInProgress = true;
+                completedWinningLap = HasCompletedWinningLap(startPosition, rolled);
+
+                if (completedWinningLap)
+                {
+                    MarkPlayerAsWinner(caller);
+                    AdvanceTurn(session);
+                }
+                else
+                {
+                    session.IsTurnInProgress = true;
+                }
+
                 newPosition = caller.Position;
                 isEventPhaseRoll = false;
             }
@@ -198,7 +211,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         string groupName = sessionId.ToString();
-        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition };
+        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition, completedWinningLap };
         if (isEventPhaseRoll)
         {
             await Clients.Caller.SendAsync("EventDiceRolled", rollPayload);
@@ -344,9 +357,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
                 ?? throw new HubException("Player is not part of this session.");
 
-            if (!caller.IsDead)
+            if (!caller.IsDead && !caller.IsWinner)
             {
-                throw new HubException("Only dead players can become spectators.");
+                throw new HubException("Only dead or victorious players can become spectators.");
             }
 
             caller.IsSpectator = true;
@@ -461,6 +474,15 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
     {
         var normalized = position % BoardCellsCount;
         return normalized < 0 ? normalized + BoardCellsCount : normalized;
+    }
+
+    private static bool HasCompletedWinningLap(int startPosition, int rolled)
+        => rolled > 0 && startPosition + rolled >= BoardCellsCount;
+
+    private static void MarkPlayerAsWinner(PlayerState player)
+    {
+        player.IsWinner = true;
+        player.TurnsToSkip = 0;
     }
 
     private static void AdvanceTurn(GameSession session)
@@ -646,7 +668,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         };
     }
 
-    private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator;
+    private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator && !player.IsWinner;
 
     private bool TryGetSessionId(out Guid sessionId)
     {

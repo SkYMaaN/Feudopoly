@@ -67,6 +67,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
                     IsConnected = false,
                     IsDead = false,
                     IsSpectator = false,
+                    IsWinner = false,
                     TurnsToSkip = 0
                 });
 

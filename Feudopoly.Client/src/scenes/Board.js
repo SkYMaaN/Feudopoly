@@ -61,8 +61,11 @@ export class Board extends Phaser.Scene {
         this.hasShownStartGameIntro = false;
         this.localPlayerIsDead = false;
         this.localPlayerIsSpectator = false;
+        this.localPlayerIsWinner = false;
         this.isDeathChoicePending = false;
         this.isProcessingDeathChoice = false;
+        this.isVictoryChoicePending = false;
+        this.isProcessingVictoryChoice = false;
         this.hasExitedMatch = false;
         this.isLeavingMatch = false;
         this.isInGameMenuOpen = false;
@@ -77,6 +80,7 @@ export class Board extends Phaser.Scene {
         this.createPlayersListUI();
         this.createInGameMenuUI();
         this.createDeathScreenUI();
+        this.createVictoryScreenUI();
 
         this.registerHubEvents();
 
@@ -345,6 +349,7 @@ export class Board extends Phaser.Scene {
             player.isConnected = playerState.isConnected;
             player.isDead = Boolean(playerState.isDead);
             player.isSpectator = Boolean(playerState.isSpectator);
+            player.isWinner = Boolean(playerState.isWinner);
 
             // To prevent double animation from two web socket events.
             // Local player is already animated by DiceRolled/EventDiceRolled payloads.
@@ -379,18 +384,36 @@ export class Board extends Phaser.Scene {
 
         this.localPlayerIsDead = Boolean(localState?.isDead);
         this.localPlayerIsSpectator = Boolean(localState?.isSpectator);
+        this.localPlayerIsWinner = Boolean(localState?.isWinner);
+
         this.isDeathChoicePending = this.localPlayerIsDead && !this.localPlayerIsSpectator;
+        this.isVictoryChoicePending = this.localPlayerIsWinner && !this.localPlayerIsSpectator;
+
         if (!this.isDeathChoicePending) {
             this.isProcessingDeathChoice = false;
         }
 
-        if (this.isDeathChoicePending) {
+        if (!this.isVictoryChoicePending) {
+            this.isProcessingVictoryChoice = false;
+        }
+
+        const shouldDelayVictoryScreen = this.isVictoryChoicePending
+            && this.isRolling
+            && String(this.animatingPlayerId ?? '') === String(this.localPlayerId ?? '');
+
+        if (this.isVictoryChoicePending && !shouldDelayVictoryScreen) {
+            this.hideDeathScreen();
+            this.showVictoryScreen();
+        } else if (this.isDeathChoicePending) {
+            this.hideVictoryScreen();
             this.showDeathScreen();
         } else {
             this.hideDeathScreen();
+            this.hideVictoryScreen();
         }
 
         this.updateDeathChoiceButtons();
+        this.updateVictoryChoiceButtons();
 
         if (!this.isRolling) {
             this.refreshTurnUI();
@@ -440,7 +463,8 @@ export class Board extends Phaser.Scene {
             currentPosition: startPosition,
             isConnected: true,
             isDead: false,
-            isSpectator: false
+            isSpectator: false,
+            isWinner: false
         };
     }
 
@@ -545,6 +569,10 @@ export class Board extends Phaser.Scene {
                 nicknameText.setText(`${nickname} (spectator)`);
             }
 
+            if (Boolean(playerState.isWinner)) {
+                nicknameText.setText(`${nickname} (winner)`);
+            }
+
             const isDead = Boolean(
                 playerState.isDead
                 || playerState.dead
@@ -583,7 +611,7 @@ export class Board extends Phaser.Scene {
         const activeTurnPlayerId = current?.playerId ?? this.activeTurnPlayerId;
         const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator
+        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
             && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (isLocalTurn && this.isTurnInProgress) {
@@ -627,7 +655,7 @@ export class Board extends Phaser.Scene {
         const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
         const isLocalTurn = current?.playerId === this.localPlayerId;
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator
+        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
             && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (this.isRolling || !canRoll) {
@@ -666,6 +694,7 @@ export class Board extends Phaser.Scene {
         this.stopTurnBeganCountdown();
         this.hideTurnResultNotification();
         this.hideDeathScreen();
+        this.hideVictoryScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
         let notificationText = payload.description ?? '';
@@ -727,8 +756,9 @@ export class Board extends Phaser.Scene {
         const didLocalPlayerDie = this.didLocalPlayerDie(payload);
 
         if (didLocalPlayerDie) {
+            this.hideVictoryScreen();
             this.showDeathScreen();
-        } else {
+        } else if (!this.isVictoryChoicePending) {
             this.hideDeathScreen();
         }
 
@@ -740,7 +770,7 @@ export class Board extends Phaser.Scene {
         this.stopTurnBeganCountdown();
 
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
-        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie;
+        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie || this.isVictoryChoicePending;
 
         if (!shouldSuppressTurnResult) {
             this.showTurnResultNotification(payload);
@@ -927,14 +957,14 @@ export class Board extends Phaser.Scene {
         if (Array.isArray(currentlyOver)) {
             for (const gameObject of currentlyOver) {
                 const hit = this.players.find(player => player.sprite === gameObject || player.outline === gameObject);
-                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead && !hit.isSpectator) {
+                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead && !hit.isSpectator && !hit.isWinner) {
                     console.log('Selected playerId: ' + hit.playerId);
                     return hit.playerId;
                 }
             }
         }
 
-        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator);
+        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
         if (candidates.length === 1) {
             return candidates[0].playerId;
         }
@@ -957,161 +987,317 @@ export class Board extends Phaser.Scene {
     }
 
     createDeathScreenUI() {
-        const { width, height } = this.scale.gameSize;
+        this.deathScreen = this.createEndgameScreenUI({
+            key: 'death',
+            backgroundKey: 'deathScreen',
+            title: 'YOU DIED',
+            subtitle: 'The darkness has consumed your fate.',
+            backgroundTint: 0xaa2222,
+            shadeColor: 0x000000,
+            shadeAlpha: 0.45,
+            pulseColor: 0x7a0000,
+            pulseAlpha: { from: 0.1, to: 0.32 },
+            titleStyle: {
+                color: '#ff1f1f',
+                stroke: '#120000'
+            },
+            subtitleStyle: {
+                color: '#ffe6e6',
+                stroke: '#000000'
+            },
+            buttonTheme: {
+                baseStyle: {
+                    fill: 0x250202,
+                    fillAlpha: 0.9,
+                    stroke: 0x9b1111,
+                    strokeAlpha: 0.95,
+                    textColor: '#ffdede',
+                    textAlpha: 1,
+                    glow: 0.35,
+                    textStroke: '#1a0000',
+                    textShadow: '#3a0000'
+                },
+                hoverStyle: {
+                    fill: 0x430707,
+                    fillAlpha: 0.95,
+                    stroke: 0xd12b2b,
+                    strokeAlpha: 1,
+                    textColor: '#fff1f1',
+                    textAlpha: 1,
+                    glow: 0.6,
+                    textStroke: '#1a0000',
+                    textShadow: '#4d0000'
+                },
+                activeStyle: {
+                    fill: 0x170000,
+                    fillAlpha: 1,
+                    stroke: 0x7c0808,
+                    strokeAlpha: 1,
+                    textColor: '#ffc7c7',
+                    textAlpha: 1,
+                    glow: 0.22,
+                    textStroke: '#1a0000',
+                    textShadow: '#2b0000'
+                },
+                disabledStyle: {
+                    fill: 0x120404,
+                    fillAlpha: 0.72,
+                    stroke: 0x4a1a1a,
+                    strokeAlpha: 0.8,
+                    textColor: '#8d6666',
+                    textAlpha: 0.72,
+                    glow: 0,
+                    textStroke: '#1a0000',
+                    textShadow: '#130000'
+                }
+            },
+            particleKey: 'deathFogParticle',
+            particleColor: 0x8f0a0a,
+            particleConfig: {
+                lifespan: 1900,
+                speedX: { min: -55, max: 55 },
+                speedY: { min: -35, max: 35 },
+                scale: { start: 0.28, end: 1.5 },
+                alpha: { start: 0.38, end: 0 },
+                quantity: 3
+            },
+            primaryAction: {
+                label: 'Stay as spectator',
+                onClick: () => this.chooseStayAsSpectator()
+            },
+            secondaryAction: {
+                label: 'Leave match',
+                onClick: () => this.chooseLeaveAfterDeath()
+            }
+        });
+    }
 
-        this.deathScreenContainer = this.add.container(width / 2, height / 2)
+    createVictoryScreenUI() {
+        this.victoryScreen = this.createEndgameScreenUI({
+            key: 'victory',
+            backgroundKey: 'deathScreen',
+            title: 'YOU WON',
+            subtitle: 'You completed the circle and claimed victory.',
+            backgroundTint: 0x3cd39f,
+            shadeColor: 0x06271f,
+            shadeAlpha: 0.28,
+            pulseColor: 0x37c787,
+            pulseAlpha: { from: 0.08, to: 0.24 },
+            titleStyle: {
+                color: '#f7ffb0',
+                stroke: '#124c2f'
+            },
+            subtitleStyle: {
+                color: '#e9fff5',
+                stroke: '#082116'
+            },
+            buttonTheme: {
+                baseStyle: {
+                    fill: 0x133b2e,
+                    fillAlpha: 0.92,
+                    stroke: 0x63f0bf,
+                    strokeAlpha: 0.95,
+                    textColor: '#f2ffe9',
+                    textAlpha: 1,
+                    glow: 0.4,
+                    textStroke: '#082116',
+                    textShadow: '#0f4f35'
+                },
+                hoverStyle: {
+                    fill: 0x1b5a45,
+                    fillAlpha: 0.96,
+                    stroke: 0x9cffdb,
+                    strokeAlpha: 1,
+                    textColor: '#ffffff',
+                    textAlpha: 1,
+                    glow: 0.62,
+                    textStroke: '#082116',
+                    textShadow: '#1c6f4e'
+                },
+                activeStyle: {
+                    fill: 0x0b241c,
+                    fillAlpha: 1,
+                    stroke: 0x3acb93,
+                    strokeAlpha: 1,
+                    textColor: '#dfffe8',
+                    textAlpha: 1,
+                    glow: 0.25,
+                    textStroke: '#082116',
+                    textShadow: '#0c3b28'
+                },
+                disabledStyle: {
+                    fill: 0x10231c,
+                    fillAlpha: 0.72,
+                    stroke: 0x35584b,
+                    strokeAlpha: 0.8,
+                    textColor: '#7aa18f',
+                    textAlpha: 0.72,
+                    glow: 0,
+                    textStroke: '#082116',
+                    textShadow: '#0a1712'
+                }
+            },
+            particleKey: 'victorySparkParticle',
+            particleColor: 0xffef8f,
+            particleConfig: {
+                lifespan: 1500,
+                speedX: { min: -45, max: 45 },
+                speedY: { min: -140, max: -60 },
+                scale: { start: 0.18, end: 0.02 },
+                alpha: { start: 0.8, end: 0 },
+                quantity: 2,
+                rotate: { min: 0, max: 180 }
+            },
+            primaryAction: {
+                label: 'Stay as spectator',
+                onClick: () => this.chooseStayAfterVictory()
+            },
+            secondaryAction: {
+                label: 'Leave match',
+                onClick: () => this.chooseLeaveAfterVictory()
+            }
+        });
+    }
+
+    createEndgameScreenUI(config) {
+        const { width, height } = this.scale.gameSize;
+        const container = this.add.container(width / 2, height / 2)
             .setDepth(1800)
             .setVisible(false)
             .setAlpha(0);
 
-        const deathBg = this.add.image(0, 0, 'deathScreen').setOrigin(0.5);
-        const bgScale = Math.max(width / deathBg.width, height / deathBg.height);
-        deathBg.setScale(bgScale);
-        deathBg.setTint(0xaa2222);
+        const background = this.add.image(0, 0, config.backgroundKey).setOrigin(0.5);
+        const bgScale = Math.max(width / background.width, height / background.height);
+        background.setScale(bgScale);
+        background.setTint(config.backgroundTint);
 
-        const deathShade = this.add.rectangle(0, 0, width, height, 0x000000, 0.45).setOrigin(0.5);
-        const deathPulse = this.add.rectangle(0, 0, width, height, 0x7a0000, 0.18).setOrigin(0.5);
+        const shade = this.add.rectangle(0, 0, width, height, config.shadeColor, config.shadeAlpha).setOrigin(0.5);
+        const pulse = this.add.rectangle(0, 0, width, height, config.pulseColor, config.pulseAlpha.from).setOrigin(0.5);
 
         const scanlines = this.add.graphics();
-        scanlines.fillStyle(0x000000, 0.12);
+        scanlines.fillStyle(0x000000, config.key === 'victory' ? 0.07 : 0.12);
         for (let y = -height / 2; y < height / 2; y += 7) {
             scanlines.fillRect(-width / 2, y, width, 2);
         }
 
-        this.deathTitle = this.add.text(0, -70, 'YOU DIED', {
+        const title = this.add.text(0, -70, config.title, {
             fontFamily: 'Arial Black, Arial, sans-serif',
             fontSize: '132px',
-            color: '#ff1f1f',
-            stroke: '#120000',
+            color: config.titleStyle.color,
+            stroke: config.titleStyle.stroke,
             strokeThickness: 14,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.deathSubtitle = this.add.text(0, 72, 'The darkness has consumed your fate', {
+        const subtitle = this.add.text(0, 72, config.subtitle, {
             fontFamily: 'Arial, sans-serif',
             fontSize: '38px',
-            color: '#ffe6e6',
-            stroke: '#000000',
+            color: config.subtitleStyle.color,
+            stroke: config.subtitleStyle.stroke,
             strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5);
 
-        this.stayAsSpectatorButton = this.createDeathActionButton(-200, height / 2 - 110, 340, 72, 'Stay as spectator', () => this.chooseStayAsSpectator());
-        this.leaveAfterDeathButton = this.createDeathActionButton(200, height / 2 - 110, 340, 72, 'Leave match', () => this.chooseLeaveAfterDeath());
+        const primaryButton = this.createEndgameActionButton(
+            -200,
+            height / 2 - 110,
+            340,
+            72,
+            config.primaryAction.label,
+            config.primaryAction.onClick,
+            config.buttonTheme
+        );
+        const secondaryButton = this.createEndgameActionButton(
+            200,
+            height / 2 - 110,
+            340,
+            72,
+            config.secondaryAction.label,
+            config.secondaryAction.onClick,
+            config.buttonTheme
+        );
 
-        this.deathScreenContainer.add([
-            deathBg,
-            deathShade,
-            deathPulse,
+        container.add([
+            background,
+            shade,
+            pulse,
             scanlines,
-            this.deathTitle,
-            this.deathSubtitle,
-            this.stayAsSpectatorButton,
-            this.leaveAfterDeathButton
+            title,
+            subtitle,
+            primaryButton,
+            secondaryButton
         ]);
 
-        this.deathPulseTween = this.tweens.add({
-            targets: deathPulse,
-            alpha: { from: 0.1, to: 0.32 },
-            duration: 620,
+        const pulseTween = this.tweens.add({
+            targets: pulse,
+            alpha: config.pulseAlpha,
+            duration: config.key === 'victory' ? 780 : 620,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut',
             paused: true
         });
 
-        this.deathFlickerTween = this.tweens.add({
-            targets: [this.deathTitle, this.deathSubtitle],
-            alpha: { from: 0.7, to: 1 },
-            duration: 180,
+        const flickerTween = this.tweens.add({
+            targets: [title, subtitle],
+            alpha: config.key === 'victory' ? { from: 0.82, to: 1 } : { from: 0.7, to: 1 },
+            duration: config.key === 'victory' ? 260 : 180,
             yoyo: true,
             repeat: -1,
-            ease: 'Stepped',
+            ease: config.key === 'victory' ? 'Sine.easeInOut' : 'Stepped',
             paused: true
         });
 
-        this.deathShakeTween = this.tweens.add({
-            targets: this.deathScreenContainer,
-            x: this.deathScreenContainer.x + 7,
-            y: this.deathScreenContainer.y + 4,
-            duration: 56,
+        const shakeTween = this.tweens.add({
+            targets: container,
+            x: container.x + (config.key === 'victory' ? 4 : 7),
+            y: container.y + (config.key === 'victory' ? 2 : 4),
+            duration: config.key === 'victory' ? 90 : 56,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.InOut',
             paused: true
         });
 
-        if (!this.textures.exists('deathFogParticle')) {
-            const fog = this.make.graphics({ x: 0, y: 0, add: false });
-            fog.fillStyle(0x8f0a0a, 1);
-            fog.fillCircle(22, 22, 22);
-            fog.generateTexture('deathFogParticle', 44, 44);
-            fog.destroy();
+        if (!this.textures.exists(config.particleKey)) {
+            const particleTexture = this.make.graphics({ x: 0, y: 0, add: false });
+            particleTexture.fillStyle(config.particleColor, 1);
+            particleTexture.fillCircle(22, 22, config.key === 'victory' ? 12 : 22);
+            particleTexture.generateTexture(config.particleKey, 44, 44);
+            particleTexture.destroy();
         }
 
-        this.deathFog = this.add.particles(0, 0, 'deathFogParticle', {
+        const particles = this.add.particles(0, 0, config.particleKey, {
             x: { min: -width / 2, max: width / 2 },
             y: { min: -height / 2, max: height / 2 },
-            lifespan: 1900,
-            speedX: { min: -55, max: 55 },
-            speedY: { min: -35, max: 35 },
-            scale: { start: 0.28, end: 1.5 },
-            alpha: { start: 0.38, end: 0 },
-            quantity: 3,
             blendMode: 'ADD',
-            emitting: false
+            emitting: false,
+            ...config.particleConfig
         }).setDepth(1);
 
-        this.deathScreenContainer.add(this.deathFog);
+        container.add(particles);
+
+        return {
+            container,
+            title,
+            subtitle,
+            primaryButton,
+            secondaryButton,
+            pulseTween,
+            flickerTween,
+            shakeTween,
+            particles,
+            config
+        };
     }
 
-
-    createDeathActionButton(x, y, width, height, label, onClick) {
-        const baseStyle = {
-            fill: 0x250202,
-            fillAlpha: 0.9,
-            stroke: 0x9b1111,
-            strokeAlpha: 0.95,
-            textColor: '#ffdede',
-            textAlpha: 1,
-            glow: 0.35
-        };
-
-        const hoverStyle = {
-            fill: 0x430707,
-            fillAlpha: 0.95,
-            stroke: 0xd12b2b,
-            strokeAlpha: 1,
-            textColor: '#fff1f1',
-            textAlpha: 1,
-            glow: 0.6
-        };
-
-        const activeStyle = {
-            fill: 0x170000,
-            fillAlpha: 1,
-            stroke: 0x7c0808,
-            strokeAlpha: 1,
-            textColor: '#ffc7c7',
-            textAlpha: 1,
-            glow: 0.22
-        };
-
-        const disabledStyle = {
-            fill: 0x120404,
-            fillAlpha: 0.72,
-            stroke: 0x4a1a1a,
-            strokeAlpha: 0.8,
-            textColor: '#8d6666',
-            textAlpha: 0.72,
-            glow: 0
-        };
-
+    createEndgameActionButton(x, y, width, height, label, onClick, theme) {
+        const { baseStyle, hoverStyle, activeStyle, disabledStyle } = theme;
         const rect = this.add.rectangle(x, y, width, height, baseStyle.fill, baseStyle.fillAlpha)
             .setStrokeStyle(5, baseStyle.stroke, baseStyle.strokeAlpha)
             .setInteractive({ useHandCursor: true });
 
-        const glow = this.add.rectangle(x, y, width + 14, height + 14, 0x9b1111, baseStyle.glow)
+        const glow = this.add.rectangle(x, y, width + 14, height + 14, baseStyle.stroke, baseStyle.glow)
             .setBlendMode(Phaser.BlendModes.ADD);
 
         const text = this.add.text(x, y, label, {
@@ -1119,12 +1305,10 @@ export class Board extends Phaser.Scene {
             fontSize: '30px',
             color: baseStyle.textColor,
             fontStyle: 'bold',
-            stroke: '#1a0000',
+            stroke: baseStyle.textStroke,
             strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5);
-
-        text.setShadow(0, 3, '#3a0000', 8, true, true);
 
         const applyStyle = (style) => {
             rect.setFillStyle(style.fill, style.fillAlpha);
@@ -1132,6 +1316,7 @@ export class Board extends Phaser.Scene {
             glow.setFillStyle(style.stroke, style.glow);
             text.setColor(style.textColor);
             text.setAlpha(style.textAlpha);
+            text.setShadow(0, 3, style.textShadow, 8, true, true);
         };
 
         applyStyle(baseStyle);
@@ -1166,16 +1351,16 @@ export class Board extends Phaser.Scene {
             applyStyle(hoverStyle);
             onClick();
         });
-        const container = this.add.container(0, 0, [glow, rect, text]).setSize(width, height);
-        container.buttonRect = rect;
-        container.buttonText = text;
-        container.buttonGlow = glow;
-        container.buttonStyles = { baseStyle, disabledStyle, applyStyle };
 
-        return container;
+        const button = this.add.container(0, 0, [glow, rect, text]).setSize(width, height);
+        button.buttonRect = rect;
+        button.buttonText = text;
+        button.buttonGlow = glow;
+        button.buttonStyles = { baseStyle, disabledStyle, applyStyle };
+        return button;
     }
 
-    setDeathActionButtonDisabled(button, disabled) {
+    setEndgameActionButtonDisabled(button, disabled) {
         if (!button?.buttonRect) {
             return;
         }
@@ -1194,13 +1379,33 @@ export class Board extends Phaser.Scene {
 
     updateDeathChoiceButtons() {
         const showActions = this.isDeathChoicePending;
-
-        this.stayAsSpectatorButton?.setVisible(showActions);
-        this.leaveAfterDeathButton?.setVisible(showActions);
+        this.deathScreen?.primaryButton?.setVisible(showActions);
+        this.deathScreen?.secondaryButton?.setVisible(showActions);
 
         const disableActions = !showActions || this.isProcessingDeathChoice;
-        this.setDeathActionButtonDisabled(this.stayAsSpectatorButton, disableActions);
-        this.setDeathActionButtonDisabled(this.leaveAfterDeathButton, disableActions);
+        this.setEndgameActionButtonDisabled(this.deathScreen?.primaryButton, disableActions);
+        this.setEndgameActionButtonDisabled(this.deathScreen?.secondaryButton, disableActions);
+    }
+
+    updateVictoryChoiceButtons() {
+        const showActions = this.isVictoryChoicePending;
+        const canStayAsSpectator = this.hasOtherLivingPlayers();
+
+        this.victoryScreen?.primaryButton?.setVisible(showActions && canStayAsSpectator);
+        this.victoryScreen?.secondaryButton?.setVisible(showActions);
+
+        this.setEndgameActionButtonDisabled(
+            this.victoryScreen?.primaryButton,
+            !showActions || !canStayAsSpectator || this.isProcessingVictoryChoice
+        );
+        this.setEndgameActionButtonDisabled(
+            this.victoryScreen?.secondaryButton,
+            !showActions || this.isProcessingVictoryChoice
+        );
+    }
+
+    hasOtherLivingPlayers() {
+        return this.players.some(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
     }
 
     async chooseStayAsSpectator() {
@@ -1236,62 +1441,107 @@ export class Board extends Phaser.Scene {
         }
     }
 
-    showDeathScreen() {
-        if (!this.deathScreenContainer) {
+    async chooseStayAfterVictory() {
+        if (!this.isVictoryChoicePending || this.isProcessingVictoryChoice || !this.hasOtherLivingPlayers()) {
             return;
         }
 
-        /*const outcomeText = payload?.entries?.find(entry => {
-            const entryPlayerId = String(entry?.playerId ?? '');
-            const kind = entry?.outcome?.kind;
+        this.isProcessingVictoryChoice = true;
+        this.updateVictoryChoiceButtons();
 
-            return entryPlayerId === localId && (kind === 'Eliminate' || kind === 5);
-        })?.outcome?.text ?? null;
+        try {
+            await gameHubClient.becomeSpectator(this.sessionId);
+            this.setStatus('Victory is yours. You are now watching as a spectator.');
+        } catch (error) {
+            this.setStatus(error?.message ?? 'Failed to switch to spectator mode.');
+            this.isProcessingVictoryChoice = false;
+            this.updateVictoryChoiceButtons();
+        }
+    }
 
-        const deathDescriptionText = outcomeText
-            ? 'The darkness has consumed your fate. \n(' + outcomeText + ')'
-            : 'The darkness has consumed your fate.';*/
+    async chooseLeaveAfterVictory() {
+        if (!this.isVictoryChoicePending || this.isProcessingVictoryChoice) {
+            return;
+        }
 
-        this.deathTitle.setText('YOU DIED');
-        this.deathSubtitle.setText('The darkness has consumed your fate.');
+        this.isProcessingVictoryChoice = true;
+        this.updateVictoryChoiceButtons();
 
-        this.deathScreenContainer.setVisible(true);
-        this.deathScreenContainer.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
+        await this.leaveCurrentMatch();
+        if (!this.hasExitedMatch) {
+            this.isProcessingVictoryChoice = false;
+            this.updateVictoryChoiceButtons();
+        }
+    }
 
-        this.tweens.killTweensOf(this.deathScreenContainer);
-        this.deathScreenContainer.setAlpha(0);
+    showDeathScreen() {
+        this.showEndgameScreen(this.deathScreen, {
+            title: 'YOU DIED',
+            subtitle: 'The darkness has consumed your fate.'
+        });
+    }
+
+    hideDeathScreen() {
+        this.hideEndgameScreen(this.deathScreen);
+    }
+
+    showVictoryScreen() {
+        this.showEndgameScreen(this.victoryScreen, {
+            title: 'YOU WON',
+            subtitle: this.hasOtherLivingPlayers()
+                ? 'You completed the circle. Stay and watch or leave the lobby.'
+                : 'You completed the circle. No living players remain.'
+        });
+    }
+
+    hideVictoryScreen() {
+        this.hideEndgameScreen(this.victoryScreen);
+    }
+
+    showEndgameScreen(screen, { title, subtitle }) {
+        if (!screen?.container) {
+            return;
+        }
+
+        screen.title.setText(title);
+        screen.subtitle.setText(subtitle);
+        screen.container.setVisible(true);
+        screen.container.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
+
+        this.tweens.killTweensOf(screen.container);
+        screen.container.setAlpha(0);
 
         this.tweens.add({
-            targets: this.deathScreenContainer,
+            targets: screen.container,
             alpha: 1,
             duration: 260,
             ease: 'Quad.Out'
         });
 
-        this.deathPulseTween?.resume();
-        this.deathFlickerTween?.resume();
-        this.deathShakeTween?.resume();
-        this.deathFog?.start();
+        screen.pulseTween?.resume();
+        screen.flickerTween?.resume();
+        screen.shakeTween?.resume();
+        screen.particles?.start();
     }
 
-    hideDeathScreen() {
-        if (!this.deathScreenContainer || !this.deathScreenContainer.visible) {
+    hideEndgameScreen(screen) {
+        if (!screen?.container || !screen.container.visible) {
             return;
         }
 
-        this.deathPulseTween?.pause();
-        this.deathFlickerTween?.pause();
-        this.deathShakeTween?.pause();
-        this.deathFog?.stop();
+        screen.pulseTween?.pause();
+        screen.flickerTween?.pause();
+        screen.shakeTween?.pause();
+        screen.particles?.stop();
 
-        this.tweens.killTweensOf(this.deathScreenContainer);
+        this.tweens.killTweensOf(screen.container);
         this.tweens.add({
-            targets: this.deathScreenContainer,
+            targets: screen.container,
             alpha: 0,
             duration: 180,
             onComplete: () => {
-                this.deathScreenContainer.setVisible(false);
-                this.deathScreenContainer.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
+                screen.container.setVisible(false);
+                screen.container.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
             }
         });
     }
@@ -1321,7 +1571,7 @@ export class Board extends Phaser.Scene {
             this.hideDice();
 
             try {
-                if (!payload?.isEventPhaseRoll) {
+                if (!payload?.isEventPhaseRoll && !payload?.completedWinningLap) {
                     await gameHubClient.beginTurn(this.sessionId);
                 }
             } catch (error) {
@@ -1330,6 +1580,13 @@ export class Board extends Phaser.Scene {
             } finally {
                 this.isRolling = false;
                 this.animatingPlayerId = null;
+
+                if (payload?.completedWinningLap && this.isVictoryChoicePending) {
+                    this.hideDeathScreen();
+                    this.showVictoryScreen();
+                    this.updateVictoryChoiceButtons();
+                }
+
                 this.refreshTurnUI();
             }
         });
