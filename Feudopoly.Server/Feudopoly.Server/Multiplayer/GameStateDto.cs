@@ -9,6 +9,4 @@ public sealed class GameStateDto
     public required bool IsTurnInProgress { get; init; }
     public required bool IsEventRollPhase { get; init; }
     public required IReadOnlyList<Guid> PendingEventRollPlayerIds { get; init; }
-    public required bool IsAwaitingAdditionalEventRoll { get; init; }
-    public required Guid? PendingAdditionalEventRollPlayerId { get; init; }
 }

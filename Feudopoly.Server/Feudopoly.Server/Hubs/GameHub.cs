@@ -40,11 +40,6 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 removedPlayer.IsConnected = false;
                 removedPlayer.ConnectionId = string.Empty;
 
-                if (session.IsAwaitingAdditionalEventRoll && session.PendingAdditionalEventRollPlayerId == removedPlayer.PlayerId)
-                {
-                    ClearAdditionalEventRoll(session);
-                }
-
                 if (session.IsEventRollPhase)
                 {
                     session.PendingEventRollPlayerIds.Remove(removedPlayer.PlayerId);
@@ -179,30 +174,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     Entries = entries,
                     RepeatTurn = false,
                     IsEventRollPhase = true,
-                    EventRollCompleted = !session.IsEventRollPhase,
-                    RequiresAdditionalEventRoll = false
+                    EventRollCompleted = !session.IsEventRollPhase
                 };
-            }
-            else if (session.IsAwaitingAdditionalEventRoll)
-            {
-                if (session.PendingAdditionalEventRollPlayerId != caller.PlayerId)
-                {
-                    throw new HubException("You are not waiting for an additional event roll.");
-                }
-
-                var gameEvent = session.PendingAdditionalEventRollEvent ?? throw new HubException("No pending additional roll event.");
-                var chosenPlayerId = session.PendingAdditionalEventRollChosenPlayerId;
-
-                phaseResolution = ResolveEvent(session, caller, gameEvent, chosenPlayerId, rolled);
-                ClearAdditionalEventRoll(session);
-
-                if (!phaseResolution.RepeatTurn)
-                {
-                    AdvanceTurn(session);
-                }
-
-                newPosition = caller.Position;
-                isEventPhaseRoll = true;
             }
             else
             {
@@ -239,26 +212,14 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         string groupName = sessionId.ToString();
+        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition, completedWinningLap };
         if (isEventPhaseRoll)
         {
-            await Clients.Caller.SendAsync("EventDiceRolled", new
-            {
-                playerId = caller.PlayerId,
-                rollValue = rolled,
-                newPosition,
-                completedWinningLap,
-                isAdditionalEventRoll = phaseResolution is not null && !phaseResolution.IsEventRollPhase
-            });
+            await Clients.Caller.SendAsync("EventDiceRolled", rollPayload);
         }
         else
         {
-            await Clients.Caller.SendAsync("DiceRolled", new
-            {
-                playerId = caller.PlayerId,
-                rollValue = rolled,
-                newPosition,
-                completedWinningLap
-            });
+            await Clients.Caller.SendAsync("DiceRolled", rollPayload);
         }
 
         if (phaseResolution is not null)
@@ -353,23 +314,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     Entries = [],
                     RepeatTurn = false,
                     IsEventRollPhase = true,
-                    EventRollCompleted = false,
-                    RequiresAdditionalEventRoll = false
-                };
-            }
-            else if (ShouldAwaitAdditionalEventRoll(session, caller, cellEvent, chosenPlayerId))
-            {
-                StartAdditionalEventRoll(session, caller.PlayerId, cellEvent, chosenPlayerId);
-                session.IsTurnInProgress = false;
-
-                resolution = new TurnResolutionPayload
-                {
-                    Event = cellEvent,
-                    Entries = [],
-                    RepeatTurn = false,
-                    IsEventRollPhase = false,
-                    EventRollCompleted = false,
-                    RequiresAdditionalEventRoll = true
+                    EventRollCompleted = false
                 };
             }
             else
@@ -526,39 +471,6 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         session.EventRollOwnerPlayerId = Guid.Empty;
     }
 
-    private static bool ShouldAwaitAdditionalEventRoll(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent, Guid? chosenPlayerId)
-    {
-        if (gameEvent.ResolutionMode != EventResolutionMode.Roll || gameEvent.RollOutcomes.Count == 0)
-        {
-            return false;
-        }
-
-        var targets = gameEvent.RollOutcomes
-            .Select(item => item.Outcome.Target)
-            .Distinct()
-            .SelectMany(target => ResolveTargets(session, currentPlayer, target, chosenPlayerId))
-            .DistinctBy(player => player.PlayerId)
-            .ToList();
-
-        return targets.Count == 1;
-    }
-
-    private static void StartAdditionalEventRoll(GameSession session, Guid playerId, GameCellEvent gameEvent, Guid? chosenPlayerId)
-    {
-        session.IsAwaitingAdditionalEventRoll = true;
-        session.PendingAdditionalEventRollPlayerId = playerId;
-        session.PendingAdditionalEventRollChosenPlayerId = chosenPlayerId;
-        session.PendingAdditionalEventRollEvent = gameEvent;
-    }
-
-    private static void ClearAdditionalEventRoll(GameSession session)
-    {
-        session.IsAwaitingAdditionalEventRoll = false;
-        session.PendingAdditionalEventRollPlayerId = Guid.Empty;
-        session.PendingAdditionalEventRollChosenPlayerId = null;
-        session.PendingAdditionalEventRollEvent = null;
-    }
-
     private static int NormalizePosition(int position)
     {
         var normalized = position % BoardCellsCount;
@@ -680,7 +592,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         return caller;
     }
 
-    private TurnResolutionPayload ResolveEvent(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent, Guid? chosenPlayerId, int? rolledValue = null)
+    private TurnResolutionPayload ResolveEvent(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent, Guid? chosenPlayerId)
     {
         var entries = new List<ResolvedOutcomeEntry>();
         var repeatTurn = false;
@@ -712,7 +624,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
             foreach (var target in allTargets)
             {
-                var roll = rolledValue ?? Random.Shared.Next(1, 7);
+                var roll = Random.Shared.Next(1, 7);
                 var outcome = gameEvent.RollOutcomes.FirstOrDefault(r => r.Range.InRange(roll))?.Outcome
                               ?? throw new HubException("No roll range matched outcome.");
 
@@ -727,8 +639,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             Entries = entries,
             RepeatTurn = repeatTurn,
             IsEventRollPhase = false,
-            EventRollCompleted = false,
-            RequiresAdditionalEventRoll = false
+            EventRollCompleted = false
         };
     }
 
@@ -805,7 +716,6 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         public required bool RepeatTurn { get; init; }
         public required bool IsEventRollPhase { get; init; }
         public required bool EventRollCompleted { get; init; }
-        public required bool RequiresAdditionalEventRoll { get; init; }
     }
 
     private sealed class ResolvedOutcomeEntry

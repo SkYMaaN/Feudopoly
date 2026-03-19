@@ -18,8 +18,4 @@ public sealed class GameSession
     public required Guid EventRollOwnerPlayerId { get; set; }
     public required List<Guid> PendingEventRollPlayerIds { get; init; }
     public GameCellEvent? PendingEventRollEvent { get; set; }
-    public required bool IsAwaitingAdditionalEventRoll { get; set; }
-    public required Guid PendingAdditionalEventRollPlayerId { get; set; }
-    public Guid? PendingAdditionalEventRollChosenPlayerId { get; set; }
-    public GameCellEvent? PendingAdditionalEventRollEvent { get; set; }
 }
