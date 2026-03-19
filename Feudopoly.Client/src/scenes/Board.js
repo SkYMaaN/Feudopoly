@@ -20,6 +20,7 @@ export class Board extends Phaser.Scene {
         this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
         this.load.image('deathScreen', 'assets/backgrounds/death_screen.png');
+        this.load.image('victoryScreen', 'assets/backgrounds/victory_screen.png');
         this.load.video('startGameIntroVideo', 'assets/videos/StartGameIntro.mp4');
 
         for (let i = 0; i < 30; i++) {
@@ -1075,7 +1076,7 @@ export class Board extends Phaser.Scene {
     createVictoryScreenUI() {
         this.victoryScreen = this.createEndgameScreenUI({
             key: 'victory',
-            backgroundKey: 'deathScreen',
+            backgroundKey: 'victoryScreen',
             title: 'YOU WON',
             subtitle: 'You completed the circle and claimed victory.',
             backgroundTint: 0x3cd39f,

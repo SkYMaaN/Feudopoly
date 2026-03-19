@@ -197,13 +197,14 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 {
                     MarkPlayerAsWinner(caller);
                     AdvanceTurn(session);
+                    newPosition = 0;
                 }
                 else
                 {
                     session.IsTurnInProgress = true;
+                    newPosition = caller.Position;
                 }
 
-                newPosition = caller.Position;
                 isEventPhaseRoll = false;
             }
 
