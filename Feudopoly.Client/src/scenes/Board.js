@@ -54,6 +54,8 @@ export class Board extends Phaser.Scene {
         this.turnRequiresChosenPlayer = false;
         this.isEventRollPhase = false;
         this.pendingEventRollPlayerIds = [];
+        this.pendingEventRollTitle = '';
+        this.pendingEventRollDescription = '';
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
         this.turnResultDismissHandler = null;
@@ -327,6 +329,11 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = Array.isArray(state.pendingEventRollPlayerIds)
             ? state.pendingEventRollPlayerIds.map(id => String(id))
             : [];
+
+        if (!this.isEventRollPhase) {
+            this.pendingEventRollTitle = '';
+            this.pendingEventRollDescription = '';
+        }
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -619,16 +626,21 @@ export class Board extends Phaser.Scene {
             return;
         }
 
-        this.turnTitleText.setText(this.isEventRollPhase ? 'Event roll phase' : `${current?.displayName ?? 'Player'} turn`);
+        this.turnTitleText.setText(this.isEventRollPhase
+            ? (this.pendingEventRollTitle || 'Special field roll')
+            : `${current?.displayName ?? 'Player'} turn`);
 
         if (mustRollForEvent) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
+            const description = this.pendingEventRollDescription
+                ? `${this.pendingEventRollDescription}\n\nThrow the dice to resolve this special field.`
+                : 'Special field requires one more roll. Throw the dice!';
+            this.turnSubtitleText.setText(description);
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         } else if (this.isEventRollPhase) {
-            this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
+            this.turnSubtitleText.setText('Waiting for players to finish the special-field roll...');
         } else if (isLocalTurn) {
             this.hideNotification();
             this.turnSubtitleText.setText('It is your turn. Roll the dice!');
@@ -741,15 +753,25 @@ export class Board extends Phaser.Scene {
         console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
+        const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
 
         if (payload?.isEventRollPhase) {
-            this.pendingRepeatRoll = false;
-            this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
-                .filter(playerId => playerId !== String(this.localPlayerId ?? ''));
+            this.pendingRepeatRoll = Boolean(payload?.repeatTurn && payload?.eventRollCompleted);
+            this.pendingEventRollTitle = payload?.event?.title ?? this.pendingEventRollTitle;
+            this.pendingEventRollDescription = payload?.event?.description ?? this.pendingEventRollDescription;
+            if (hasResultEntries) {
+                this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
+                    .filter(playerId => playerId !== String(this.localPlayerId ?? ''));
+            }
 
             if (payload?.eventRollCompleted) {
                 this.isEventRollPhase = false;
+                this.pendingEventRollTitle = '';
+                this.pendingEventRollDescription = '';
             }
+        } else {
+            this.pendingEventRollTitle = '';
+            this.pendingEventRollDescription = '';
         }
 
         this.turnRequiresChosenPlayer = false;
@@ -770,7 +792,6 @@ export class Board extends Phaser.Scene {
 
         this.stopTurnBeganCountdown();
 
-        const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
         const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie || this.isVictoryChoicePending;
 
         if (!shouldSuppressTurnResult) {

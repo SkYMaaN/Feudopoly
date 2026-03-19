@@ -163,7 +163,10 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 if (session.PendingEventRollPlayerIds.Count == 0)
                 {
                     EndEventRollPhase(session);
-                    AdvanceTurn(session);
+                    if (!repeatTurn)
+                    {
+                        AdvanceTurn(session);
+                    }
                 }
 
                 newPosition = caller.Position;
@@ -172,7 +175,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 {
                     Event = gameEvent,
                     Entries = entries,
-                    RepeatTurn = false,
+                    RepeatTurn = repeatTurn,
                     IsEventRollPhase = true,
                     EventRollCompleted = !session.IsEventRollPhase
                 };
@@ -303,9 +306,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 throw new HubException($"Event for {caller.Position} position does not exist!");
             }
 
-            if (ShouldStartEventRollPhase(session, caller, cellEvent))
+            if (TryStartEventRollPhase(session, caller, cellEvent))
             {
-                StartEventRollPhase(session, caller.PlayerId, cellEvent);
                 session.IsTurnInProgress = false;
 
                 resolution = new TurnResolutionPayload
@@ -430,37 +432,60 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await Clients.Caller.SendAsync("StateUpdated", state);
     }
 
-    private static bool ShouldStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
+    private bool TryStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
     {
-        if (gameEvent.ResolutionMode != EventResolutionMode.Roll)
+        var participants = GetSelfResolvedEventRollParticipants(session, currentPlayer, gameEvent);
+        if (participants.Count == 0)
         {
             return false;
         }
 
-        if (gameEvent.RollOutcomes.Count == 0)
-        {
-            return false;
-        }
-
-        var allOutcomesTargetAllPlayers = gameEvent.RollOutcomes.All(item => item.Outcome.Target == OutcomeTarget.AllPlayers);
-        if (!allOutcomesTargetAllPlayers)
-        {
-            return false;
-        }
-
-        return session.Players.Any(player => IsActiveParticipant(player) && player.PlayerId != currentPlayer.PlayerId);
-    }
-
-    private static void StartEventRollPhase(GameSession session, Guid ownerPlayerId, GameCellEvent gameEvent)
-    {
         session.IsEventRollPhase = true;
-        session.EventRollOwnerPlayerId = ownerPlayerId;
+        session.EventRollOwnerPlayerId = currentPlayer.PlayerId;
         session.PendingEventRollEvent = gameEvent;
         session.PendingEventRollPlayerIds.Clear();
+        session.PendingEventRollPlayerIds.AddRange(participants);
+        return true;
+    }
 
-        session.PendingEventRollPlayerIds.AddRange(session.Players
-             .Where(player => IsActiveParticipant(player))
-            .Select(player => player.PlayerId));
+    private IReadOnlyList<Guid> GetSelfResolvedEventRollParticipants(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
+    {
+        if (gameEvent.ResolutionMode != EventResolutionMode.Roll || gameEvent.RollOutcomes.Count == 0)
+        {
+            return [];
+        }
+
+        var targetScopes = gameEvent.RollOutcomes
+            .Select(item => item.Outcome.Target)
+            .Distinct()
+            .ToList();
+
+        if (targetScopes.Count != 1)
+        {
+            return [];
+        }
+
+        return targetScopes[0] switch
+        {
+            OutcomeTarget.CurrentPlayer => [currentPlayer.PlayerId],
+            OutcomeTarget.AllPlayers => session.Players
+                .Where(IsActiveParticipant)
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            OutcomeTarget.Women => session.Players
+                .Where(player => !player.IsMan && IsActiveParticipant(player))
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            OutcomeTarget.Muslims => session.Players
+                .Where(player => player.IsMuslim && IsActiveParticipant(player))
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            OutcomeTarget.NonMuslims => session.Players
+                .Where(player => !player.IsMuslim && IsActiveParticipant(player))
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            _ => []
+        };
     }
 
     private static void EndEventRollPhase(GameSession session)
