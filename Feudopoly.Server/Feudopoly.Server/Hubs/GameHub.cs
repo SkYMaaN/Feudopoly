@@ -151,7 +151,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 }
 
                 var gameEvent = session.PendingEventRollEvent ?? throw new HubException("No pending roll event.");
-                var outcome = EventRollFlow.ResolveOutcome(gameEvent, rolled);
+                var outcome = gameEvent.RollOutcomes.FirstOrDefault(r => r.Range.InRange(rolled))?.Outcome
+                              ?? throw new HubException("No roll range matched outcome.");
 
                 var entries = new List<ResolvedOutcomeEntry>();
                 var repeatTurn = false;
@@ -302,10 +303,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 throw new HubException($"Event for {caller.Position} position does not exist!");
             }
 
-            var eventRollParticipants = EventRollFlow.ResolveParticipants(session, caller, cellEvent, chosenPlayerId, ResolveTargets);
-            if (EventRollFlow.ShouldStart(cellEvent, eventRollParticipants))
+            if (ShouldStartEventRollPhase(session, caller, cellEvent))
             {
-                StartEventRollPhase(session, caller.PlayerId, cellEvent, eventRollParticipants);
+                StartEventRollPhase(session, caller.PlayerId, cellEvent);
                 session.IsTurnInProgress = false;
 
                 resolution = new TurnResolutionPayload
@@ -430,14 +430,37 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await Clients.Caller.SendAsync("StateUpdated", state);
     }
 
-    private static void StartEventRollPhase(GameSession session, Guid ownerPlayerId, GameCellEvent gameEvent, IReadOnlyCollection<PlayerState> eventRollParticipants)
+    private static bool ShouldStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
+    {
+        if (gameEvent.ResolutionMode != EventResolutionMode.Roll)
+        {
+            return false;
+        }
+
+        if (gameEvent.RollOutcomes.Count == 0)
+        {
+            return false;
+        }
+
+        var allOutcomesTargetAllPlayers = gameEvent.RollOutcomes.All(item => item.Outcome.Target == OutcomeTarget.AllPlayers);
+        if (!allOutcomesTargetAllPlayers)
+        {
+            return false;
+        }
+
+        return session.Players.Any(player => IsActiveParticipant(player) && player.PlayerId != currentPlayer.PlayerId);
+    }
+
+    private static void StartEventRollPhase(GameSession session, Guid ownerPlayerId, GameCellEvent gameEvent)
     {
         session.IsEventRollPhase = true;
         session.EventRollOwnerPlayerId = ownerPlayerId;
         session.PendingEventRollEvent = gameEvent;
         session.PendingEventRollPlayerIds.Clear();
 
-        session.PendingEventRollPlayerIds.AddRange(eventRollParticipants.Select(player => player.PlayerId));
+        session.PendingEventRollPlayerIds.AddRange(session.Players
+             .Where(player => IsActiveParticipant(player))
+            .Select(player => player.PlayerId));
     }
 
     private static void EndEventRollPhase(GameSession session)
@@ -571,21 +594,42 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     private TurnResolutionPayload ResolveEvent(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent, Guid? chosenPlayerId)
     {
-        if (gameEvent.ResolutionMode != EventResolutionMode.Fixed)
-        {
-            throw new HubException("Roll events must be resolved through the explicit event roll flow.");
-        }
-
         var entries = new List<ResolvedOutcomeEntry>();
         var repeatTurn = false;
 
-        foreach (var outcome in gameEvent.FixedOutcomes)
+        if (gameEvent.ResolutionMode == EventResolutionMode.Fixed)
         {
-            var targets = ResolveTargets(session, currentPlayer, outcome.Target, chosenPlayerId);
-            foreach (var target in targets)
+            foreach (var outcome in gameEvent.FixedOutcomes)
             {
+                var targets = ResolveTargets(session, currentPlayer, outcome.Target, chosenPlayerId);
+                foreach (var target in targets)
+                {
+                    ApplyOutcome(target, outcome, ref repeatTurn);
+                    entries.Add(new ResolvedOutcomeEntry(target.PlayerId, 0, outcome));
+                }
+            }
+        }
+        else
+        {
+            var targetScopes = gameEvent.RollOutcomes.Select(r => r.Outcome.Target).Distinct().ToList();
+            if (targetScopes.Count == 0)
+            {
+                throw new HubException("Roll event has no outcomes.");
+            }
+
+            var allTargets = targetScopes
+                .SelectMany(scope => ResolveTargets(session, currentPlayer, scope, chosenPlayerId))
+                .DistinctBy(p => p.PlayerId)
+                .ToList();
+
+            foreach (var target in allTargets)
+            {
+                var roll = Random.Shared.Next(1, 7);
+                var outcome = gameEvent.RollOutcomes.FirstOrDefault(r => r.Range.InRange(roll))?.Outcome
+                              ?? throw new HubException("No roll range matched outcome.");
+
                 ApplyOutcome(target, outcome, ref repeatTurn);
-                entries.Add(new ResolvedOutcomeEntry(target.PlayerId, 0, outcome));
+                entries.Add(new ResolvedOutcomeEntry(target.PlayerId, roll, outcome));
             }
         }
 
