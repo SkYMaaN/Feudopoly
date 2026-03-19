@@ -59,6 +59,7 @@ export class Board extends Phaser.Scene {
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
+        this.pendingTurnEndedPayload = null;
         this.hasShownStartGameIntro = false;
         this.localPlayerIsDead = false;
         this.localPlayerIsSpectator = false;
@@ -623,7 +624,7 @@ export class Board extends Phaser.Scene {
 
         if (mustRollForEvent) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
+            this.turnSubtitleText.setText('Event outcome needs your extra roll. Throw the dice!');
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
@@ -769,18 +770,50 @@ export class Board extends Phaser.Scene {
         }
 
         this.stopTurnBeganCountdown();
+        if (this.shouldDeferTurnEndedPresentation(payload)) {
+            this.pendingTurnEndedPayload = payload;
+            return;
+        }
 
+        this.presentTurnEndedPayload(payload);
+    }
+
+    shouldDeferTurnEndedPresentation(payload) {
+        if (!payload?.isEventRollPhase || !this.isRolling) {
+            return false;
+        }
+
+        return Array.isArray(payload?.entries)
+            && payload.entries.some(entry =>
+                String(entry?.playerId ?? '') === String(this.localPlayerId ?? '')
+                && Number(entry?.roll ?? 0) > 0);
+    }
+
+    presentTurnEndedPayload(payload) {
+        const didLocalPlayerDie = this.didLocalPlayerDie(payload);
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
-        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie || this.isVictoryChoicePending;
+        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries)
+            || didLocalPlayerDie
+            || this.isVictoryChoicePending;
 
         if (!shouldSuppressTurnResult) {
             this.showTurnResultNotification(payload);
-        } else {
-            this.hideTurnResultNotification();
-            this.refreshTurnUI();
+            return;
         }
 
-        //this.refreshTurnUI();
+        this.hideTurnResultNotification();
+        this.refreshTurnUI();
+    }
+
+    flushPendingTurnEndedPayload() {
+        if (!this.pendingTurnEndedPayload) {
+            return false;
+        }
+
+        const payload = this.pendingTurnEndedPayload;
+        this.pendingTurnEndedPayload = null;
+        this.presentTurnEndedPayload(payload);
+        return true;
     }
 
     showTurnResultNotification(payload) {
@@ -1569,6 +1602,10 @@ export class Board extends Phaser.Scene {
         this.diceRollSfx?.stop();
 
         this.movePlayer(player.playerId, steps, payload.newPosition, async () => {
+            if (payload?.isEventPhaseRoll) {
+                await this.delay(900);
+            }
+
             this.hideDice();
 
             try {
@@ -1588,8 +1625,18 @@ export class Board extends Phaser.Scene {
                     this.updateVictoryChoiceButtons();
                 }
 
+                if (this.flushPendingTurnEndedPayload()) {
+                    return;
+                }
+
                 this.refreshTurnUI();
             }
+        });
+    }
+
+    delay(durationMs) {
+        return new Promise(resolve => {
+            this.time.delayedCall(durationMs, resolve);
         });
     }
 
