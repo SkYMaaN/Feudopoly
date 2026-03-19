@@ -57,6 +57,24 @@ public sealed class SessionStorage
 
     public IReadOnlyCollection<GameSession> GetSessions() => _sessions.Values.OrderByDescending(x => x.CreatedAtUtc).ToArray();
 
+    public bool DeleteLobby(GameSession session)
+    {
+        lock (session)
+        {
+            if (!_sessions.TryRemove(session.SessionId, out _))
+            {
+                return false;
+            }
+
+            foreach (var player in session.Players)
+            {
+                _playerToSession.TryRemove(player.PlayerId, out _);
+            }
+
+            return true;
+        }
+    }
+
     public void JoinLobby(GameSession session, Guid playerId, string displayName, bool isMan, bool isMuslim, string? password)
     {
         lock (session)
