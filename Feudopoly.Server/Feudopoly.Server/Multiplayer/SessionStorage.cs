@@ -44,7 +44,11 @@ public sealed class SessionStorage
             IsEventRollPhase = false,
             EventRollOwnerPlayerId = Guid.Empty,
             PendingEventRollPlayerIds = [],
-            PendingEventRollEvent = null
+            PendingEventRollEvent = null,
+            IsAwaitingAdditionalEventRoll = false,
+            PendingAdditionalEventRollPlayerId = Guid.Empty,
+            PendingAdditionalEventRollChosenPlayerId = null,
+            PendingAdditionalEventRollEvent = null
         };
 
         _sessions.TryAdd(session.SessionId, session);
@@ -204,6 +208,13 @@ public sealed class SessionStorage
             session.Players.Remove(player);
             _playerToSession.TryRemove(playerId, out _);
             session.PendingEventRollPlayerIds.Remove(playerId);
+            if (session.PendingAdditionalEventRollPlayerId == playerId)
+            {
+                session.IsAwaitingAdditionalEventRoll = false;
+                session.PendingAdditionalEventRollPlayerId = Guid.Empty;
+                session.PendingAdditionalEventRollChosenPlayerId = null;
+                session.PendingAdditionalEventRollEvent = null;
+            }
 
             if (session.Players.Count == 0)
             {
@@ -263,6 +274,10 @@ public sealed class SessionStorage
             IsTurnInProgress = session.IsTurnInProgress,
             IsEventRollPhase = session.IsEventRollPhase,
             PendingEventRollPlayerIds = session.PendingEventRollPlayerIds.ToArray(),
+            IsAwaitingAdditionalEventRoll = session.IsAwaitingAdditionalEventRoll,
+            PendingAdditionalEventRollPlayerId = session.PendingAdditionalEventRollPlayerId == Guid.Empty
+                ? null
+                : session.PendingAdditionalEventRollPlayerId,
             Players = session.Players.Select(player => new PlayerDto
             {
                 PlayerId = player.PlayerId,
