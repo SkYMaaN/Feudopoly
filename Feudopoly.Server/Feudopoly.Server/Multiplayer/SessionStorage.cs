@@ -37,7 +37,7 @@ public sealed class SessionStorage
             Status = LobbyStatus.WaitingForPlayers,
             OwnerPlayerId = owner.PlayerId,
             Players = [owner],
-            ActiveTurnPlayerId = Guid.Empty,
+            ActiveTurnPlayerId = owner.PlayerId,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
             IsTurnInProgress = false,
