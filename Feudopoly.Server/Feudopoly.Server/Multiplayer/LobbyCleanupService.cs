@@ -9,7 +9,7 @@ public sealed class LobbyCleanupService(
     IHubContext<GameHub> gameHub,
     ILogger<LobbyCleanupService> logger) : BackgroundService
 {
-    private static readonly TimeSpan CleanupInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
