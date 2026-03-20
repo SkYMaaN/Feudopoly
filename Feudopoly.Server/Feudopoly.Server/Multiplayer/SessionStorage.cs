@@ -37,7 +37,7 @@ public sealed class SessionStorage
             Status = LobbyStatus.WaitingForPlayers,
             OwnerPlayerId = owner.PlayerId,
             Players = [owner],
-            ActiveTurnPlayerId = Guid.Empty,
+            ActiveTurnPlayerId = owner.PlayerId,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
             IsTurnInProgress = false,
@@ -56,6 +56,24 @@ public sealed class SessionStorage
     public bool TryGetSession(Guid sessionId, out GameSession? session) => _sessions.TryGetValue(sessionId, out session);
 
     public IReadOnlyCollection<GameSession> GetSessions() => _sessions.Values.OrderByDescending(x => x.CreatedAtUtc).ToArray();
+
+    public bool DeleteLobby(GameSession session)
+    {
+        lock (session)
+        {
+            if (!_sessions.TryRemove(session.SessionId, out _))
+            {
+                return false;
+            }
+
+            foreach (var player in session.Players)
+            {
+                _playerToSession.TryRemove(player.PlayerId, out _);
+            }
+
+            return true;
+        }
+    }
 
     public void JoinLobby(GameSession session, Guid playerId, string displayName, bool isMan, bool isMuslim, string? password)
     {
@@ -91,10 +109,12 @@ public sealed class SessionStorage
                 IsConnected = false,
                 IsDead = false,
                 IsSpectator = false,
+                IsWinner = false,
                 TurnsToSkip = 0
             });
 
             _playerToSession[playerId] = session.SessionId;
+            EnsureActiveTurnPlayer(session);
             UpdateStatus(session);
         }
     }
@@ -125,6 +145,7 @@ public sealed class SessionStorage
                 session.OwnerPlayerId = session.Players.First(p => !p.IsDead).PlayerId;
             }
 
+            EnsureActiveTurnPlayer(session);
             UpdateStatus(session);
 
             if (session.Players.Count < MinPlayers)
@@ -158,6 +179,7 @@ public sealed class SessionStorage
                 throw new InvalidDataException("Not enough players to start.");
             }
 
+            EnsureActiveTurnPlayer(session);
             session.Status = LobbyStatus.Launching;
         }
     }
@@ -168,6 +190,7 @@ public sealed class SessionStorage
         {
             if (session.Status is LobbyStatus.Launching or LobbyStatus.Ready)
             {
+                EnsureActiveTurnPlayer(session);
                 session.Status = LobbyStatus.InProgress;
             }
         }
@@ -202,6 +225,7 @@ public sealed class SessionStorage
                 session.ActiveTurnPlayerId = Guid.Empty;
             }
 
+            EnsureActiveTurnPlayer(session);
             return false;
         }
     }
@@ -220,6 +244,23 @@ public sealed class SessionStorage
                 _sessions.TryRemove(sessionId, out _);
             }
         }
+    }
+
+    private static void EnsureActiveTurnPlayer(GameSession session)
+    {
+        if (session.Players.Count == 0)
+        {
+            session.ActiveTurnPlayerId = Guid.Empty;
+            return;
+        }
+
+        var hasActiveTurnPlayer = session.Players.Any(player => player.PlayerId == session.ActiveTurnPlayerId);
+        if (hasActiveTurnPlayer)
+        {
+            return;
+        }
+
+        session.ActiveTurnPlayerId = session.Players.First().PlayerId;
     }
 
     public static void UpdateStatus(GameSession session)
@@ -251,9 +292,11 @@ public sealed class SessionStorage
                 IsMan = player.IsMan,
                 IsMuslim = player.IsMuslim,
                 Position = player.Position,
+                TurnsToSkip = player.TurnsToSkip,
                 IsConnected = player.IsConnected,
                 IsDead = player.IsDead,
-                IsSpectator = player.IsSpectator
+                IsSpectator = player.IsSpectator,
+                IsWinner = player.IsWinner
             }).ToArray()
         };
     }

@@ -133,6 +133,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         int rolled;
         int newPosition;
         bool isEventPhaseRoll;
+        bool completedWinningLap = false;
         TurnResolutionPayload? phaseResolution = null;
         GameStateDto state;
 
@@ -162,7 +163,10 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 if (session.PendingEventRollPlayerIds.Count == 0)
                 {
                     EndEventRollPhase(session);
-                    AdvanceTurn(session);
+                    if (!repeatTurn)
+                    {
+                        AdvanceTurn(session);
+                    }
                 }
 
                 newPosition = caller.Position;
@@ -171,7 +175,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 {
                     Event = gameEvent,
                     Entries = entries,
-                    RepeatTurn = false,
+                    RepeatTurn = repeatTurn,
                     IsEventRollPhase = true,
                     EventRollCompleted = !session.IsEventRollPhase
                 };
@@ -183,14 +187,27 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     throw new HubException("Turn is not finished yet.");
                 }
 
-                if (caller.TurnsToSkip > 0)
+                if (caller.TurnsToSkip > 0 && !TryConsumeSoloSkipPenalty(session, caller))
                 {
                     throw new HubException($"You must skip {caller.TurnsToSkip} more turn(s).");
                 }
 
+                var startPosition = caller.Position;
                 caller.Position = NormalizePosition(caller.Position + rolled);
-                session.IsTurnInProgress = true;
-                newPosition = caller.Position;
+                completedWinningLap = HasCompletedWinningLap(startPosition, rolled);
+
+                if (completedWinningLap)
+                {
+                    MarkPlayerAsWinner(caller);
+                    AdvanceTurn(session);
+                    newPosition = 0;
+                }
+                else
+                {
+                    session.IsTurnInProgress = true;
+                    newPosition = caller.Position;
+                }
+
                 isEventPhaseRoll = false;
             }
 
@@ -198,7 +215,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         string groupName = sessionId.ToString();
-        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition };
+        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition, completedWinningLap };
         if (isEventPhaseRoll)
         {
             await Clients.Caller.SendAsync("EventDiceRolled", rollPayload);
@@ -289,9 +306,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 throw new HubException($"Event for {caller.Position} position does not exist!");
             }
 
-            if (ShouldStartEventRollPhase(session, caller, cellEvent))
+            if (TryStartEventRollPhase(session, caller, cellEvent))
             {
-                StartEventRollPhase(session, caller.PlayerId, cellEvent);
                 session.IsTurnInProgress = false;
 
                 resolution = new TurnResolutionPayload
@@ -344,9 +360,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
                 ?? throw new HubException("Player is not part of this session.");
 
-            if (!caller.IsDead)
+            if (!caller.IsDead && !caller.IsWinner)
             {
-                throw new HubException("Only dead players can become spectators.");
+                throw new HubException("Only dead or victorious players can become spectators.");
             }
 
             caller.IsSpectator = true;
@@ -416,37 +432,60 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await Clients.Caller.SendAsync("StateUpdated", state);
     }
 
-    private static bool ShouldStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
+    private bool TryStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
     {
-        if (gameEvent.ResolutionMode != EventResolutionMode.Roll)
+        var participants = GetSelfResolvedEventRollParticipants(session, currentPlayer, gameEvent);
+        if (participants.Count == 0)
         {
             return false;
         }
 
-        if (gameEvent.RollOutcomes.Count == 0)
-        {
-            return false;
-        }
-
-        var allOutcomesTargetAllPlayers = gameEvent.RollOutcomes.All(item => item.Outcome.Target == OutcomeTarget.AllPlayers);
-        if (!allOutcomesTargetAllPlayers)
-        {
-            return false;
-        }
-
-        return session.Players.Any(player => IsActiveParticipant(player) && player.PlayerId != currentPlayer.PlayerId);
-    }
-
-    private static void StartEventRollPhase(GameSession session, Guid ownerPlayerId, GameCellEvent gameEvent)
-    {
         session.IsEventRollPhase = true;
-        session.EventRollOwnerPlayerId = ownerPlayerId;
+        session.EventRollOwnerPlayerId = currentPlayer.PlayerId;
         session.PendingEventRollEvent = gameEvent;
         session.PendingEventRollPlayerIds.Clear();
+        session.PendingEventRollPlayerIds.AddRange(participants);
+        return true;
+    }
 
-        session.PendingEventRollPlayerIds.AddRange(session.Players
-             .Where(player => IsActiveParticipant(player))
-            .Select(player => player.PlayerId));
+    private IReadOnlyList<Guid> GetSelfResolvedEventRollParticipants(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
+    {
+        if (gameEvent.ResolutionMode != EventResolutionMode.Roll || gameEvent.RollOutcomes.Count == 0)
+        {
+            return [];
+        }
+
+        var targetScopes = gameEvent.RollOutcomes
+            .Select(item => item.Outcome.Target)
+            .Distinct()
+            .ToList();
+
+        if (targetScopes.Count != 1)
+        {
+            return [];
+        }
+
+        return targetScopes[0] switch
+        {
+            OutcomeTarget.CurrentPlayer => [currentPlayer.PlayerId],
+            OutcomeTarget.AllPlayers => session.Players
+                .Where(IsActiveParticipant)
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            OutcomeTarget.Women => session.Players
+                .Where(player => !player.IsMan && IsActiveParticipant(player))
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            OutcomeTarget.Muslims => session.Players
+                .Where(player => player.IsMuslim && IsActiveParticipant(player))
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            OutcomeTarget.NonMuslims => session.Players
+                .Where(player => !player.IsMuslim && IsActiveParticipant(player))
+                .Select(player => player.PlayerId)
+                .ToArray(),
+            _ => []
+        };
     }
 
     private static void EndEventRollPhase(GameSession session)
@@ -463,12 +502,29 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         return normalized < 0 ? normalized + BoardCellsCount : normalized;
     }
 
+    private static bool HasCompletedWinningLap(int startPosition, int rolled)
+        => rolled > 0 && startPosition + rolled >= BoardCellsCount;
+
+    private static void MarkPlayerAsWinner(PlayerState player)
+    {
+        player.IsWinner = true;
+        player.TurnsToSkip = 0;
+    }
+
     private static void AdvanceTurn(GameSession session)
     {
         var alive = session.Players.Where(IsActiveParticipant).ToList();
         if (alive.Count == 0)
         {
             session.ActiveTurnPlayerId = Guid.Empty;
+            return;
+        }
+
+        if (alive.Count == 1)
+        {
+            var solePlayer = alive[0];
+            solePlayer.TurnsToSkip = 0;
+            session.ActiveTurnPlayerId = solePlayer.PlayerId;
             return;
         }
 
@@ -492,6 +548,24 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         session.ActiveTurnPlayerId = alive[(currentIndex + 1) % alive.Count].PlayerId;
+    }
+
+    private static bool TryConsumeSoloSkipPenalty(GameSession session, PlayerState player)
+    {
+        if (player.TurnsToSkip <= 0)
+        {
+            return false;
+        }
+
+        var activeParticipantsCount = session.Players.Count(IsActiveParticipant);
+        if (activeParticipantsCount != 1)
+        {
+            return false;
+        }
+
+        player.TurnsToSkip = 0;
+        session.ActiveTurnPlayerId = player.PlayerId;
+        return true;
     }
 
     private PlayerState ValidateCallerAndGetCurrent(GameSession session)
@@ -646,7 +720,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         };
     }
 
-    private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator;
+    private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator && !player.IsWinner;
 
     private bool TryGetSessionId(out Guid sessionId)
     {
