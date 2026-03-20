@@ -433,9 +433,9 @@ export class Board extends Phaser.Scene {
 
         const outline = this.add.sprite(0, 0, 'token')
             .setOrigin(0.5)
-            .setScale(0.065)
-            .setTint(0xFFD700)
-            .setAlpha(1)
+            .setScale(0.068)
+            .setTint(0x6d0f2d)
+            .setAlpha(0)
             .setBlendMode(Phaser.BlendModes.ADD);
 
         const sprite = this.add.sprite(0, 0, 'token')
@@ -443,20 +443,15 @@ export class Board extends Phaser.Scene {
             .setScale(0.05);
 
         sprite.setTint(this.getPlayerColor(playerId));
-        sprite.setInteractive({ useHandCursor: true });
-        outline.setInteractive({ useHandCursor: true });
+
+        const hoverTargets = [sprite, outline];
+        hoverTargets.forEach(target => target.setInteractive({ useHandCursor: true }));
+        hoverTargets.forEach(target => {
+            target.on('pointerover', () => this.setPlayerHoverState(playerId, true));
+            target.on('pointerout', () => this.setPlayerHoverState(playerId, false));
+        });
 
         container.add([outline, sprite]);
-
-        this.tweens.add({
-            targets: outline,
-            alpha: { from: 0.8, to: 1 },
-            scale: { from: 0.06, to: 0.065 },
-            duration: 900,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
 
         return {
             playerId,
@@ -468,8 +463,22 @@ export class Board extends Phaser.Scene {
             isConnected: true,
             isDead: false,
             isSpectator: false,
-            isWinner: false
+            isWinner: false,
+            isHovered: false
         };
+    }
+
+    setPlayerHoverState(playerId, isHovered) {
+        const player = this.players.find(item => item.playerId === playerId);
+        if (!player || player.isHovered === isHovered) {
+            return;
+        }
+
+        player.isHovered = isHovered;
+
+        player.outline.setTint(0x6d0f2d);
+        player.outline.setAlpha(isHovered ? 0.95 : 0);
+        player.outline.setScale(isHovered ? 0.072 : 0.068);
     }
 
     getPlayerColor(playerId) {
