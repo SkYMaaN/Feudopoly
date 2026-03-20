@@ -63,6 +63,7 @@ export class Board extends Phaser.Scene {
         this.localPlayerIsDead = false;
         this.localPlayerIsSpectator = false;
         this.localPlayerIsWinner = false;
+        this.localPlayerTurnsToSkip = 0;
         this.isDeathChoicePending = false;
         this.isProcessingDeathChoice = false;
         this.isVictoryChoicePending = false;
@@ -351,6 +352,7 @@ export class Board extends Phaser.Scene {
             player.isDead = Boolean(playerState.isDead);
             player.isSpectator = Boolean(playerState.isSpectator);
             player.isWinner = Boolean(playerState.isWinner);
+            player.turnsToSkip = Number(playerState.turnsToSkip ?? 0);
 
             // To prevent double animation from two web socket events.
             // Local player is already animated by DiceRolled/EventDiceRolled payloads.
@@ -386,6 +388,7 @@ export class Board extends Phaser.Scene {
         this.localPlayerIsDead = Boolean(localState?.isDead);
         this.localPlayerIsSpectator = Boolean(localState?.isSpectator);
         this.localPlayerIsWinner = Boolean(localState?.isWinner);
+        this.localPlayerTurnsToSkip = Number(localState?.turnsToSkip ?? 0);
 
         this.isDeathChoicePending = this.localPlayerIsDead && !this.localPlayerIsSpectator;
         this.isVictoryChoicePending = this.localPlayerIsWinner && !this.localPlayerIsSpectator;
@@ -608,12 +611,15 @@ export class Board extends Phaser.Scene {
             return;
         }
 
-        const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
-        const activeTurnPlayerId = current?.playerId ?? this.activeTurnPlayerId;
+        const activeTurnPlayerId = this.activeTurnPlayerId ? String(this.activeTurnPlayerId) : null;
+        const current = activeTurnPlayerId
+            ? this.players.find(player => String(player.playerId) === activeTurnPlayerId) ?? null
+            : null;
         const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
         const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+            && !this.isTurnInProgress && !isSkippingTurn && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (isLocalTurn && this.isTurnInProgress) {
             return;
@@ -629,8 +635,13 @@ export class Board extends Phaser.Scene {
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
+        } else if (isSkippingTurn) {
+            this.hideNotification();
+            this.turnSubtitleText.setText(`You are skipping this turn (${this.localPlayerTurnsToSkip} remaining).`);
         } else if (this.isEventRollPhase) {
             this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
+        } else if (!activeTurnPlayerId) {
+            this.turnSubtitleText.setText('Waiting for turn state to sync...');
         } else if (isLocalTurn) {
             this.hideNotification();
             this.turnSubtitleText.setText('It is your turn. Roll the dice!');
@@ -655,11 +666,12 @@ export class Board extends Phaser.Scene {
     }
 
     async requestRoll() {
-        const current = this.players.find(player => player.playerId === this.activeTurnPlayerId) ?? this.players[0];
-        const isLocalTurn = current?.playerId === this.localPlayerId;
+        const activeTurnPlayerId = this.activeTurnPlayerId ? String(this.activeTurnPlayerId) : null;
+        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
         const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
         const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+            && !this.isTurnInProgress && !isSkippingTurn && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
 
         if (this.isRolling || !canRoll) {
             return;
