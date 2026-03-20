@@ -38,6 +38,7 @@ namespace Feudopoly.Server
             });
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
+            builder.Services.AddHostedService<LobbyCleanupService>();
 
             var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 
