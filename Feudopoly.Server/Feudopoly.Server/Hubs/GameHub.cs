@@ -54,6 +54,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     AdvanceTurn(session);
                 }
 
+                SessionStorage.TouchSession(session);
                 state = SessionStorage.ToDto(session);
             }
         }
@@ -101,6 +102,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             joinedPlayer.ConnectionId = Context.ConnectionId;
             joinedPlayer.IsConnected = true;
             _sessionStore.MarkInProgress(session);
+            SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
@@ -211,6 +213,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 isEventPhaseRoll = false;
             }
 
+            SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
@@ -266,6 +269,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 throw new HubException($"Event for {caller.Position} position does not exist!");
             }
 
+            SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
@@ -330,6 +334,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 }
             }
 
+            SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
@@ -366,6 +371,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             }
 
             caller.IsSpectator = true;
+            SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
@@ -401,6 +407,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 AdvanceTurn(session);
             }
 
+            SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 

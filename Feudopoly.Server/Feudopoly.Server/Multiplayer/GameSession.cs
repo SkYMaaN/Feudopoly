@@ -13,6 +13,7 @@ public sealed class GameSession
     public required Guid ActiveTurnPlayerId { get; set; }
     public required int LastRollValue { get; set; }
     public required DateTime CreatedAtUtc { get; init; }
+    public required DateTime LastActivityAtUtc { get; set; }
     public required bool IsTurnInProgress { get; set; }
     public required bool IsEventRollPhase { get; set; }
     public required Guid EventRollOwnerPlayerId { get; set; }

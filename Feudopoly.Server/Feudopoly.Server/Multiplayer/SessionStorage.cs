@@ -7,6 +7,8 @@ public sealed class SessionStorage
     private const int MinPlayers = 1;
     private const int MaxPlayersLimit = 4;
 
+    public static readonly TimeSpan LobbyInactivityTimeout = TimeSpan.FromMinutes(5);
+
     private readonly ConcurrentDictionary<Guid, GameSession> _sessions = new();
     private readonly ConcurrentDictionary<Guid, Guid> _playerToSession = new();
 
@@ -40,6 +42,7 @@ public sealed class SessionStorage
             ActiveTurnPlayerId = owner.PlayerId,
             LastRollValue = 0,
             CreatedAtUtc = DateTime.UtcNow,
+            LastActivityAtUtc = DateTime.UtcNow,
             IsTurnInProgress = false,
             IsEventRollPhase = false,
             EventRollOwnerPlayerId = Guid.Empty,
@@ -116,6 +119,7 @@ public sealed class SessionStorage
             _playerToSession[playerId] = session.SessionId;
             EnsureActiveTurnPlayer(session);
             UpdateStatus(session);
+            TouchSession(session);
         }
     }
 
@@ -147,6 +151,7 @@ public sealed class SessionStorage
 
             EnsureActiveTurnPlayer(session);
             UpdateStatus(session);
+            TouchSession(session);
 
             if (session.Players.Count < MinPlayers)
             {
@@ -181,6 +186,7 @@ public sealed class SessionStorage
 
             EnsureActiveTurnPlayer(session);
             session.Status = LobbyStatus.Launching;
+            TouchSession(session);
         }
     }
 
@@ -193,6 +199,8 @@ public sealed class SessionStorage
                 EnsureActiveTurnPlayer(session);
                 session.Status = LobbyStatus.InProgress;
             }
+
+            TouchSession(session);
         }
     }
 
@@ -226,6 +234,7 @@ public sealed class SessionStorage
             }
 
             EnsureActiveTurnPlayer(session);
+            TouchSession(session);
             return false;
         }
     }
@@ -246,6 +255,34 @@ public sealed class SessionStorage
         }
     }
 
+    public LobbyDeletionReason? GetDeletionReason(GameSession session, DateTime utcNow)
+    {
+        lock (session)
+        {
+            if (session.Players.Count == 0)
+            {
+                return LobbyDeletionReason.EmptyLobby;
+            }
+
+            if (!session.Players.Any(IsLobbyParticipant))
+            {
+                return LobbyDeletionReason.NoActivePlayers;
+            }
+
+            if (utcNow - session.LastActivityAtUtc >= LobbyInactivityTimeout)
+            {
+                return LobbyDeletionReason.Inactive;
+            }
+
+            return null;
+        }
+    }
+
+    public static void TouchSession(GameSession session)
+    {
+        session.LastActivityAtUtc = DateTime.UtcNow;
+    }
+
     private static void EnsureActiveTurnPlayer(GameSession session)
     {
         if (session.Players.Count == 0)
@@ -262,6 +299,8 @@ public sealed class SessionStorage
 
         session.ActiveTurnPlayerId = session.Players.First().PlayerId;
     }
+
+    private static bool IsLobbyParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator && !player.IsWinner;
 
     public static void UpdateStatus(GameSession session)
     {
