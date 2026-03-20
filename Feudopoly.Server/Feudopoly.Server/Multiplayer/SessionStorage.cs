@@ -114,6 +114,7 @@ public sealed class SessionStorage
             });
 
             _playerToSession[playerId] = session.SessionId;
+            EnsureActiveTurnPlayer(session);
             UpdateStatus(session);
         }
     }
@@ -144,6 +145,7 @@ public sealed class SessionStorage
                 session.OwnerPlayerId = session.Players.First(p => !p.IsDead).PlayerId;
             }
 
+            EnsureActiveTurnPlayer(session);
             UpdateStatus(session);
 
             if (session.Players.Count < MinPlayers)
@@ -177,6 +179,7 @@ public sealed class SessionStorage
                 throw new InvalidDataException("Not enough players to start.");
             }
 
+            EnsureActiveTurnPlayer(session);
             session.Status = LobbyStatus.Launching;
         }
     }
@@ -187,6 +190,7 @@ public sealed class SessionStorage
         {
             if (session.Status is LobbyStatus.Launching or LobbyStatus.Ready)
             {
+                EnsureActiveTurnPlayer(session);
                 session.Status = LobbyStatus.InProgress;
             }
         }
@@ -221,6 +225,7 @@ public sealed class SessionStorage
                 session.ActiveTurnPlayerId = Guid.Empty;
             }
 
+            EnsureActiveTurnPlayer(session);
             return false;
         }
     }
@@ -239,6 +244,23 @@ public sealed class SessionStorage
                 _sessions.TryRemove(sessionId, out _);
             }
         }
+    }
+
+    private static void EnsureActiveTurnPlayer(GameSession session)
+    {
+        if (session.Players.Count == 0)
+        {
+            session.ActiveTurnPlayerId = Guid.Empty;
+            return;
+        }
+
+        var hasActiveTurnPlayer = session.Players.Any(player => player.PlayerId == session.ActiveTurnPlayerId);
+        if (hasActiveTurnPlayer)
+        {
+            return;
+        }
+
+        session.ActiveTurnPlayerId = session.Players.First().PlayerId;
     }
 
     public static void UpdateStatus(GameSession session)
