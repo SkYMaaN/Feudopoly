@@ -270,6 +270,7 @@ public sealed class SessionStorage
                 IsMan = player.IsMan,
                 IsMuslim = player.IsMuslim,
                 Position = player.Position,
+                TurnsToSkip = player.TurnsToSkip,
                 IsConnected = player.IsConnected,
                 IsDead = player.IsDead,
                 IsSpectator = player.IsSpectator,
