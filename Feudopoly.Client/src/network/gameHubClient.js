@@ -14,6 +14,7 @@ export class GameHubClient {
             eventDiceRolled: [],
             turnBegan: [],
             turnEnded: [],
+            lobbyDeleted: [],
             error: []
         };
     }
@@ -73,6 +74,10 @@ export class GameHubClient {
             this.emit('turnEnded', payload);
         });
 
+        this.connection.on('LobbyDeleted', (lobbyId) => {
+            this.emit('lobbyDeleted', lobbyId);
+        });
+
         this.connection.onclose((error) => {
             this.emit('error', error ?? new Error('Connection closed.'));
         });
@@ -108,6 +113,14 @@ export class GameHubClient {
         await this.connection.invoke('LeaveGame', sessionId);
     }
 
+    async disconnect() {
+        if (!this.connection) {
+            return;
+        }
+
+        await this.connection.stop();
+        this.connection = null;
+    }
 
     on(eventName, handler) {
         if (!this.handlers[eventName]) {

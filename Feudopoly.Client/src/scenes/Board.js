@@ -85,6 +85,8 @@ export class Board extends Phaser.Scene {
         this.createVictoryScreenUI();
 
         this.registerHubEvents();
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanupHubEvents());
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => this.cleanupHubEvents());
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
@@ -251,6 +253,7 @@ export class Board extends Phaser.Scene {
         try {
             await gameHubClient.leaveGame(this.sessionId);
             this.hasExitedMatch = true;
+            await gameHubClient.disconnect();
             this.scene.start('LobbyList', getOrCreateProfile());
         } catch (error) {
             this.isLeavingMatch = false;
@@ -273,6 +276,8 @@ export class Board extends Phaser.Scene {
     }
 
     registerHubEvents() {
+        this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
+
         this.unsubscribeHandlers = [
             gameHubClient.on('joined', ({ playerId, state }) => {
                 this.localPlayerId = String(playerId);
@@ -294,10 +299,43 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('turnEnded', (payload) => {
                 this.turnEnded(payload);
             }),
+            gameHubClient.on('lobbyDeleted', (lobbyId) => {
+                if (String(lobbyId) !== String(this.sessionId)) {
+                    return;
+                }
+
+                this.forceReturnToLobbyList('Lobby was closed. Returning to lobby list.');
+            }),
             gameHubClient.on('error', (error) => {
                 this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
             })
         ];
+    }
+
+    cleanupHubEvents() {
+        this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
+        this.unsubscribeHandlers = [];
+        gameHubClient.disconnect().catch(() => {});
+    }
+
+    async forceReturnToLobbyList(message) {
+        if (this.hasExitedMatch) {
+            return;
+        }
+
+        this.hasExitedMatch = true;
+        this.isLeavingMatch = false;
+        this.setStatus(message);
+
+        try {
+            await gameHubClient.disconnect();
+        } catch {
+            // ignore disconnect errors during forced navigation
+        }
+
+        if (this.scene.isActive()) {
+            this.scene.start('LobbyList', getOrCreateProfile());
+        }
     }
 
     createStatusText() {
@@ -379,9 +417,7 @@ export class Board extends Phaser.Scene {
 
         const localState = state.players.find(player => String(player.playerId) === String(this.localPlayerId ?? ""));
         if (!localState && this.localPlayerId && !this.hasExitedMatch) {
-            this.hasExitedMatch = true;
-            this.setStatus("You left this match.");
-            this.scene.start("LobbyList", getOrCreateProfile());
+            this.forceReturnToLobbyList('You left this match.');
             return;
         }
 
