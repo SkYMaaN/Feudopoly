@@ -54,8 +54,6 @@ export class Board extends Phaser.Scene {
         this.turnRequiresChosenPlayer = false;
         this.isEventRollPhase = false;
         this.pendingEventRollPlayerIds = [];
-        this.pendingEventRollTitle = '';
-        this.pendingEventRollDescription = '';
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
         this.turnResultDismissHandler = null;
@@ -329,11 +327,6 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = Array.isArray(state.pendingEventRollPlayerIds)
             ? state.pendingEventRollPlayerIds.map(id => String(id))
             : [];
-
-        if (!this.isEventRollPhase) {
-            this.pendingEventRollTitle = '';
-            this.pendingEventRollDescription = '';
-        }
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
@@ -627,20 +620,17 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnTitleText.setText(this.isEventRollPhase
-            ? (this.pendingEventRollTitle || 'Special field roll')
+            ? (this.pendingEventRollPlayerIds.length === 1 ? 'Roll phase' : 'Event roll phase')
             : `${current?.displayName ?? 'Player'} turn`);
 
         if (mustRollForEvent) {
             this.hideNotification();
-            const description = this.pendingEventRollDescription
-                ? `${this.pendingEventRollDescription}\n\nThrow the dice to resolve this special field.`
-                : 'Special field requires one more roll. Throw the dice!';
-            this.turnSubtitleText.setText(description);
+            this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
         } else if (this.isEventRollPhase) {
-            this.turnSubtitleText.setText('Waiting for players to finish the special-field roll...');
+            this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
         } else if (isLocalTurn) {
             this.hideNotification();
             this.turnSubtitleText.setText('It is your turn. Roll the dice!');
@@ -757,21 +747,14 @@ export class Board extends Phaser.Scene {
 
         if (payload?.isEventRollPhase) {
             this.pendingRepeatRoll = Boolean(payload?.repeatTurn && payload?.eventRollCompleted);
-            this.pendingEventRollTitle = payload?.event?.title ?? this.pendingEventRollTitle;
-            this.pendingEventRollDescription = payload?.event?.description ?? this.pendingEventRollDescription;
+
             if (hasResultEntries) {
-                this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds
-                    .filter(playerId => playerId !== String(this.localPlayerId ?? ''));
+                this.pendingEventRollPlayerIds = this.pendingEventRollPlayerIds.filter(playerId => playerId !== String(this.localPlayerId ?? ''));
             }
 
             if (payload?.eventRollCompleted) {
                 this.isEventRollPhase = false;
-                this.pendingEventRollTitle = '';
-                this.pendingEventRollDescription = '';
             }
-        } else {
-            this.pendingEventRollTitle = '';
-            this.pendingEventRollDescription = '';
         }
 
         this.turnRequiresChosenPlayer = false;
