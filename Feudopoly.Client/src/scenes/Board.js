@@ -64,6 +64,7 @@ export class Board extends Phaser.Scene {
         this.localPlayerIsSpectator = false;
         this.localPlayerIsWinner = false;
         this.localPlayerTurnsToSkip = 0;
+        this.playerListRowTweens = [];
         this.isDeathChoicePending = false;
         this.isProcessingDeathChoice = false;
         this.isVictoryChoicePending = false;
@@ -371,6 +372,7 @@ export class Board extends Phaser.Scene {
 
         this.players.filter(player => !incomingIds.has(String(player.playerId)))
             .forEach(player => {
+                player.activeGlowTween?.remove();
                 player.container.destroy();
             });
 
@@ -460,12 +462,20 @@ export class Board extends Phaser.Scene {
         }
 
         this.updatePlayersListUI(state.players);
+        this.updateActivePlayerHighlights();
     }
 
     createPlayer(playerId, displayName, startPosition) {
         const cell = this.cells[startPosition] ?? this.cells[0];
 
         const container = this.add.container(cell.x, cell.y);
+
+        const activeGlow = this.add.sprite(0, 0, 'token')
+            .setOrigin(0.5)
+            .setScale(0.076)
+            .setTint(0xffd166)
+            .setAlpha(0)
+            .setBlendMode(Phaser.BlendModes.ADD);
 
         const outline = this.add.sprite(0, 0, 'token')
             .setOrigin(0.5)
@@ -480,14 +490,25 @@ export class Board extends Phaser.Scene {
 
         sprite.setTint(this.getPlayerColor(playerId));
 
-        const hoverTargets = [sprite, outline];
+        const activeGlowTween = this.tweens.add({
+            targets: activeGlow,
+            alpha: { from: 0.18, to: 0.85 },
+            scale: { from: 0.074, to: 0.092 },
+            duration: 900,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+            paused: true
+        });
+
+        const hoverTargets = [sprite, outline, activeGlow];
         hoverTargets.forEach(target => target.setInteractive({ useHandCursor: true }));
         hoverTargets.forEach(target => {
             target.on('pointerover', () => this.setPlayerHoverState(playerId, true));
             target.on('pointerout', () => this.setPlayerHoverState(playerId, false));
         });
 
-        container.add([outline, sprite]);
+        container.add([activeGlow, outline, sprite]);
 
         return {
             playerId,
@@ -495,6 +516,8 @@ export class Board extends Phaser.Scene {
             container,
             sprite,
             outline,
+            activeGlow,
+            activeGlowTween,
             currentPosition: startPosition,
             isConnected: true,
             isDead: false,
@@ -515,6 +538,26 @@ export class Board extends Phaser.Scene {
         player.outline.setTint(0x6d0f2d);
         player.outline.setAlpha(isHovered ? 0.95 : 0);
         player.outline.setScale(isHovered ? 0.072 : 0.068);
+    }
+
+    updateActivePlayerHighlights() {
+        const activePlayerId = String(this.activeTurnPlayerId ?? '');
+
+        this.players.forEach(player => {
+            const isActive = activePlayerId !== '' && player.playerId === activePlayerId;
+
+            player.activeGlow.setVisible(isActive);
+            player.activeGlowTween.pause();
+
+            if (!isActive) {
+                player.activeGlow.setAlpha(0).setScale(0.076);
+                player.container.setScale(1);
+                return;
+            }
+
+            player.activeGlowTween.play();
+            player.container.setScale(1.04);
+        });
     }
 
     getPlayerColor(playerId) {
@@ -586,22 +629,35 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        this.playerListRowTweens?.forEach(tween => tween.remove());
+        this.playerListRowTweens = [];
         this.playersListRowsContainer.removeAll(true);
 
         if (!playersState.length) {
             return;
         }
 
-        const rowHeight = 25;
+        const rowHeight = 30;
+        const activePlayerId = String(this.activeTurnPlayerId ?? '');
 
         playersState.forEach((playerState, index) => {
             const playerId = String(playerState.playerId);
             const nickname = playerState.displayName ?? 'Player';
             const colorValue = this.getPlayerColor(playerId);
             const colorHex = `#${colorValue.toString(16).padStart(6, '0')}`;
+            const isActive = activePlayerId !== '' && playerId === activePlayerId;
 
             const rowY = index * rowHeight;
-            const nicknameText = this.add.text(0, rowY, nickname, {
+            const rowContainer = this.add.container(0, rowY);
+            const highlightGlow = this.add.rectangle(0, 0, 206, 28, 0xffd166, 0)
+                .setOrigin(0, 0)
+                .setStrokeStyle(2, 0xfff0b3, 0)
+                .setBlendMode(Phaser.BlendModes.ADD);
+            const highlightFill = this.add.rectangle(0, 0, 206, 28, 0x6f4b23, isActive ? 0.85 : 0)
+                .setOrigin(0, 0)
+                .setStrokeStyle(2, 0xffd166, isActive ? 0.95 : 0);
+
+            const nicknameText = this.add.text(10, 3, nickname, {
                 fontFamily: 'Arial, sans-serif',
                 fontSize: '20px',
                 color: colorHex,
@@ -610,9 +666,19 @@ export class Board extends Phaser.Scene {
                 fontStyle: 'bold'
             }).setOrigin(0, 0);
 
+            const turnIcon = this.add.text(180, 2, '✦', {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '20px',
+                color: '#ffe066',
+                stroke: '#000000',
+                strokeThickness: 4,
+                fontStyle: 'bold'
+            }).setOrigin(0.5, 0).setAlpha(isActive ? 1 : 0);
+
             const isSpectator = Boolean(playerState.isSpectator);
 
-            this.playersListRowsContainer.add(nicknameText);
+            rowContainer.add([highlightGlow, highlightFill, nicknameText, turnIcon]);
+            this.playersListRowsContainer.add(rowContainer);
 
             if (isSpectator) {
                 nicknameText.setText(`${nickname} (spectator)`);
@@ -631,11 +697,31 @@ export class Board extends Phaser.Scene {
 
             if (isDead) {
                 const textWidth = nicknameText.width;
-                const strikeLine = this.add.line(0, rowY, 0, 0, textWidth, 0, 0xff2e2e)
+                const strikeLine = this.add.line(10, 14, 0, 0, textWidth, 0, 0xff2e2e)
                     .setLineWidth(6)
                     .setOrigin(0, 0.5);
 
-                this.playersListRowsContainer.add(strikeLine);
+                rowContainer.add(strikeLine);
+            }
+
+            if (isActive) {
+                this.playerListRowTweens.push(this.tweens.add({
+                    targets: highlightGlow,
+                    alpha: { from: 0.08, to: 0.36 },
+                    duration: 850,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                }));
+
+                this.playerListRowTweens.push(this.tweens.add({
+                    targets: [highlightFill, turnIcon],
+                    alpha: { from: 0.7, to: 1 },
+                    duration: 850,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                }));
             }
         });
     }
