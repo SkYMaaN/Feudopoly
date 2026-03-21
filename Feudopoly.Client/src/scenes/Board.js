@@ -92,7 +92,7 @@ export class Board extends Phaser.Scene {
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
                 width: 600,
-                height: 250,
+                height: 300,
                 title: 'sad'
             }
         )
@@ -649,11 +649,11 @@ export class Board extends Phaser.Scene {
 
             const rowY = index * rowHeight;
             const rowContainer = this.add.container(0, rowY);
-            const highlightGlow = this.add.rectangle(0, 0, 206, 28, 0xffd166, 0)
+            const highlightGlow = this.add.rectangle(0, 5, 190, 28, 0xffd166, 0)
                 .setOrigin(0, 0)
                 .setStrokeStyle(2, 0xfff0b3, 0)
                 .setBlendMode(Phaser.BlendModes.ADD);
-            const highlightFill = this.add.rectangle(0, 0, 206, 28, 0x6f4b23, isActive ? 0.85 : 0)
+            const highlightFill = this.add.rectangle(0, 5, 190, 28, 0x6f4b23, isActive ? 0.85 : 0)
                 .setOrigin(0, 0)
                 .setStrokeStyle(2, 0xffd166, isActive ? 0.95 : 0);
 
@@ -666,7 +666,7 @@ export class Board extends Phaser.Scene {
                 fontStyle: 'bold'
             }).setOrigin(0, 0);
 
-            const turnIcon = this.add.text(180, 2, '✦', {
+            const turnIcon = this.add.text(180, 5, '✦', {
                 fontFamily: 'Arial, sans-serif',
                 fontSize: '20px',
                 color: '#ffe066',
@@ -879,7 +879,7 @@ export class Board extends Phaser.Scene {
 
         this.input.on('pointerdown', this.turnBeganClickHandler);
 
-        this.startTurnBeganCountdown(30000, finishTurnFromTurnStart);
+        this.startTurnBeganCountdown(10000, finishTurnFromTurnStart);
     }
 
     turnEnded(payload) {
