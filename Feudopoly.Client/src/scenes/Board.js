@@ -2348,12 +2348,12 @@ export class Board extends Phaser.Scene {
             return key;
         }
 
-        const width = 196;
+        const width = 190;
         const height = 166;
         const padding = 16;
-        const radius = 28;
-        const outerLineWidth = 16;
-        const mainLineWidth = 8;
+        const radius = 8;
+        const outerLineWidth = 8;
+        const mainLineWidth = 4;
 
         const texture = this.textures.createCanvas(key, width, height);
         const ctx = texture.context;
