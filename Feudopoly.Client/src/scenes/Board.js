@@ -90,6 +90,7 @@ export class Board extends Phaser.Scene {
         this.addBoard();
         this.buildCells();
         this.setCellBackgrounds();
+        this.createLocalPlayerCellHighlight();
         this.addMedievalAtmosphere();
         this.createDiceUI();
         this.createTurnUI();
@@ -479,6 +480,7 @@ export class Board extends Phaser.Scene {
 
         this.updatePlayersListUI(state.players);
         this.updateActivePlayerHighlights();
+        this.updateLocalPlayerCellHighlight();
     }
 
     syncPlayerColors(playersState) {
@@ -494,7 +496,7 @@ export class Board extends Phaser.Scene {
     createPlayer(playerId, displayName, startPosition) {
         const cell = this.cells[startPosition] ?? this.cells[0];
 
-        const container = this.add.container(cell.x, cell.y);
+        const container = this.add.container(cell.x, cell.y).setDepth(20);
         const tokenShadow = this.add.circle(0, 3, 18, 0x000000, 0.22);
         const activeRing = this.createActivePlayerRing();
         const tokenBody = this.add.circle(0, 0, 17, this.getPlayerColor(playerId), 1)
@@ -1845,6 +1847,7 @@ export class Board extends Phaser.Scene {
         if (steps === 0) {
             player.currentPosition = finalPosition;
             this.applyStackOffsets(player.currentPosition);
+            this.updateLocalPlayerCellHighlight();
             onComplete?.();
             return;
         }
@@ -1859,12 +1862,21 @@ export class Board extends Phaser.Scene {
 
             this.stepSfx?.play();
 
+            const tweenTargets = player.playerId === String(this.localPlayerId ?? '')
+                ? [player.container, this.localPlayerCellHighlight].filter(Boolean)
+                : [player.container];
+
             this.tweens.add({
-                targets: player.container,
+                targets: tweenTargets,
                 x: point.x,
                 y: point.y,
                 duration: 500,
                 delay: 100,
+                onStart: () => {
+                    if (player.playerId === String(this.localPlayerId ?? '')) {
+                        this.localPlayerCellHighlight?.setVisible(true);
+                    }
+                },
                 onComplete: () => {
                     remainingSteps -= 1;
                     if (remainingSteps > 0) {
@@ -1874,6 +1886,7 @@ export class Board extends Phaser.Scene {
 
                     player.currentPosition = finalPosition;
                     this.applyStackOffsets(player.currentPosition);
+                    this.updateLocalPlayerCellHighlight();
                     onComplete?.();
                 }
             });
@@ -2285,6 +2298,153 @@ export class Board extends Phaser.Scene {
 
             img.setDisplaySize(145, 120);
         }
+    }
+
+    createLocalPlayerCellHighlight() {
+        const textureKey = this.ensureLocalPlayerCellHighlightTexture();
+        const startCell = this.cells[this.startCellIndex] ?? this.cells[0] ?? { x: 0, y: 0 };
+
+        const glow = this.add.image(0, 0, textureKey)
+            .setScale(1.06)
+            .setAlpha(0.24)
+            .setBlendMode(Phaser.BlendModes.SCREEN);
+
+        const border = this.add.image(0, 0, textureKey)
+            .setAlpha(0.92);
+
+        this.localPlayerCellHighlight = this.add.container(startCell.x, startCell.y, [glow, border])
+            .setVisible(false)
+            .setAlpha(0)
+            .setDepth(6);
+
+        this.localPlayerCellHighlightGlow = glow;
+        this.localPlayerCellHighlightBorder = border;
+
+        this.localPlayerCellHighlightPulseTween = this.tweens.add({
+            targets: this.localPlayerCellHighlight,
+            scaleX: 1.018,
+            scaleY: 1.018,
+            duration: 2200,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+
+        this.localPlayerCellHighlightGlowTween = this.tweens.add({
+            targets: glow,
+            alpha: 0.34,
+            duration: 1700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+    }
+
+    ensureLocalPlayerCellHighlightTexture() {
+        const key = 'local-player-cell-highlight';
+        if (this.textures.exists(key)) {
+            return key;
+        }
+
+        const width = 196;
+        const height = 166;
+        const padding = 16;
+        const radius = 28;
+        const outerLineWidth = 16;
+        const mainLineWidth = 8;
+
+        const texture = this.textures.createCanvas(key, width, height);
+        const ctx = texture.context;
+        const gradient = ctx.createLinearGradient(padding, padding, width - padding, height - padding);
+        const colorStops = this.ACTIVE_TOKEN_RING_COLORS;
+
+        colorStops.forEach((color, index) => {
+            const hex = `#${color.toString(16).padStart(6, '0')}`;
+            const stop = colorStops.length === 1 ? 0 : index / (colorStops.length - 1);
+            gradient.addColorStop(stop, hex);
+        });
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = outerLineWidth;
+        this.traceRoundedRectPath(ctx, padding, padding, width - padding * 2, height - padding * 2, radius);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.94;
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = mainLineWidth;
+        this.traceRoundedRectPath(ctx, padding, padding, width - padding * 2, height - padding * 2, radius);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        this.traceRoundedRectPath(ctx, padding + 5, padding + 5, width - (padding + 5) * 2, height - (padding + 5) * 2, radius - 6);
+        ctx.stroke();
+        ctx.restore();
+
+        texture.refresh();
+        return key;
+    }
+
+    traceRoundedRectPath(ctx, x, y, width, height, radius) {
+        const safeRadius = Math.min(radius, width / 2, height / 2);
+
+        ctx.beginPath();
+        ctx.moveTo(x + safeRadius, y);
+        ctx.lineTo(x + width - safeRadius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+        ctx.lineTo(x + width, y + height - safeRadius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+        ctx.lineTo(x + safeRadius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+        ctx.lineTo(x, y + safeRadius);
+        ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    }
+
+    updateLocalPlayerCellHighlight(animatePosition = false) {
+        if (!this.localPlayerCellHighlight) {
+            return;
+        }
+
+        const localPlayer = this.players.find(player => player.playerId === String(this.localPlayerId ?? ''));
+        const cell = localPlayer ? this.cells[localPlayer.currentPosition] : null;
+
+        if (!cell) {
+            this.localPlayerCellHighlightPulseTween?.pause();
+            this.localPlayerCellHighlightGlowTween?.pause();
+            this.localPlayerCellHighlight.setVisible(false).setAlpha(0);
+            return;
+        }
+
+        this.localPlayerCellHighlight.setVisible(true).setAlpha(0.9);
+        this.localPlayerCellHighlightPulseTween?.play();
+        this.localPlayerCellHighlightGlowTween?.play();
+
+        if (!animatePosition) {
+            this.localPlayerCellHighlight.setPosition(cell.x, cell.y);
+            return;
+        }
+
+        this.localPlayerCellHighlightMoveTween?.stop();
+        this.localPlayerCellHighlightMoveTween = this.tweens.add({
+            targets: this.localPlayerCellHighlight,
+            x: cell.x,
+            y: cell.y,
+            duration: 280,
+            ease: 'Sine.Out'
+        });
     }
 
     createTextBox(scene, x, y, config) {
