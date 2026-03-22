@@ -1,7 +1,8 @@
 const PANEL_STROKE = 0x2b5e8a;
 const TEXT_COLOR = '#FF0000';
-const INPUT_TEXT_COLOR = '#1d3557';
 const FOCUSED_STROKE = 0x214c74;
+const EMPTY_FIELD_CLASS = 'is-empty';
+const FOCUSED_FIELD_CLASS = 'is-focused';
 
 export class Start extends Phaser.Scene {
     constructor() {
@@ -101,7 +102,7 @@ export class Start extends Phaser.Scene {
             stroke: '#214c74',
             align: 'center'
         }).setOrigin(0.5);
-        this.time.delayedCall(60, () => this.focusField(this.nicknameField));
+        this.deferFieldFocus(this.nicknameField);
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (!this.openDropdown) {
@@ -128,43 +129,58 @@ export class Start extends Phaser.Scene {
             align: 'center'
         }).layout();
 
-        const dom = this.add.dom(config.x - config.width / 2 + 100, config.y - 10).createFromHTML(`
-            <input
-                class="start-scene-input"
-                type="text"
-                maxlength="${config.maxLength}"
-                placeholder="${config.placeholder}"
-                autocomplete="off"
-                autocapitalize="none"
-                spellcheck="false"
-            />
+        const dom = this.add.dom(config.x, config.y).createFromHTML(`
+            <div class="start-scene-input-shell">
+                <div class="start-scene-input-inner">
+                    <input
+                        class="start-scene-input"
+                        type="text"
+                        maxlength="${config.maxLength}"
+                        placeholder="${config.placeholder}"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        spellcheck="false"
+                    />
+                </div>
+            </div>
         `);
 
+        const wrapper = dom.node.querySelector('.start-scene-input-shell');
         const input = dom.node.querySelector('input');
         input.value = config.value || '';
-        Object.assign(input.style, {
-            width: `${config.width - 30}px`,
-            height: `${config.height - 18}px`,
-            border: '0',
-            outline: 'none',
-            background: 'transparent',
-            color: INPUT_TEXT_COLOR,
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '30px',
-            textAlign: 'left',
-            padding: '0 4px',
-            borderRadius: '12px'
+
+        Object.assign(wrapper.style, {
+            width: `${config.width - 16}px`,
+            height: `${config.height - 12}px`
         });
 
-        input.addEventListener('input', () => config.onChange?.(input.value));
+        const syncFieldState = () => {
+            const hasValue = input.value.trim().length > 0;
+            wrapper.classList.toggle(EMPTY_FIELD_CLASS, !hasValue);
+            this.setFieldFocused(background, wrapper.classList.contains(FOCUSED_FIELD_CLASS));
+        };
 
-        input.addEventListener('focus', () => this.setFieldFocused(background, true));
-        input.addEventListener('blur', () => this.setFieldFocused(background, false));
+        input.addEventListener('input', () => {
+            config.onChange?.(input.value);
+            syncFieldState();
+        });
 
+        input.addEventListener('focus', () => {
+            wrapper.classList.add(FOCUSED_FIELD_CLASS);
+            this.setFieldFocused(background, true);
+        });
+        input.addEventListener('blur', () => {
+            wrapper.classList.remove(FOCUSED_FIELD_CLASS);
+            syncFieldState();
+        });
+
+        wrapper.addEventListener('pointerdown', () => input.focus());
         shell.setInteractive({ useHandCursor: true });
         shell.on('pointerdown', () => input.focus());
 
-        return { input };
+        syncFieldState();
+
+        return { input, wrapper };
     }
 
 
@@ -351,9 +367,21 @@ export class Start extends Phaser.Scene {
         return this.openDropdown.panel.list?.includes(gameObject) ?? false;
     }
 
+    deferFieldFocus(field) {
+        const focus = () => this.focusField(field);
+
+        this.time.delayedCall(60, focus);
+        this.time.delayedCall(220, focus);
+
+        if (typeof window !== 'undefined') {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(focus));
+            window.addEventListener('focus', focus, { once: true });
+        }
+    }
+
     focusField(field) {
         if (field?.input && !field.input.disabled) {
-            field.input.focus();
+            field.input.focus({ preventScroll: true });
         }
     }
 
