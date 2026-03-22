@@ -47,17 +47,17 @@ export class LobbyList extends Phaser.Scene {
         this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
         this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        this.add.text(235, 130, 'Search', {
+        /*this.add.text(200, 130, 'Search', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: TEXT_COLOR,
             fontStyle: 'bold'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5);*/
 
         this.searchField = this.createSearchField({
-            x: 235,
-            y: 185,
-            width: 330,
+            x: 300,
+            y: 150,
+            width: 500,
             height: 58,
             placeholder: 'Search lobbies',
             value: this.search,
@@ -541,8 +541,9 @@ export class LobbyList extends Phaser.Scene {
     }
 
     createSearchField(config) {
-        const background = this.rexUI.add.roundRectangle(0, 0, config.width, config.height, 16, 0xffffff, 1)
+        const background = this.rexUI.add.roundRectangle(0, 0, config.width, config.height, 16, 0x9cbfd9, 1)
             .setStrokeStyle(5, PANEL_STROKE, 0.95);
+
         const shell = this.rexUI.add.label({
             x: config.x,
             y: config.y,
@@ -572,7 +573,7 @@ export class LobbyList extends Phaser.Scene {
             border: '0',
             outline: 'none',
             background: 'transparent',
-            color: INPUT_TEXT_COLOR,
+            color: 'red',
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             textAlign: 'left',
