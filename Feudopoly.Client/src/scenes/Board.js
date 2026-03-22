@@ -2357,14 +2357,7 @@ export class Board extends Phaser.Scene {
 
         const texture = this.textures.createCanvas(key, width, height);
         const ctx = texture.context;
-        const gradient = ctx.createLinearGradient(padding, padding, width - padding, height - padding);
-        const colorStops = this.ACTIVE_TOKEN_RING_COLORS;
-
-        colorStops.forEach((color, index) => {
-            const hex = `#${color.toString(16).padStart(6, '0')}`;
-            const stop = colorStops.length === 1 ? 0 : index / (colorStops.length - 1);
-            gradient.addColorStop(stop, hex);
-        });
+        const borderColor = '#ffffff';
 
         ctx.clearRect(0, 0, width, height);
         ctx.lineJoin = 'round';
@@ -2372,7 +2365,7 @@ export class Board extends Phaser.Scene {
 
         ctx.save();
         ctx.globalAlpha = 0.22;
-        ctx.strokeStyle = gradient;
+        ctx.strokeStyle = borderColor;
         ctx.lineWidth = outerLineWidth;
         this.traceRoundedRectPath(ctx, padding, padding, width - padding * 2, height - padding * 2, radius);
         ctx.stroke();
@@ -2380,7 +2373,7 @@ export class Board extends Phaser.Scene {
 
         ctx.save();
         ctx.globalAlpha = 0.94;
-        ctx.strokeStyle = gradient;
+        ctx.strokeStyle = borderColor;
         ctx.lineWidth = mainLineWidth;
         this.traceRoundedRectPath(ctx, padding, padding, width - padding * 2, height - padding * 2, radius);
         ctx.stroke();
