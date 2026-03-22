@@ -2,8 +2,9 @@ export class Start extends Phaser.Scene {
     constructor() {
         super('Start');
         this.nickname = '';
-        this.sessionId = '';
         this.activeInput = null;
+        this.textInput = null;
+        this.textInputDom = null;
         this.gender = 'Male';
         this.religion = 'Islam';
         this.openDropdown = null;
@@ -12,7 +13,7 @@ export class Start extends Phaser.Scene {
     preload() {
         this.load.scenePlugin({
             key: 'rexuiplugin',
-            url: "plugins/rexuiplugin.min.js",
+            url: 'plugins/rexuiplugin.min.js',
             sceneKey: 'rexUI'
         });
     }
@@ -33,7 +34,7 @@ export class Start extends Phaser.Scene {
         this.add.text(width / 2, height / 2 - 270, 'A medieval board of feuds and fortune', {
             fontFamily: 'Georgia, serif',
             fontSize: '34px',
-            color: '#FF0000',
+            color: '#FF0000'
         }).setOrigin(0.5);
 
         this.add.text(width / 2, height / 2 - 220, 'Nickname', {
@@ -59,7 +60,7 @@ export class Start extends Phaser.Scene {
             this.gender = value;
         });
 
-        this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
+        this.religionLabel = this.add.text(width / 2, height / 2 + 25, 'Religion', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: '#FF0000'
@@ -72,14 +73,6 @@ export class Start extends Phaser.Scene {
             this.religion = value;
         });
 
-        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 150, 'Game code (for joining)', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#FF0000'
-        }).setOrigin(0.5).setVisible(false);
-
-        this.sessionField = this.createInputField(width / 2, height / 2 + 210, 'Paste game code here', 36);
-        this.setJoinCodeVisibility(false);
 
         this.createNewButton = this.createButton(width / 2, height / 2 + 220, 410, 96, 'LOBBIES', () => {
             const nickname = this.nickname.trim();
@@ -95,40 +88,6 @@ export class Start extends Phaser.Scene {
             });
         });
 
-        this.setGameButtonsVisibility(true);
-
-        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 320, 300, 96, 'CONNECT', () => {
-            const nickname = this.nickname.trim();
-
-            if (!nickname) {
-                this.showMessage('Enter your nickname before connecting.');
-                return;
-            }
-
-            const sessionId = this.sessionId.trim();
-            if (!sessionId) {
-                this.showMessage('Please enter the game code to connect.');
-                return;
-            }
-
-            this.scene.start('Board', {
-                mode: 'join',
-                displayName: nickname,
-                sessionId,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
-        });
-        this.setConnectGameButtonVisibility(false);
-
-        this.backButton = this.createButton(width / 2 + 180, height / 2 + 320, 300, 96, 'BACK', () => {
-            this.setJoinCodeVisibility(false);
-            this.setGameButtonsVisibility(true);
-            this.setBackButtonVisibility(false);
-            this.setConnectGameButtonVisibility(false);
-        });
-        this.setBackButtonVisibility(false);
-
         this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
             fontFamily: 'Georgia, serif',
             fontSize: '36px',
@@ -137,7 +96,7 @@ export class Start extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.setupKeyboardInput();
+        this.createTextInput();
         this.refreshInputStyles();
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
@@ -180,15 +139,84 @@ export class Start extends Phaser.Scene {
         const field = { container: label, bg, text, placeholder, maxLength };
 
         label.on('pointerdown', () => {
-            if (field === this.sessionField && !this.joinCodeVisible) {
-                return;
-            }
-
             this.activeInput = field;
             this.refreshInputStyles();
+            this.focusTextInput();
         });
 
         return field;
+    }
+
+    createTextInput() {
+        this.textInputDom = this.add.dom(0, 0).createFromHTML(`
+            <input
+                type="text"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                inputmode="text"
+                tabindex="-1"
+            />
+        `);
+
+        this.textInputDom.setOrigin(0).setPosition(0, 0);
+
+        const input = this.textInputDom.node.querySelector('input');
+        Object.assign(input.style, {
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            opacity: '0',
+            pointerEvents: 'none',
+            border: '0',
+            padding: '0',
+            outline: 'none',
+            background: 'transparent'
+        });
+
+        input.addEventListener('input', () => {
+            if (!this.activeInput) {
+                return;
+            }
+
+            this.setFieldValue(input.value);
+        });
+
+
+        this.textInput = input;
+        this.syncTextInput();
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.textInput?.blur();
+            this.textInputDom?.destroy();
+            this.textInput = null;
+            this.textInputDom = null;
+        });
+    }
+
+    focusTextInput() {
+        if (!this.textInput || !this.activeInput) {
+            return;
+        }
+
+        const value = this.nickname;
+        this.syncTextInput();
+        this.textInput.focus({ preventScroll: true });
+
+        if (typeof this.textInput.setSelectionRange === 'function') {
+            const caretPosition = value.length;
+            this.textInput.setSelectionRange(caretPosition, caretPosition);
+        }
+    }
+
+    syncTextInput() {
+        if (!this.textInput || !this.activeInput) {
+            return;
+        }
+
+        const value = this.nickname;
+        this.textInput.maxLength = this.activeInput.maxLength;
+        this.textInput.value = value;
     }
 
     createButton(x, y, width, height, label, onClick) {
@@ -236,7 +264,7 @@ export class Start extends Phaser.Scene {
         const text = this.add.text(0, 0, initialValue, {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#FF0000',
+            color: '#FF0000'
         }).setOrigin(0, 0.5);
 
         const arrow = this.add.text(0, 0, '▼', {
@@ -272,7 +300,7 @@ export class Start extends Phaser.Scene {
             const optionText = this.add.text(0, 0, option.label, {
                 fontFamily: 'Georgia, serif',
                 fontSize: '28px',
-                color: '#FF0000',
+                color: '#FF0000'
             }).setOrigin(0, 0.5);
 
             const button = this.rexUI.add.label({
@@ -359,107 +387,20 @@ export class Start extends Phaser.Scene {
         return this.openDropdown.panel.list?.includes(gameObject) ?? false;
     }
 
-    setBackButtonVisibility(isVisible) {
-        this.backButton.setVisible(isVisible);
-    }
-
-    setGameButtonsVisibility(isVisible) {
-        this.createNewButton.setVisible(isVisible);
-    }
-
-    setConnectGameButtonVisibility(isVisible) {
-        this.connectGameButton.setVisible(isVisible);
-    }
-
-    setJoinCodeVisibility(isVisible) {
-        this.joinCodeVisible = isVisible;
-        this.joinCodeLabel.setVisible(isVisible);
-        this.sessionField.container.setVisible(isVisible);
-
-        if (!isVisible && this.activeInput === this.sessionField) {
-            this.activeInput = this.nicknameField;
-        }
-
-        this.refreshInputStyles();
-    }
-
     refreshInputStyles() {
-        [this.nicknameField, this.sessionField].forEach((field) => {
-            const hidden = field === this.sessionField && !this.joinCodeVisible;
-            if (hidden) {
-                return;
-            }
-
-            const isActive = this.activeInput === field;
-            field.bg.setStrokeStyle(5, isActive ? 0x214c74 : 0x2b5e8a, 1);
-        });
+        const isActive = this.activeInput === this.nicknameField;
+        this.nicknameField.bg.setStrokeStyle(5, isActive ? 0x214c74 : 0x2b5e8a, 1);
     }
 
-    setupKeyboardInput() {
-        this.input.keyboard.on('keydown', (event) => {
-            if (!this.activeInput) {
-                return;
-            }
+    setFieldValue(value) {
+        this.nickname = value;
 
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
-                event.preventDefault();
-                this.pasteFromClipboard();
-                return;
-            }
-
-            const isNickname = this.activeInput === this.nicknameField;
-            const value = isNickname ? this.nickname : this.sessionId;
-            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
-
-            if (event.key === 'Backspace') {
-                this.setFieldValue(isNickname, value.slice(0, -1));
-                return;
-            }
-
-            if (event.key === 'Tab') {
-                event.preventDefault();
-                this.activeInput = this.joinCodeVisible && isNickname ? this.sessionField : this.nicknameField;
-                this.refreshInputStyles();
-                return;
-            }
-
-            if (event.key.length === 1 && value.length < maxLength) {
-                this.setFieldValue(isNickname, value + event.key);
-            }
-        });
-    }
-
-    async pasteFromClipboard() {
-        if (!navigator.clipboard?.readText || !this.activeInput) {
-            return;
+        if (this.activeInput === this.nicknameField) {
+            this.syncTextInput();
         }
 
-        try {
-            const isNickname = this.activeInput === this.nicknameField;
-            const value = isNickname ? this.nickname : this.sessionId;
-            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
-
-            const clipboardText = await navigator.clipboard.readText();
-            const cleanText = clipboardText.replace(/[\r\n]+/g, ' ').trim();
-            const nextValue = (value + cleanText).slice(0, maxLength);
-
-            this.setFieldValue(isNickname, nextValue);
-        } catch {
-            this.showMessage('Clipboard access is unavailable.');
-        }
-    }
-
-    setFieldValue(isNickname, value) {
-        const field = isNickname ? this.nicknameField : this.sessionField;
-
-        if (isNickname) {
-            this.nickname = value;
-        } else {
-            this.sessionId = value;
-        }
-
-        field.text.setText(value || field.placeholder);
-        field.text.setColor('#FF0000');
+        this.nicknameField.text.setText(value || this.nicknameField.placeholder);
+        this.nicknameField.text.setColor('#FF0000');
     }
 
     showMessage(text) {
