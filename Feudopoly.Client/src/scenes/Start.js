@@ -2,6 +2,7 @@ const PANEL_STROKE = 0x2b5e8a;
 const TEXT_COLOR = '#FF0000';
 const INPUT_TEXT_COLOR = '#1d3557';
 const FOCUSED_STROKE = 0x214c74;
+const EMPTY_FIELD_HINT = 0xffd166;
 
 export class Start extends Phaser.Scene {
     constructor() {
@@ -58,6 +59,8 @@ export class Start extends Phaser.Scene {
                 this.nickname = value;
             }
         });
+        this.nicknameField.emptyState = this.createEmptyFieldAnimation(this.nicknameField);
+        this.updateEmptyFieldAnimation(this.nicknameField);
 
         this.genderLabel = this.add.text(width / 2, height / 2 - 100, 'Gender', {
             fontFamily: 'Georgia, serif',
@@ -101,6 +104,7 @@ export class Start extends Phaser.Scene {
             stroke: '#214c74',
             align: 'center'
         }).setOrigin(0.5);
+        this.focusField(this.nicknameField);
         this.time.delayedCall(60, () => this.focusField(this.nicknameField));
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
@@ -156,15 +160,25 @@ export class Start extends Phaser.Scene {
             borderRadius: '12px'
         });
 
-        input.addEventListener('input', () => config.onChange?.(input.value));
+        input.addEventListener('input', () => {
+            config.onChange?.(input.value);
+            this.updateEmptyFieldAnimation(field);
+        });
 
-        input.addEventListener('focus', () => this.setFieldFocused(background, true));
-        input.addEventListener('blur', () => this.setFieldFocused(background, false));
+        input.addEventListener('focus', () => {
+            this.setFieldFocused(background, true);
+            this.updateEmptyFieldAnimation(field);
+        });
+        input.addEventListener('blur', () => {
+            this.setFieldFocused(background, false);
+            this.updateEmptyFieldAnimation(field);
+        });
 
         shell.setInteractive({ useHandCursor: true });
         shell.on('pointerdown', () => input.focus());
 
-        return { input };
+        const field = { input, background, shell, config };
+        return field;
     }
 
 
@@ -172,6 +186,8 @@ export class Start extends Phaser.Scene {
         const nickname = this.nickname.trim();
         if (!nickname) {
             this.showMessage('Enter a nickname first.');
+            this.focusField(this.nicknameField);
+            this.restartEmptyFieldAnimation(this.nicknameField);
             return;
         }
 
@@ -351,9 +367,73 @@ export class Start extends Phaser.Scene {
         return this.openDropdown.panel.list?.includes(gameObject) ?? false;
     }
 
+    createEmptyFieldAnimation(field) {
+        const { x, y, width, height } = field.config;
+        const offset = 10;
+        const left = x - width / 2 + 18;
+        const right = x + width / 2 - 18;
+        const top = y - height / 2 - offset;
+        const bottom = y + height / 2 + offset;
+
+        const orbit = this.add.circle(left, top, 7, EMPTY_FIELD_HINT, 0.95).setDepth(50).setVisible(false);
+        const glow = this.add.circle(left, top, 16, EMPTY_FIELD_HINT, 0.28).setDepth(49).setVisible(false);
+
+        const syncGlow = () => glow.setPosition(orbit.x, orbit.y);
+        const tween = this.tweens.timeline({
+            targets: orbit,
+            paused: true,
+            repeat: -1,
+            tweens: [
+                { x: right, y: top, duration: 550, ease: 'Sine.InOut', onUpdate: syncGlow },
+                { x: right, y: bottom, duration: 400, ease: 'Sine.InOut', onUpdate: syncGlow },
+                { x: left, y: bottom, duration: 550, ease: 'Sine.InOut', onUpdate: syncGlow },
+                { x: left, y: top, duration: 400, ease: 'Sine.InOut', onUpdate: syncGlow }
+            ]
+        });
+
+        return { orbit, glow, tween, left, top };
+    }
+
+    updateEmptyFieldAnimation(field) {
+        if (!field?.emptyState) {
+            return;
+        }
+
+        const isEmpty = !field.input.value.trim();
+        const { orbit, glow, tween, left, top } = field.emptyState;
+
+        if (!isEmpty) {
+            tween.pause();
+            orbit.setVisible(false);
+            glow.setVisible(false);
+            orbit.setPosition(left, top);
+            glow.setPosition(left, top);
+            return;
+        }
+
+        orbit.setVisible(true);
+        glow.setVisible(true);
+
+        if (!tween.isPlaying()) {
+            tween.play();
+        }
+    }
+
+    restartEmptyFieldAnimation(field) {
+        if (!field?.emptyState) {
+            return;
+        }
+
+        const { tween, orbit, glow, left, top } = field.emptyState;
+        orbit.setPosition(left, top).setVisible(true);
+        glow.setPosition(left, top).setVisible(true);
+        tween.restart();
+    }
+
     focusField(field) {
         if (field?.input && !field.input.disabled) {
             field.input.focus();
+            field.input.setSelectionRange?.(field.input.value.length, field.input.value.length);
         }
     }
 
