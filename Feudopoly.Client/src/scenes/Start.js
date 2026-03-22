@@ -375,23 +375,91 @@ export class Start extends Phaser.Scene {
         const top = y - height / 2 - offset;
         const bottom = y + height / 2 + offset;
 
-        const orbit = this.add.circle(left, top, 7, EMPTY_FIELD_HINT, 0.95).setDepth(50).setVisible(false);
-        const glow = this.add.circle(left, top, 16, EMPTY_FIELD_HINT, 0.28).setDepth(49).setVisible(false);
+        const trail = this.add.graphics().setDepth(48).setVisible(false);
+        const head = this.add.circle(left, top, 6, EMPTY_FIELD_HINT, 0.98).setDepth(50).setVisible(false);
+        const glow = this.add.circle(left, top, 14, EMPTY_FIELD_HINT, 0.24).setDepth(49).setVisible(false);
+        const trailHead = {
+            x: left,
+            y: top,
+            points: [{ x: left, y: top }]
+        };
+        const syncTrail = () => {
+            const lastPoint = trailHead.points[trailHead.points.length - 1];
+            const deltaX = trailHead.x - lastPoint.x;
+            const deltaY = trailHead.y - lastPoint.y;
 
-        const syncGlow = () => glow.setPosition(orbit.x, orbit.y);
+            if ((deltaX * deltaX) + (deltaY * deltaY) >= 16) {
+                trailHead.points.push({ x: trailHead.x, y: trailHead.y });
+            } else {
+                lastPoint.x = trailHead.x;
+                lastPoint.y = trailHead.y;
+            }
+
+            if (trailHead.points.length > 16) {
+                trailHead.points.shift();
+            }
+
+            head.setPosition(trailHead.x, trailHead.y);
+            glow.setPosition(trailHead.x, trailHead.y);
+            this.drawEmptyFieldTrail(trail, trailHead.points);
+        };
         const tween = this.tweens.timeline({
-            targets: orbit,
+            targets: trailHead,
             paused: true,
             repeat: -1,
             tweens: [
-                { x: right, y: top, duration: 550, ease: 'Sine.InOut', onUpdate: syncGlow },
-                { x: right, y: bottom, duration: 400, ease: 'Sine.InOut', onUpdate: syncGlow },
-                { x: left, y: bottom, duration: 550, ease: 'Sine.InOut', onUpdate: syncGlow },
-                { x: left, y: top, duration: 400, ease: 'Sine.InOut', onUpdate: syncGlow }
+                { x: right, y: top, duration: 550, ease: 'Sine.InOut', onUpdate: syncTrail },
+                { x: right, y: bottom, duration: 400, ease: 'Sine.InOut', onUpdate: syncTrail },
+                { x: left, y: bottom, duration: 550, ease: 'Sine.InOut', onUpdate: syncTrail },
+                { x: left, y: top, duration: 400, ease: 'Sine.InOut', onUpdate: syncTrail }
             ]
         });
 
-        return { orbit, glow, tween, left, top };
+        return {
+            trail,
+            head,
+            orbit: head,
+            glow,
+            tween,
+            trailHead,
+            left,
+            top
+        };
+    }
+
+    drawEmptyFieldTrail(trail, points) {
+        trail.clear();
+
+        if (points.length < 2) {
+            return;
+        }
+
+        for (let index = 1; index < points.length; index += 1) {
+            const progress = index / (points.length - 1);
+            const width = 1.5 + (progress * 4.5);
+            const alpha = 0.06 + (progress * 0.44);
+
+            trail.lineStyle(width, EMPTY_FIELD_HINT, alpha);
+            trail.beginPath();
+            trail.moveTo(points[index - 1].x, points[index - 1].y);
+            trail.lineTo(points[index].x, points[index].y);
+            trail.strokePath();
+        }
+    }
+
+    resetEmptyFieldAnimation(emptyState) {
+        const { trail, head, orbit, glow, trailHead, left, top } = emptyState;
+        const marker = head ?? orbit;
+
+        if (trailHead) {
+            trailHead.x = left;
+            trailHead.y = top;
+            trailHead.points = [{ x: left, y: top }];
+        }
+
+        marker?.setPosition(left, top);
+        glow?.setPosition(left, top);
+        trail?.clear();
     }
 
     updateEmptyFieldAnimation(field) {
@@ -400,22 +468,30 @@ export class Start extends Phaser.Scene {
         }
 
         const isEmpty = !field.input.value.trim();
-        const { orbit, glow, tween, left, top } = field.emptyState;
+        const { trail, head, orbit, glow, tween, left, top } = field.emptyState;
+        const marker = head ?? orbit;
 
         if (!isEmpty) {
             tween.pause();
-            orbit.setVisible(false);
-            glow.setVisible(false);
-            orbit.setPosition(left, top);
-            glow.setPosition(left, top);
+            trail?.setVisible(false);
+            marker?.setVisible(false);
+            glow?.setVisible(false);
+            if (trail || marker) {
+                this.resetEmptyFieldAnimation(field.emptyState);
+            } else {
+                glow?.setPosition(left, top);
+            }
             return;
         }
 
-        orbit.setVisible(true);
-        glow.setVisible(true);
+        trail?.setVisible(true);
+        marker?.setVisible(true);
+        glow?.setVisible(true);
 
         if (!tween.isPlaying()) {
             tween.play();
+        } else if (trail && field.emptyState.trailHead) {
+            this.drawEmptyFieldTrail(trail, field.emptyState.trailHead.points);
         }
     }
 
@@ -424,9 +500,13 @@ export class Start extends Phaser.Scene {
             return;
         }
 
-        const { tween, orbit, glow, left, top } = field.emptyState;
-        orbit.setPosition(left, top).setVisible(true);
-        glow.setPosition(left, top).setVisible(true);
+        const { tween, trail, head, orbit, glow } = field.emptyState;
+        const marker = head ?? orbit;
+
+        this.resetEmptyFieldAnimation(field.emptyState);
+        trail?.setVisible(true);
+        marker?.setVisible(true);
+        glow?.setVisible(true);
         tween.restart();
     }
 
