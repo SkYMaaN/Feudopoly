@@ -9,7 +9,7 @@ namespace Feudopoly.Server.Controllers;
 
 [ApiController]
 [Route("api/lobbies")]
-public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext<LobbyHub> lobbyHub) : ControllerBase
+public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext<LobbyHub> lobbyHub, IHubContext<GameHub> gameHub) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyCollection<LobbyListItemDto>), StatusCodes.Status200OK)]
@@ -114,7 +114,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
             var removed = sessionStorage.LeaveLobby(session, request.PlayerId);
             if (removed)
             {
-                await lobbyHub.Clients.Group(lobbyId.ToString()).SendAsync("LobbyDeleted", lobbyId);
+                await NotifyLobbyDeleted(lobbyHub, gameHub, lobbyId);
                 await NotifyLobbyListDeleted(lobbyHub, lobbyId);
                 return NoContent();
             }
@@ -165,7 +165,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
             return NotFound();
         }
 
-        await lobbyHub.Clients.Group(lobbyId.ToString()).SendAsync("LobbyDeleted", lobbyId);
+        await NotifyLobbyDeleted(lobbyHub, gameHub, lobbyId);
         await NotifyLobbyListDeleted(lobbyHub, lobbyId);
         return NoContent();
     }
@@ -218,6 +218,13 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         }
 
         return lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListChanged", item);
+    }
+
+    private static async Task NotifyLobbyDeleted(IHubContext<LobbyHub> lobbyHub, IHubContext<GameHub> gameHub, Guid lobbyId)
+    {
+        var lobbyGroup = lobbyId.ToString();
+        await lobbyHub.Clients.Group(lobbyGroup).SendAsync("LobbyDeleted", lobbyId);
+        await gameHub.Clients.Group(lobbyGroup).SendAsync("LobbyDeleted", lobbyId);
     }
 
     private static Task NotifyLobbyListDeleted(IHubContext<LobbyHub> lobbyHub, Guid lobbyId)

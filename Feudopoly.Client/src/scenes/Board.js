@@ -5,6 +5,20 @@ export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
     COLOR_LIGHT = 0x7b5e57;
     COLOR_DARK = 0x260e04;
+    PLAYER_TOKEN_COLORS = [
+        0xff4d4f,
+        0xb8ff3b,
+        0xffd84d,
+        0xffffff
+    ];
+    ACTIVE_TOKEN_RING_COLORS = [
+        0xff4d4f,
+        0xff8a00,
+        0xfff34d,
+        0x61ff7a,
+        0x42d4ff,
+        0xb06cff
+    ];
 
     maxPlayers = 4;
     startCellIndex = 0;
@@ -15,7 +29,6 @@ export class Board extends Phaser.Scene {
 
     preload() {
         this.load.image('board', 'assets/boards/board1.jpg');
-        this.load.image('token', 'assets/textures/game_token.png');
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
         this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
@@ -64,6 +77,7 @@ export class Board extends Phaser.Scene {
         this.localPlayerIsSpectator = false;
         this.localPlayerIsWinner = false;
         this.localPlayerTurnsToSkip = 0;
+        this.playerListRowTweens = [];
         this.isDeathChoicePending = false;
         this.isProcessingDeathChoice = false;
         this.isVictoryChoicePending = false;
@@ -71,10 +85,12 @@ export class Board extends Phaser.Scene {
         this.hasExitedMatch = false;
         this.isLeavingMatch = false;
         this.isInGameMenuOpen = false;
+        this.playerColorAssignments = new Map();
 
         this.addBoard();
         this.buildCells();
         this.setCellBackgrounds();
+        this.createLocalPlayerCellHighlight();
         this.addMedievalAtmosphere();
         this.createDiceUI();
         this.createTurnUI();
@@ -85,11 +101,13 @@ export class Board extends Phaser.Scene {
         this.createVictoryScreenUI();
 
         this.registerHubEvents();
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanupHubEvents());
+        this.events.once(Phaser.Scenes.Events.DESTROY, () => this.cleanupHubEvents());
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
                 width: 600,
-                height: 250,
+                height: 300,
                 title: 'sad'
             }
         )
@@ -251,6 +269,7 @@ export class Board extends Phaser.Scene {
         try {
             await gameHubClient.leaveGame(this.sessionId);
             this.hasExitedMatch = true;
+            await gameHubClient.disconnect();
             this.scene.start('LobbyList', getOrCreateProfile());
         } catch (error) {
             this.isLeavingMatch = false;
@@ -273,6 +292,8 @@ export class Board extends Phaser.Scene {
     }
 
     registerHubEvents() {
+        this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
+
         this.unsubscribeHandlers = [
             gameHubClient.on('joined', ({ playerId, state }) => {
                 this.localPlayerId = String(playerId);
@@ -294,10 +315,43 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('turnEnded', (payload) => {
                 this.turnEnded(payload);
             }),
+            gameHubClient.on('lobbyDeleted', (lobbyId) => {
+                if (String(lobbyId) !== String(this.sessionId)) {
+                    return;
+                }
+
+                this.forceReturnToLobbyList('Lobby was closed. Returning to lobby list.');
+            }),
             gameHubClient.on('error', (error) => {
                 this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
             })
         ];
+    }
+
+    cleanupHubEvents() {
+        this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
+        this.unsubscribeHandlers = [];
+        gameHubClient.disconnect().catch(() => {});
+    }
+
+    async forceReturnToLobbyList(message) {
+        if (this.hasExitedMatch) {
+            return;
+        }
+
+        this.hasExitedMatch = true;
+        this.isLeavingMatch = false;
+        this.setStatus(message);
+
+        try {
+            await gameHubClient.disconnect();
+        } catch {
+            // ignore disconnect errors during forced navigation
+        }
+
+        if (this.scene.isActive()) {
+            this.scene.start('LobbyList', getOrCreateProfile());
+        }
     }
 
     createStatusText() {
@@ -328,11 +382,13 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = Array.isArray(state.pendingEventRollPlayerIds)
             ? state.pendingEventRollPlayerIds.map(id => String(id))
             : [];
+        this.syncPlayerColors(state.players);
 
         const incomingIds = new Set(state.players.map(player => String(player.playerId)));
 
         this.players.filter(player => !incomingIds.has(String(player.playerId)))
             .forEach(player => {
+                player.activeRingRotationTween?.remove();
                 player.container.destroy();
             });
 
@@ -353,6 +409,7 @@ export class Board extends Phaser.Scene {
             player.isSpectator = Boolean(playerState.isSpectator);
             player.isWinner = Boolean(playerState.isWinner);
             player.turnsToSkip = Number(playerState.turnsToSkip ?? 0);
+            player.tokenBody.setFillStyle(this.getPlayerColor(playerId), 1);
 
             // To prevent double animation from two web socket events.
             // Local player is already animated by DiceRolled/EventDiceRolled payloads.
@@ -379,9 +436,7 @@ export class Board extends Phaser.Scene {
 
         const localState = state.players.find(player => String(player.playerId) === String(this.localPlayerId ?? ""));
         if (!localState && this.localPlayerId && !this.hasExitedMatch) {
-            this.hasExitedMatch = true;
-            this.setStatus("You left this match.");
-            this.scene.start("LobbyList", getOrCreateProfile());
+            this.forceReturnToLobbyList('You left this match.');
             return;
         }
 
@@ -424,48 +479,86 @@ export class Board extends Phaser.Scene {
         }
 
         this.updatePlayersListUI(state.players);
+        this.updateActivePlayerHighlights();
+        this.updateLocalPlayerCellHighlight();
+    }
+
+    syncPlayerColors(playersState) {
+        this.playerColorAssignments.clear();
+
+        playersState.forEach((playerState, index) => {
+            const playerId = String(playerState.playerId);
+            const color = this.PLAYER_TOKEN_COLORS[index % this.PLAYER_TOKEN_COLORS.length];
+            this.playerColorAssignments.set(playerId, color);
+        });
     }
 
     createPlayer(playerId, displayName, startPosition) {
         const cell = this.cells[startPosition] ?? this.cells[0];
 
-        const container = this.add.container(cell.x, cell.y);
+        const container = this.add.container(cell.x, cell.y).setDepth(20);
+        const tokenShadow = this.add.circle(0, 3, 18, 0x000000, 0.22);
+        const activeRing = this.createActivePlayerRing();
+        const tokenBody = this.add.circle(0, 0, 17, this.getPlayerColor(playerId), 1)
+            .setStrokeStyle(2, 0x111111, 0.78)
+            .setInteractive({ useHandCursor: true });
+        const hitArea = this.add.circle(0, 0, 24, 0xffffff, 0.001)
+            .setInteractive({ useHandCursor: true });
 
-        const outline = this.add.sprite(0, 0, 'token')
-            .setOrigin(0.5)
-            .setScale(0.068)
-            .setTint(0x6d0f2d)
-            .setAlpha(0)
-            .setBlendMode(Phaser.BlendModes.ADD);
+        const activeRingRotationTween = this.tweens.add({
+            targets: activeRing,
+            angle: 360,
+            duration: 2600,
+            repeat: -1,
+            ease: 'Linear',
+            paused: true
+        });
 
-        const sprite = this.add.sprite(0, 0, 'token')
-            .setOrigin(0.5)
-            .setScale(0.05);
-
-        sprite.setTint(this.getPlayerColor(playerId));
-
-        const hoverTargets = [sprite, outline];
-        hoverTargets.forEach(target => target.setInteractive({ useHandCursor: true }));
-        hoverTargets.forEach(target => {
+        [tokenBody, hitArea].forEach(target => {
             target.on('pointerover', () => this.setPlayerHoverState(playerId, true));
             target.on('pointerout', () => this.setPlayerHoverState(playerId, false));
         });
 
-        container.add([outline, sprite]);
+        container.add([tokenShadow, activeRing, tokenBody, hitArea]);
 
         return {
             playerId,
             displayName,
             container,
-            sprite,
-            outline,
+            tokenBody,
+            tokenShadow,
+            hitArea,
+            activeRing,
+            activeRingRotationTween,
             currentPosition: startPosition,
             isConnected: true,
             isDead: false,
             isSpectator: false,
             isWinner: false,
-            isHovered: false
+            isHovered: false,
+            isActive: false
         };
+    }
+
+    createActivePlayerRing() {
+        const ring = this.add.container(0, 0)
+            .setVisible(false)
+            .setAlpha(0);
+        const radius = 24;
+        const segmentSize = 46;
+        const gap = 14;
+
+        this.ACTIVE_TOKEN_RING_COLORS.forEach((color, index) => {
+            const startAngle = index * (segmentSize + gap);
+            const endAngle = startAngle + segmentSize;
+            const segment = this.add.arc(0, 0, radius, startAngle, endAngle)
+                .setStrokeStyle(2.5, color, 0.95)
+                .setClosePath(false);
+
+            ring.add(segment);
+        });
+
+        return ring;
     }
 
     setPlayerHoverState(playerId, isHovered) {
@@ -475,33 +568,38 @@ export class Board extends Phaser.Scene {
         }
 
         player.isHovered = isHovered;
+        this.updatePlayerScale(player);
+    }
 
-        player.outline.setTint(0x6d0f2d);
-        player.outline.setAlpha(isHovered ? 0.95 : 0);
-        player.outline.setScale(isHovered ? 0.072 : 0.068);
+    updateActivePlayerHighlights() {
+        const activePlayerId = String(this.activeTurnPlayerId ?? '');
+
+        this.players.forEach(player => {
+            const isActive = activePlayerId !== '' && player.playerId === activePlayerId;
+            player.isActive = isActive;
+            player.activeRingRotationTween.pause();
+
+            if (!isActive) {
+                player.activeRing.setVisible(false).setAlpha(0).setAngle(0);
+                this.updatePlayerScale(player);
+                return;
+            }
+
+            player.activeRing.setVisible(true).setAlpha(1);
+            player.activeRingRotationTween.play();
+            this.updatePlayerScale(player);
+        });
+    }
+
+    updatePlayerScale(player) {
+        const activeScale = player.isActive ? 0.04 : 0;
+        const hoverScale = player.isHovered ? 0.05 : 0;
+        player.container.setScale(1 + activeScale + hoverScale);
+        player.tokenShadow.setAlpha(player.isHovered ? 0.3 : 0.22);
     }
 
     getPlayerColor(playerId) {
-        const palette = [
-            0xFF6B6B,
-            0x4ECDC4,
-            0xFFD166,
-            0x6A9FFB,
-            0xC77DFF,
-            0x95D36E,
-            0xF4A261,
-            0xF28482
-        ];
-
-        let hash = 0;
-        const value = String(playerId ?? '');
-
-        for (let i = 0; i < value.length; i += 1) {
-            hash = ((hash << 5) - hash) + value.charCodeAt(i);
-            hash |= 0;
-        }
-
-        return palette[Math.abs(hash) % palette.length];
+        return this.playerColorAssignments.get(String(playerId)) ?? this.PLAYER_TOKEN_COLORS[0];
     }
 
     createPlayersListUI() {
@@ -550,22 +648,37 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        this.playerListRowTweens?.forEach(tween => tween.remove());
+        this.playerListRowTweens = [];
         this.playersListRowsContainer.removeAll(true);
 
         if (!playersState.length) {
             return;
         }
 
-        const rowHeight = 25;
+        const rowHeight = 30;
+        const activePlayerId = String(this.activeTurnPlayerId ?? '');
 
         playersState.forEach((playerState, index) => {
             const playerId = String(playerState.playerId);
             const nickname = playerState.displayName ?? 'Player';
             const colorValue = this.getPlayerColor(playerId);
             const colorHex = `#${colorValue.toString(16).padStart(6, '0')}`;
+            const isActive = activePlayerId !== '' && playerId === activePlayerId;
 
             const rowY = index * rowHeight;
-            const nicknameText = this.add.text(0, rowY, nickname, {
+            const rowContainer = this.add.container(0, rowY);
+            const highlightGlow = this.add.rectangle(0, 5, 190, 28, 0xffd166, 0)
+                .setOrigin(0, 0)
+                .setStrokeStyle(2, 0xfff0b3, 0)
+                .setBlendMode(Phaser.BlendModes.ADD);
+            const highlightFill = this.add.rectangle(0, 5, 190, 28, 0x6f4b23, isActive ? 0.85 : 0)
+                .setOrigin(0, 0)
+                .setStrokeStyle(2, 0xffd166, isActive ? 0.95 : 0);
+            const colorDot = this.add.circle(16, 19, 7, colorValue, 1)
+                .setStrokeStyle(colorValue === 0xffffff ? 2 : 0, 0x2d2018, 0.85);
+
+            const nicknameText = this.add.text(30, 3, nickname, {
                 fontFamily: 'Arial, sans-serif',
                 fontSize: '20px',
                 color: colorHex,
@@ -574,9 +687,19 @@ export class Board extends Phaser.Scene {
                 fontStyle: 'bold'
             }).setOrigin(0, 0);
 
+            const turnIcon = this.add.text(180, 5, '✦', {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '20px',
+                color: '#ffe066',
+                stroke: '#000000',
+                strokeThickness: 4,
+                fontStyle: 'bold'
+            }).setOrigin(0.5, 0).setAlpha(isActive ? 1 : 0);
+
             const isSpectator = Boolean(playerState.isSpectator);
 
-            this.playersListRowsContainer.add(nicknameText);
+            rowContainer.add([highlightGlow, highlightFill, colorDot, nicknameText, turnIcon]);
+            this.playersListRowsContainer.add(rowContainer);
 
             if (isSpectator) {
                 nicknameText.setText(`${nickname} (spectator)`);
@@ -595,11 +718,31 @@ export class Board extends Phaser.Scene {
 
             if (isDead) {
                 const textWidth = nicknameText.width;
-                const strikeLine = this.add.line(0, rowY, 0, 0, textWidth, 0, 0xff2e2e)
+                const strikeLine = this.add.line(30, 14, 0, 0, textWidth, 0, 0xff2e2e)
                     .setLineWidth(6)
                     .setOrigin(0, 0.5);
 
-                this.playersListRowsContainer.add(strikeLine);
+                rowContainer.add(strikeLine);
+            }
+
+            if (isActive) {
+                this.playerListRowTweens.push(this.tweens.add({
+                    targets: highlightGlow,
+                    alpha: { from: 0.08, to: 0.36 },
+                    duration: 850,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                }));
+
+                this.playerListRowTweens.push(this.tweens.add({
+                    targets: [highlightFill, turnIcon],
+                    alpha: { from: 0.7, to: 1 },
+                    duration: 850,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                }));
             }
         });
     }
@@ -757,7 +900,7 @@ export class Board extends Phaser.Scene {
 
         this.input.on('pointerdown', this.turnBeganClickHandler);
 
-        this.startTurnBeganCountdown(30000, finishTurnFromTurnStart);
+        this.startTurnBeganCountdown(10000, finishTurnFromTurnStart);
     }
 
     turnEnded(payload) {
@@ -982,7 +1125,7 @@ export class Board extends Phaser.Scene {
     resolveChosenPlayerId(currentlyOver) {
         if (Array.isArray(currentlyOver)) {
             for (const gameObject of currentlyOver) {
-                const hit = this.players.find(player => player.sprite === gameObject || player.outline === gameObject);
+                const hit = this.players.find(player => player.tokenBody === gameObject || player.hitArea === gameObject);
                 if (hit && hit.playerId !== this.localPlayerId && !hit.isDead && !hit.isSpectator && !hit.isWinner) {
                     console.log('Selected playerId: ' + hit.playerId);
                     return hit.playerId;
@@ -1704,6 +1847,7 @@ export class Board extends Phaser.Scene {
         if (steps === 0) {
             player.currentPosition = finalPosition;
             this.applyStackOffsets(player.currentPosition);
+            this.updateLocalPlayerCellHighlight();
             onComplete?.();
             return;
         }
@@ -1718,12 +1862,21 @@ export class Board extends Phaser.Scene {
 
             this.stepSfx?.play();
 
+            const tweenTargets = player.playerId === String(this.localPlayerId ?? '')
+                ? [player.container, this.localPlayerCellHighlight].filter(Boolean)
+                : [player.container];
+
             this.tweens.add({
-                targets: player.container,
+                targets: tweenTargets,
                 x: point.x,
                 y: point.y,
                 duration: 500,
                 delay: 100,
+                onStart: () => {
+                    if (player.playerId === String(this.localPlayerId ?? '')) {
+                        this.localPlayerCellHighlight?.setVisible(true);
+                    }
+                },
                 onComplete: () => {
                     remainingSteps -= 1;
                     if (remainingSteps > 0) {
@@ -1733,6 +1886,7 @@ export class Board extends Phaser.Scene {
 
                     player.currentPosition = finalPosition;
                     this.applyStackOffsets(player.currentPosition);
+                    this.updateLocalPlayerCellHighlight();
                     onComplete?.();
                 }
             });
@@ -2144,6 +2298,146 @@ export class Board extends Phaser.Scene {
 
             img.setDisplaySize(145, 120);
         }
+    }
+
+    createLocalPlayerCellHighlight() {
+        const textureKey = this.ensureLocalPlayerCellHighlightTexture();
+        const startCell = this.cells[this.startCellIndex] ?? this.cells[0] ?? { x: 0, y: 0 };
+
+        const glow = this.add.image(0, 0, textureKey)
+            .setScale(1.06)
+            .setAlpha(0.24)
+            .setBlendMode(Phaser.BlendModes.SCREEN);
+
+        const border = this.add.image(0, 0, textureKey)
+            .setAlpha(0.92);
+
+        this.localPlayerCellHighlight = this.add.container(startCell.x, startCell.y, [glow, border])
+            .setVisible(false)
+            .setAlpha(0)
+            .setDepth(6);
+
+        this.localPlayerCellHighlightGlow = glow;
+        this.localPlayerCellHighlightBorder = border;
+
+        this.localPlayerCellHighlightPulseTween = this.tweens.add({
+            targets: this.localPlayerCellHighlight,
+            scaleX: 1.018,
+            scaleY: 1.018,
+            duration: 2200,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+
+        this.localPlayerCellHighlightGlowTween = this.tweens.add({
+            targets: glow,
+            alpha: 0.34,
+            duration: 1700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+    }
+
+    ensureLocalPlayerCellHighlightTexture() {
+        const key = 'local-player-cell-highlight';
+        if (this.textures.exists(key)) {
+            return key;
+        }
+
+        const width = 182;
+        const height = 166;
+        const padding = 16;
+        const radius = 8;
+        const outerLineWidth = 8;
+        const mainLineWidth = 6;
+
+        const texture = this.textures.createCanvas(key, width, height);
+        const ctx = texture.context;
+        const borderColor = '#ffffff';
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = outerLineWidth;
+        this.traceRoundedRectPath(ctx, padding, padding, width - padding * 2, height - padding * 2, radius);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.94;
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = mainLineWidth;
+        this.traceRoundedRectPath(ctx, padding, padding, width - padding * 2, height - padding * 2, radius);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        this.traceRoundedRectPath(ctx, padding + 5, padding + 5, width - (padding + 5) * 2, height - (padding + 5) * 2, radius - 6);
+        ctx.stroke();
+        ctx.restore();
+
+        texture.refresh();
+        return key;
+    }
+
+    traceRoundedRectPath(ctx, x, y, width, height, radius) {
+        const safeRadius = Math.min(radius, width / 2, height / 2);
+
+        ctx.beginPath();
+        ctx.moveTo(x + safeRadius, y);
+        ctx.lineTo(x + width - safeRadius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+        ctx.lineTo(x + width, y + height - safeRadius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+        ctx.lineTo(x + safeRadius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+        ctx.lineTo(x, y + safeRadius);
+        ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    }
+
+    updateLocalPlayerCellHighlight(animatePosition = false) {
+        if (!this.localPlayerCellHighlight) {
+            return;
+        }
+
+        const localPlayer = this.players.find(player => player.playerId === String(this.localPlayerId ?? ''));
+        const cell = localPlayer ? this.cells[localPlayer.currentPosition] : null;
+
+        if (!cell) {
+            this.localPlayerCellHighlightPulseTween?.pause();
+            this.localPlayerCellHighlightGlowTween?.pause();
+            this.localPlayerCellHighlight.setVisible(false).setAlpha(0);
+            return;
+        }
+
+        this.localPlayerCellHighlight.setVisible(true).setAlpha(0.9);
+        this.localPlayerCellHighlightPulseTween?.play();
+        this.localPlayerCellHighlightGlowTween?.play();
+
+        if (!animatePosition) {
+            this.localPlayerCellHighlight.setPosition(cell.x, cell.y);
+            return;
+        }
+
+        this.localPlayerCellHighlightMoveTween?.stop();
+        this.localPlayerCellHighlightMoveTween = this.tweens.add({
+            targets: this.localPlayerCellHighlight,
+            x: cell.x,
+            y: cell.y,
+            duration: 280,
+            ease: 'Sine.Out'
+        });
     }
 
     createTextBox(scene, x, y, config) {
