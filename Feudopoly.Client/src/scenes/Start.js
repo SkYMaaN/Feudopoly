@@ -49,8 +49,8 @@ export class Start extends Phaser.Scene {
         this.nicknameField = this.createTextField({
             x: width / 2,
             y: height / 2 - 160,
-            width: 500,
-            height: 74,
+            width: 330,
+            height: 58,
             placeholder: 'Enter your nickname',
             value: this.nickname,
             maxLength: 28,
