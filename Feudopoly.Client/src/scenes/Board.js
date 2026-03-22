@@ -2134,6 +2134,12 @@ export class Board extends Phaser.Scene {
     }
 
     drawFacePips(graphics, face, projectedPoints) {
+        const pipVisibility = face.normal.z;
+
+        if (pipVisibility <= 0.08) {
+            return;
+        }
+
         const value = this.diceFaceValues[face.key] ?? 1;
         const [v0, v1, v2, v3] = face.verts.map(v => projectedPoints[v]);
 
@@ -2158,10 +2164,12 @@ export class Board extends Phaser.Scene {
             6: [[0.3, 0.25], [0.7, 0.25], [0.3, 0.5], [0.7, 0.5], [0.3, 0.75], [0.7, 0.75]]
         };
 
+        const pipRadius = Phaser.Math.Clamp(3 + pipVisibility * 4, 3, 7);
+
         graphics.fillStyle(0x111111, 0.95);
         positions[value].forEach(([u, v]) => {
             const point = bilinear(u, v);
-            graphics.fillCircle(point.x, point.y, 7);
+            graphics.fillCircle(point.x, point.y, pipRadius);
         });
     }
 
