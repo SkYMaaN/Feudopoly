@@ -12,6 +12,7 @@ const TEXT_COLOR = '#FF0000';
 const INPUT_TEXT_COLOR = '#1d3557';
 const PLACEHOLDER_COLOR = '#8a4f4f';
 const ERROR_COLOR = '#ffe082';
+const FOCUSED_STROKE = 0x214c74;
 
 export class LobbyList extends Phaser.Scene {
     constructor() {
@@ -46,14 +47,34 @@ export class LobbyList extends Phaser.Scene {
         this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
         this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        this.searchText = this.add.text(80, 130, 'Search: ', { fontSize: '28px', color: TEXT_COLOR });
+        this.add.text(235, 130, 'Search', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '30px',
+            color: TEXT_COLOR,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.searchField = this.createSearchField({
+            x: 235,
+            y: 185,
+            width: 330,
+            height: 58,
+            placeholder: 'Search lobbies',
+            value: this.search,
+            maxLength: 32,
+            onChange: (value) => {
+                this.search = value;
+                this.renderRows();
+            }
+        });
+
         this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: TEXT_COLOR }).setOrigin(0.5);
 
         //this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
         this.createButton(1700, 70, 260, 60, 'REFRESH', () => this.syncLobbies());
         this.createButton(1700, 150, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
 
-        this.listContainer = this.add.container(70, 200);
+        this.listContainer = this.add.container(70, 250);
         this.input.keyboard.on('keydown', (e) => this.onKey(e));
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupHub, this);
@@ -61,6 +82,7 @@ export class LobbyList extends Phaser.Scene {
         this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
 
         this.bootLobbyRealtime();
+        this.time.delayedCall(60, () => this.focusField(this.searchField));
     }
 
     async bootLobbyRealtime() {
@@ -129,7 +151,6 @@ export class LobbyList extends Phaser.Scene {
         this.listContainer.removeAll(true);
         this.rows = [];
 
-        this.searchText.setText(`Search: ${this.search || '-'}`);
         const normalizedSearch = this.search.trim().toLowerCase();
         const visibleLobbies = this.lobbies.filter(lobby => !normalizedSearch || lobby.name.toLowerCase().includes(normalizedSearch));
 
@@ -519,6 +540,67 @@ export class LobbyList extends Phaser.Scene {
         return button;
     }
 
+    createSearchField(config) {
+        const background = this.rexUI.add.roundRectangle(0, 0, config.width, config.height, 16, 0xffffff, 1)
+            .setStrokeStyle(5, PANEL_STROKE, 0.95);
+        const shell = this.rexUI.add.label({
+            x: config.x,
+            y: config.y,
+            width: config.width,
+            height: config.height,
+            background,
+            align: 'center'
+        }).layout();
+
+        const dom = this.add.dom(config.x - config.width / 2 + 100, config.y - 10).createFromHTML(`
+            <input
+                class="lobby-search-input"
+                type="text"
+                maxlength="${config.maxLength}"
+                placeholder="${config.placeholder}"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+            />
+        `);
+
+        const input = dom.node.querySelector('input');
+        input.value = config.value || '';
+        Object.assign(input.style, {
+            width: `${config.width - 30}px`,
+            height: `${config.height - 18}px`,
+            border: '0',
+            outline: 'none',
+            background: 'transparent',
+            color: INPUT_TEXT_COLOR,
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '30px',
+            textAlign: 'left',
+            padding: '0 4px',
+            borderRadius: '12px'
+        });
+
+        input.addEventListener('input', () => config.onChange?.(input.value));
+        input.addEventListener('focus', () => this.setFieldFocused(background, true));
+        input.addEventListener('blur', () => this.setFieldFocused(background, false));
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                this.syncLobbies();
+            }
+        });
+
+        shell.setInteractive({ useHandCursor: true });
+        shell.on('pointerdown', () => input.focus());
+
+        return { container: shell, background, dom, input };
+    }
+
+    focusField(field) {
+        if (field?.input && !field.input.disabled) {
+            field.input.focus();
+        }
+    }
+
     focusModalField(field) {
         if (!field?.input || this.createLobbyState.submitting) {
             return;
@@ -528,7 +610,7 @@ export class LobbyList extends Phaser.Scene {
     }
 
     setFieldFocused(background, isFocused) {
-        background?.setStrokeStyle(5, isFocused ? 0x214c74 : PANEL_STROKE, 1);
+        background?.setStrokeStyle(5, isFocused ? FOCUSED_STROKE : PANEL_STROKE, 1);
     }
 
     adjustPlayersCount(delta) {
@@ -733,14 +815,8 @@ export class LobbyList extends Phaser.Scene {
             return;
         }
 
-        if (event.key === 'Backspace') {
-            this.search = this.search.slice(0, -1);
-            this.renderRows();
-            return;
-        }
-        if (event.key.length === 1 && this.search.length < 32) {
-            this.search += event.key;
-            this.renderRows();
+        if (event.key === 'Escape') {
+            this.searchField?.input?.blur();
         }
     }
 
@@ -766,6 +842,10 @@ export class LobbyList extends Phaser.Scene {
     async cleanupHub() {
         this.scale.off(Phaser.Scale.Events.RESIZE, this.handleResize, this);
         this.closeCreateLobbyModal();
+        this.searchField?.input?.blur();
+        this.searchField?.container?.destroy();
+        this.searchField?.dom?.destroy();
+        this.searchField = null;
 
         this.hubUnsubscribers.forEach(unsubscribe => unsubscribe());
         this.hubUnsubscribers = [];
