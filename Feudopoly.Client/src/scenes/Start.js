@@ -86,11 +86,11 @@ export class Start extends Phaser.Scene {
             this.religion = value;
         });
 
-        this.joinLobbyButton = this.createButton(width / 2 - 220, height / 2 + 220, 410, 96, 'Join', () => {
+        this.joinLobbyButton = this.createButton(width / 2, height / 2 + 200, 410, 96, 'Join', () => {
             this.openLobbyList();
         });
 
-        this.openNewButton = this.createButton(width / 2 + 220, height / 2 + 220, 410, 96, 'Open new', () => {
+        this.openNewButton = this.createButton(width / 2, height / 2 + 340, 410, 96, 'Open new', () => {
             this.openLobbyList({ openCreateLobbyModal: true });
         });
 
