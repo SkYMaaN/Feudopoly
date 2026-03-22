@@ -180,7 +180,7 @@ export class LobbyList extends Phaser.Scene {
 
         const { width, height } = this.scale.gameSize;
         const panelWidth = Math.min(width * 0.7, 860);
-        const panelHeight = Math.min(height * 0.7, 700);
+        const panelHeight = Math.min(height * 0.7, 620);
         const centerX = width / 2;
         const centerY = height / 2;
         const layout = this.getCreateLobbyLayout(panelWidth, panelHeight);
@@ -207,14 +207,14 @@ export class LobbyList extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
-        const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 102, 'Set lobby parameters without leaving the game screen.', {
+        const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 102, 'Set lobby parameters.', {
             fontFamily: 'Georgia, serif',
             fontSize: `${layout.subtitleFontSize}px`,
             color: '#ffe7cf',
             align: 'center'
         }).setOrigin(0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
-        this.formErrorText = this.add.text(centerX, centerY - panelHeight / 2 + 148, '', {
+        this.formErrorText = this.add.text(centerX, centerY - panelHeight / 2 + 128, '', {
             fontFamily: 'Arial, sans-serif',
             fontSize: `${layout.errorFontSize}px`,
             color: ERROR_COLOR,
@@ -229,8 +229,8 @@ export class LobbyList extends Phaser.Scene {
             type: 'text',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 218,
-            inputY: centerY - panelHeight / 2 + 274,
+            labelY: centerY - panelHeight / 2 + 160,
+            inputY: centerY - panelHeight / 2 + 210,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
@@ -239,8 +239,8 @@ export class LobbyList extends Phaser.Scene {
 
         this.playersField = this.createPlayersCountField({
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 372,
-            controlY: centerY - panelHeight / 2 + 438,
+            labelY: centerY - panelHeight / 2 + 285,
+            controlY: centerY - panelHeight / 2 + 340,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
@@ -254,16 +254,16 @@ export class LobbyList extends Phaser.Scene {
             type: 'password',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 526,
-            inputY: centerY - panelHeight / 2 + 582,
+            labelY: centerY - panelHeight / 2 + 406,
+            inputY: centerY - panelHeight / 2 + 462,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
             errorFontSize: layout.errorFontSize
         });
 
-        this.backModalButton = this.createModalButton(centerX - panelWidth * 0.18, centerY + panelHeight / 2 - 66, layout.buttonWidth, layout.buttonHeight, 'BACK', () => this.closeCreateLobbyModal());
-        this.createModalButtonControl = this.createModalButton(centerX + panelWidth * 0.18, centerY + panelHeight / 2 - 66, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.backModalButton = this.createModalButton(centerX - panelWidth * 0.18, centerY + panelHeight / 2 - 63, layout.buttonWidth, layout.buttonHeight, 'BACK', () => this.closeCreateLobbyModal());
+        this.createModalButtonControl = this.createModalButton(centerX + panelWidth * 0.18, centerY + panelHeight / 2 - 63, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
 
         this.modalElements = [
             this.modalBackdrop,
@@ -316,7 +316,7 @@ export class LobbyList extends Phaser.Scene {
             align: 'center'
         }).layout().setDepth(LOBBY_MODAL_DEPTH + 1);
 
-        const dom = this.add.dom(config.x, config.inputY).createFromHTML(`
+        const dom = this.add.dom(config.x - config.width / 2 + 100, config.inputY - 10).createFromHTML(`
             <input
                 class="lobby-modal-input"
                 type="${config.type}"
@@ -368,7 +368,7 @@ export class LobbyList extends Phaser.Scene {
             }
         });
 
-        const errorText = this.add.text(config.x - config.width / 2, config.inputY + config.height / 2 + 26, '', {
+        const errorText = this.add.text(config.x - config.width / 2 + 10, config.inputY + config.height / 2 + 5, '', {
             fontFamily: 'Arial, sans-serif',
             fontSize: `${config.errorFontSize}px`,
             color: ERROR_COLOR,
@@ -395,15 +395,15 @@ export class LobbyList extends Phaser.Scene {
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
         const controlWidth = Math.min(config.width, 520);
-        const minusButton = this.createStepperButton(config.x - controlWidth / 2 + 52, config.controlY, 84, config.height, '−', () => this.adjustPlayersCount(-1));
-        const plusButton = this.createStepperButton(config.x + controlWidth / 2 - 52, config.controlY, 84, config.height, '+', () => this.adjustPlayersCount(1));
+        const minusButton = this.createStepperButton(config.x - controlWidth / 2 + 22, config.controlY, 84, config.height, '−', () => this.adjustPlayersCount(-1));
+        const plusButton = this.createStepperButton(config.x + controlWidth / 2 - 22, config.controlY, 84, config.height, '+', () => this.adjustPlayersCount(1));
 
         const valueBackground = this.rexUI.add.roundRectangle(0, 0, controlWidth - 220, config.height, 16, 0xffffff, 1)
             .setStrokeStyle(5, PANEL_STROKE, 0.95);
         const valueContainer = this.rexUI.add.label({
             x: config.x,
             y: config.controlY,
-            width: controlWidth - 220,
+            width: controlWidth - 180,
             height: config.height,
             background: valueBackground,
             align: 'center'
