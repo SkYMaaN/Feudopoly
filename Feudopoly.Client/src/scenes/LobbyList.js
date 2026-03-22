@@ -49,9 +49,9 @@ export class LobbyList extends Phaser.Scene {
         this.searchText = this.add.text(80, 130, 'Search: ', { fontSize: '28px', color: TEXT_COLOR });
         this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
-        this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
-        this.createButton(1700, 230, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
+        //this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
+        this.createButton(1700, 70, 260, 60, 'REFRESH', () => this.syncLobbies());
+        this.createButton(1700, 150, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
 
         this.listContainer = this.add.container(70, 200);
         this.input.keyboard.on('keydown', (e) => this.onKey(e));

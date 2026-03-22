@@ -86,7 +86,7 @@ export class Start extends Phaser.Scene {
             this.religion = value;
         });
 
-        this.createNewButton = this.createButton(width / 2, height / 2 + 220, 410, 96, 'LOBBIES', () => {
+        this.createNewButton = this.createButton(width / 2, height / 2 + 220, 410, 96, 'Join', () => {
             const nickname = this.nickname.trim();
             if (!nickname) {
                 this.showMessage('Enter a nickname first.');

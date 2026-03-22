@@ -106,8 +106,8 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
-                width: 600,
-                height: 300,
+                width: 800,
+                height: 400,
                 title: 'sad'
             }
         )
@@ -585,8 +585,9 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
-            player.activeRing.setVisible(true).setAlpha(1);
-            player.activeRingRotationTween.play();
+            //disable ring
+            player.activeRing.setVisible(true).setAlpha(0);
+            player.activeRingRotationTween.pause();
             this.updatePlayerScale(player);
         });
     }
