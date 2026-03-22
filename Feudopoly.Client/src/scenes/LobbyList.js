@@ -82,7 +82,14 @@ export class LobbyList extends Phaser.Scene {
         this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
 
         this.bootLobbyRealtime();
-        this.time.delayedCall(60, () => this.focusField(this.searchField));
+        this.time.delayedCall(60, () => {
+            if (data.openCreateLobbyModal) {
+                this.openCreateLobbyModal();
+                return;
+            }
+
+            this.focusField(this.searchField);
+        });
     }
 
     async bootLobbyRealtime() {

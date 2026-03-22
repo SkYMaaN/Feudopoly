@@ -86,18 +86,12 @@ export class Start extends Phaser.Scene {
             this.religion = value;
         });
 
-        this.createNewButton = this.createButton(width / 2, height / 2 + 220, 410, 96, 'Join', () => {
-            const nickname = this.nickname.trim();
-            if (!nickname) {
-                this.showMessage('Enter a nickname first.');
-                return;
-            }
+        this.joinLobbyButton = this.createButton(width / 2 - 220, height / 2 + 220, 410, 96, 'Join', () => {
+            this.openLobbyList();
+        });
 
-            this.scene.start('LobbyList', {
-                displayName: nickname,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
+        this.openNewButton = this.createButton(width / 2 + 220, height / 2 + 220, 410, 96, 'Open new', () => {
+            this.openLobbyList({ openCreateLobbyModal: true });
         });
 
         this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
@@ -171,6 +165,22 @@ export class Start extends Phaser.Scene {
         shell.on('pointerdown', () => input.focus());
 
         return { input };
+    }
+
+
+    openLobbyList(additionalData = {}) {
+        const nickname = this.nickname.trim();
+        if (!nickname) {
+            this.showMessage('Enter a nickname first.');
+            return;
+        }
+
+        this.scene.start('LobbyList', {
+            displayName: nickname,
+            isMan: this.gender === 'Male',
+            isMuslim: this.religion === 'Islam',
+            ...additionalData
+        });
     }
 
     createButton(x, y, width, height, label, onClick) {
