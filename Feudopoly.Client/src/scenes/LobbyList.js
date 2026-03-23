@@ -323,8 +323,14 @@ export class LobbyList extends Phaser.Scene {
             errorFontSize: layout.errorFontSize
         });
 
-        this.backModalButton = this.createModalButton(centerX - panelWidth * 0.18, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'BACK', () => this.closeCreateLobbyModal());
-        this.createModalButtonControl = this.createModalButton(centerX + panelWidth * 0.18, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.closeModalButton = this.createModalIconButton(
+            centerX - panelWidth / 2 + layout.closeButtonOffsetX,
+            centerY - panelHeight / 2 + layout.closeButtonOffsetY,
+            layout.closeButtonSize,
+            '✕',
+            () => this.closeCreateLobbyModal()
+        );
+        this.createModalButtonControl = this.createModalButton(centerX, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
 
         this.modalElements = [
             this.modalBackdrop,
@@ -336,7 +342,7 @@ export class LobbyList extends Phaser.Scene {
             ...this.playersField.displayObjects,
             ...this.accessTypeField.displayObjects,
             ...this.passwordField.displayObjects,
-            this.backModalButton,
+            this.closeModalButton,
             this.createModalButtonControl
         ];
         this.modalFields = [this.nameField, this.passwordField];
@@ -355,7 +361,10 @@ export class LobbyList extends Phaser.Scene {
             inputFontSize: panelWidth < 700 ? 24 : 28,
             errorFontSize: panelWidth < 700 ? 18 : 20,
             buttonWidth: panelWidth < 700 ? 220 : 250,
-            buttonHeight: 64
+            buttonHeight: 64,
+            closeButtonSize: panelWidth < 700 ? 52 : 56,
+            closeButtonOffsetX: panelWidth < 700 ? 46 : 52,
+            closeButtonOffsetY: panelWidth < 700 ? 44 : 48
         };
     }
 
@@ -645,14 +654,38 @@ export class LobbyList extends Phaser.Scene {
     }
 
     createModalButton(x, y, width, height, label, onClick) {
-        const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, BUTTON_COLOR, 1)
-            .setStrokeStyle(6, PANEL_STROKE, 1);
-
-        const buttonText = this.add.text(0, 0, label, {
+        const button = this.createModalIconButton(x, y, width, label, onClick, {
+            height,
+            radius: 16,
+            strokeWidth: 6,
             fontFamily: 'Georgia, serif',
             fontSize: '28px',
-            color: TEXT_COLOR,
+            textColor: TEXT_COLOR,
             fontStyle: 'bold'
+        });
+
+        button.setSize(width, height);
+        return button;
+    }
+
+    createModalIconButton(x, y, size, label, onClick, options = {}) {
+        const width = options.width ?? size;
+        const height = options.height ?? size;
+        const radius = options.radius ?? Math.round(Math.min(width, height) / 2);
+        const strokeWidth = options.strokeWidth ?? 6;
+        const textOffsetY = options.textOffsetY ?? 0;
+        const defaultColor = options.defaultFill ?? BUTTON_COLOR;
+        const hoverColor = options.hoverFill ?? BUTTON_HOVER_COLOR;
+        const activeColor = options.activeFill ?? BUTTON_ACTIVE_COLOR;
+
+        const background = this.rexUI.add.roundRectangle(0, 0, width, height, radius, defaultColor, 1)
+            .setStrokeStyle(strokeWidth, PANEL_STROKE, 1);
+
+        const buttonText = this.add.text(0, textOffsetY, label, {
+            fontFamily: options.fontFamily ?? 'Arial, sans-serif',
+            fontSize: options.fontSize ?? '36px',
+            color: options.textColor ?? TEXT_COLOR,
+            fontStyle: options.fontStyle ?? 'bold'
         }).setOrigin(0.5);
 
         const button = this.rexUI.add.label({
@@ -675,7 +708,7 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
-            background.setFillStyle(BUTTON_HOVER_COLOR, 1);
+            background.setFillStyle(hoverColor, 1);
         });
         button.on('pointerout', () => {
             if (button.toggleColors) {
@@ -683,7 +716,7 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
-            background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1);
+            background.setFillStyle(button.isActive ? activeColor : defaultColor, 1);
         });
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
