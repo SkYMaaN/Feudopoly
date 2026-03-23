@@ -109,7 +109,10 @@ export class Board extends Phaser.Scene {
             {
                 width: 800,
                 height: 400,
-                title: 'sad'
+                wrapWidth: 760,
+                fixedWidth: 760,
+                fixedHeight: 276,
+                title: ' '
             }
         )
             .setOrigin(0.5)
@@ -1044,11 +1047,12 @@ export class Board extends Phaser.Scene {
 
         this.input.once('pointerdown', this.notificationDismissHandler);
 
+        this.resizeNotificationTextBox({ title, text, hasVideo });
         this.notificationTextBox
             .setPosition(width / 2, hasVideo ? height - 180 : height / 2)
             .setVisible(true)
             .stop(true);
-        this.notificationTextBox.getElement('title')?.setText(title);
+        this.notificationTextBox.getElement('title')?.setText(title || ' ');
         this.notificationTextBox.setText('').layout().start(text, typingSpeed);
 
         if (!this.notificationVideo) {
@@ -1128,6 +1132,82 @@ export class Board extends Phaser.Scene {
         const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
         actionText.setText(`Click to continue${suffix}`);
         this.notificationTextBox.layout();
+    }
+
+    resizeNotificationTextBox({ title = '', text = '', hasVideo = false } = {}) {
+        const { width, height } = this.scale.gameSize;
+        const maxWidth = hasVideo ? 620 : 800;
+        const minWidth = hasVideo ? 420 : 540;
+        const minHeight = hasVideo ? 150 : 220;
+        const maxHeight = hasVideo ? 220 : 420;
+        const horizontalPadding = 40;
+        const verticalPadding = 40;
+        const innerMaxWidth = maxWidth - horizontalPadding;
+        const titleSpacing = title ? 58 : 0;
+        const actionSpacing = 34;
+        const bodyText = text || ' ';
+
+        const titleMetrics = this.measureNotificationText(title || ' ', {
+            fontSize: '30px',
+            fontStyle: 'bold',
+            wordWrap: { width: innerMaxWidth }
+        });
+        const bodyMetrics = this.measureNotificationText(bodyText, {
+            fontSize: '24px',
+            wordWrap: { width: innerMaxWidth }
+        });
+
+        const innerWidth = Phaser.Math.Clamp(
+            Math.ceil(Math.max(titleMetrics.width, bodyMetrics.width, minWidth - horizontalPadding)),
+            minWidth - horizontalPadding,
+            innerMaxWidth
+        );
+        const boxWidth = innerWidth + horizontalPadding;
+
+        const wrappedTitleMetrics = this.measureNotificationText(title || ' ', {
+            fontSize: '30px',
+            fontStyle: 'bold',
+            wordWrap: { width: innerWidth }
+        });
+        const wrappedBodyMetrics = this.measureNotificationText(bodyText, {
+            fontSize: '24px',
+            wordWrap: { width: innerWidth }
+        });
+
+        const bodyHeight = Math.ceil(wrappedBodyMetrics.height);
+        const boxHeight = Phaser.Math.Clamp(
+            Math.ceil(verticalPadding + titleSpacing + actionSpacing + wrappedTitleMetrics.height + bodyHeight),
+            minHeight,
+            maxHeight
+        );
+        const fixedHeight = Math.max(0, boxHeight - verticalPadding - titleSpacing - actionSpacing);
+
+        this.notificationTextBox?.destroy();
+        this.notificationTextBox = this.createTextBox(this, width / 2, hasVideo ? height - 180 : height / 2,
+            {
+                width: boxWidth,
+                height: boxHeight,
+                wrapWidth: innerWidth,
+                fixedWidth: innerWidth,
+                fixedHeight: fixedHeight,
+                title: ' '
+            }
+        )
+            .setOrigin(0.5)
+            .setDepth(2100)
+            .setVisible(false);
+    }
+
+    measureNotificationText(text, style) {
+        const measurementText = this.add.text(-1000, -1000, text || ' ', style)
+            .setVisible(false);
+        const bounds = measurementText.getBounds();
+        const result = {
+            width: Math.ceil(bounds.width || 0),
+            height: Math.ceil(bounds.height || 0)
+        };
+        measurementText.destroy();
+        return result;
     }
 
     resolveChosenPlayerId(currentlyOver) {
