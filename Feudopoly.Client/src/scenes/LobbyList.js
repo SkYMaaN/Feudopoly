@@ -79,7 +79,7 @@ export class LobbyList extends Phaser.Scene {
             y: 150,
             width: 500,
             height: 58,
-            placeholder: 'Search lobbies',
+            placeholder: 'Search one lobby...',
             value: this.search,
             maxLength: 32,
             onChange: (value) => {
