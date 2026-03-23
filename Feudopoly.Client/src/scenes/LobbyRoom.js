@@ -87,7 +87,7 @@ export class LobbyRoom extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.backBtn = this.createButton(1130, 86, 220, 62, 'BACK', () => this.goBack());
+        //this.backBtn = this.createButton(1130, 86, 220, 62, 'BACK', () => this.goBack());
         this.leaveBtn = this.createButton(1130, 158, 220, 62, 'LEAVE', () => this.leaveLobby());
         this.joinBtn = this.createButton(1130, 158, 220, 62, 'JOIN', () => this.joinLobby());
         this.startBtn = this.createButton(1130, 230, 220, 62, 'START', () => this.startLobby());
