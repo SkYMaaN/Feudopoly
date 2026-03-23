@@ -1,9 +1,12 @@
+const PANEL_STROKE = 0x2b5e8a;
+const TEXT_COLOR = '#FF0000';
+const INPUT_TEXT_COLOR = '#1d3557';
+const FOCUSED_STROKE = 0x214c74;
+
 export class Start extends Phaser.Scene {
     constructor() {
         super('Start');
         this.nickname = '';
-        this.sessionId = '';
-        this.activeInput = null;
         this.gender = 'Male';
         this.religion = 'Islam';
         this.openDropdown = null;
@@ -39,16 +42,27 @@ export class Start extends Phaser.Scene {
         this.add.text(width / 2, height / 2 - 220, 'Nickname', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#FF0000'
+            color: TEXT_COLOR,
+            fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.nicknameField = this.createInputField(width / 2, height / 2 - 160, 'Enter your nickname', 28);
-        this.activeInput = this.nicknameField;
+        this.nicknameField = this.createTextField({
+            x: width / 2,
+            y: height / 2 - 160,
+            width: 330,
+            height: 58,
+            placeholder: 'Enter your nickname',
+            value: this.nickname,
+            maxLength: 28,
+            onChange: (value) => {
+                this.nickname = value;
+            }
+        });
 
         this.genderLabel = this.add.text(width / 2, height / 2 - 100, 'Gender', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#FF0000'
+            color: TEXT_COLOR
         }).setOrigin(0.5);
 
         this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
@@ -62,7 +76,7 @@ export class Start extends Phaser.Scene {
         this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#FF0000'
+            color: TEXT_COLOR
         }).setOrigin(0.5);
 
         this.religionDropdown = this.createDropdown(width / 2, height / 2 + 85, [
@@ -72,73 +86,22 @@ export class Start extends Phaser.Scene {
             this.religion = value;
         });
 
-        this.joinCodeLabel = this.add.text(width / 2, height / 2 + 150, 'Game code (for joining)', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '30px',
-            color: '#FF0000'
-        }).setOrigin(0.5).setVisible(false);
-
-        this.sessionField = this.createInputField(width / 2, height / 2 + 210, 'Paste game code here', 36);
-        this.setJoinCodeVisibility(false);
-
-        this.createNewButton = this.createButton(width / 2, height / 2 + 220, 410, 96, 'LOBBIES', () => {
-            const nickname = this.nickname.trim();
-            if (!nickname) {
-                this.showMessage('Enter a nickname first.');
-                return;
-            }
-
-            this.scene.start('LobbyList', {
-                displayName: nickname,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
+        this.joinLobbyButton = this.createButton(width / 2, height / 2 + 200, 410, 96, 'Join', () => {
+            this.openLobbyList();
         });
 
-        this.setGameButtonsVisibility(true);
-
-        this.connectGameButton = this.createButton(width / 2 - 180, height / 2 + 320, 300, 96, 'CONNECT', () => {
-            const nickname = this.nickname.trim();
-
-            if (!nickname) {
-                this.showMessage('Enter your nickname before connecting.');
-                return;
-            }
-
-            const sessionId = this.sessionId.trim();
-            if (!sessionId) {
-                this.showMessage('Please enter the game code to connect.');
-                return;
-            }
-
-            this.scene.start('Board', {
-                mode: 'join',
-                displayName: nickname,
-                sessionId,
-                isMan: this.gender === 'Male',
-                isMuslim: this.religion === 'Islam'
-            });
+        this.openNewButton = this.createButton(width / 2, height / 2 + 340, 410, 96, 'Open new', () => {
+            this.openLobbyList({ openCreateLobbyModal: true });
         });
-        this.setConnectGameButtonVisibility(false);
-
-        this.backButton = this.createButton(width / 2 + 180, height / 2 + 320, 300, 96, 'BACK', () => {
-            this.setJoinCodeVisibility(false);
-            this.setGameButtonsVisibility(true);
-            this.setBackButtonVisibility(false);
-            this.setConnectGameButtonVisibility(false);
-        });
-        this.setBackButtonVisibility(false);
 
         this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
             fontFamily: 'Georgia, serif',
             fontSize: '36px',
-            color: '#FF0000',
+            color: TEXT_COLOR,
             stroke: '#214c74',
             align: 'center'
         }).setOrigin(0.5);
-
-        this.setupKeyboardInput();
-        this.refreshInputStyles();
+        this.time.delayedCall(60, () => this.focusField(this.nicknameField));
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (!this.openDropdown) {
@@ -153,42 +116,71 @@ export class Start extends Phaser.Scene {
         });
     }
 
-    createInputField(x, y, placeholder, maxLength) {
-        const bg = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0xffffff, 1)
-            .setStrokeStyle(5, 0x2b5e8a, 0.95);
+    createTextField(config) {
+        const background = this.rexUI.add.roundRectangle(0, 0, config.width, config.height, 16, 0xffffff, 1)
+            .setStrokeStyle(5, PANEL_STROKE, 0.95);
+        const shell = this.rexUI.add.label({
+            x: config.x,
+            y: config.y,
+            width: config.width,
+            height: config.height,
+            background,
+            align: 'center'
+        }).layout();
 
-        const text = this.add.text(0, 0, placeholder, {
+        const dom = this.add.dom(config.x - config.width / 2 + 100, config.y - 10).createFromHTML(`
+            <input
+                class="start-scene-input"
+                type="text"
+                maxlength="${config.maxLength}"
+                placeholder="${config.placeholder}"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+            />
+        `);
+
+        const input = dom.node.querySelector('input');
+        input.value = config.value || '';
+        Object.assign(input.style, {
+            width: `${config.width - 30}px`,
+            height: `${config.height - 18}px`,
+            border: '0',
+            outline: 'none',
+            background: 'transparent',
+            color: INPUT_TEXT_COLOR,
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
-            color: '#FF0000'
-        }).setOrigin(0, 0.5);
-
-        const label = this.rexUI.add.label({
-            x,
-            y,
-            background: bg,
-            text,
-            align: 'left',
-            space: {
-                left: 25,
-                right: 25,
-                top: 10,
-                bottom: 10
-            }
-        }).layout().setInteractive({ useHandCursor: true });
-
-        const field = { container: label, bg, text, placeholder, maxLength };
-
-        label.on('pointerdown', () => {
-            if (field === this.sessionField && !this.joinCodeVisible) {
-                return;
-            }
-
-            this.activeInput = field;
-            this.refreshInputStyles();
+            textAlign: 'left',
+            padding: '0 4px',
+            borderRadius: '12px'
         });
 
-        return field;
+        input.addEventListener('input', () => config.onChange?.(input.value));
+
+        input.addEventListener('focus', () => this.setFieldFocused(background, true));
+        input.addEventListener('blur', () => this.setFieldFocused(background, false));
+
+        shell.setInteractive({ useHandCursor: true });
+        shell.on('pointerdown', () => input.focus());
+
+        return { input };
+    }
+
+
+    openLobbyList(additionalData = {}) {
+        const nickname = this.nickname.trim();
+        if (!nickname) {
+            this.showMessage('Enter a nickname first.');
+            return;
+        }
+
+        this.scene.start('LobbyList', {
+            displayName: nickname,
+            isMan: this.gender === 'Male',
+            isMuslim: this.religion === 'Islam',
+            ...additionalData
+        });
     }
 
     createButton(x, y, width, height, label, onClick) {
@@ -198,7 +190,7 @@ export class Start extends Phaser.Scene {
         const buttonText = this.add.text(0, 0, label, {
             fontFamily: 'Georgia, serif',
             fontSize: '38px',
-            color: '#FF0000',
+            color: TEXT_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
@@ -231,18 +223,18 @@ export class Start extends Phaser.Scene {
 
     createDropdown(x, y, options, initialValue, onSelect) {
         const background = this.rexUI.add.roundRectangle(0, 0, 500, 74, 16, 0xffffff, 1)
-            .setStrokeStyle(5, 0x2b5e8a, 0.95);
+            .setStrokeStyle(5, PANEL_STROKE, 0.95);
 
         const text = this.add.text(0, 0, initialValue, {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#FF0000',
+            color: TEXT_COLOR,
         }).setOrigin(0, 0.5);
 
         const arrow = this.add.text(0, 0, '▼', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
-            color: '#FF0000',
+            color: TEXT_COLOR,
             stroke: '#214c74',
             strokeThickness: 5
         }).setOrigin(0.5);
@@ -272,7 +264,7 @@ export class Start extends Phaser.Scene {
             const optionText = this.add.text(0, 0, option.label, {
                 fontFamily: 'Georgia, serif',
                 fontSize: '28px',
-                color: '#FF0000',
+                color: TEXT_COLOR,
             }).setOrigin(0, 0.5);
 
             const button = this.rexUI.add.label({
@@ -336,7 +328,7 @@ export class Start extends Phaser.Scene {
 
         dropdown.panel.setVisible(false);
         dropdown.arrow.setText('▼');
-        dropdown.background.setStrokeStyle(5, 0x2b5e8a, 0.95);
+        dropdown.background.setStrokeStyle(5, PANEL_STROKE, 0.95);
 
         if (this.openDropdown === dropdown) {
             this.openDropdown = null;
@@ -359,107 +351,14 @@ export class Start extends Phaser.Scene {
         return this.openDropdown.panel.list?.includes(gameObject) ?? false;
     }
 
-    setBackButtonVisibility(isVisible) {
-        this.backButton.setVisible(isVisible);
-    }
-
-    setGameButtonsVisibility(isVisible) {
-        this.createNewButton.setVisible(isVisible);
-    }
-
-    setConnectGameButtonVisibility(isVisible) {
-        this.connectGameButton.setVisible(isVisible);
-    }
-
-    setJoinCodeVisibility(isVisible) {
-        this.joinCodeVisible = isVisible;
-        this.joinCodeLabel.setVisible(isVisible);
-        this.sessionField.container.setVisible(isVisible);
-
-        if (!isVisible && this.activeInput === this.sessionField) {
-            this.activeInput = this.nicknameField;
-        }
-
-        this.refreshInputStyles();
-    }
-
-    refreshInputStyles() {
-        [this.nicknameField, this.sessionField].forEach((field) => {
-            const hidden = field === this.sessionField && !this.joinCodeVisible;
-            if (hidden) {
-                return;
-            }
-
-            const isActive = this.activeInput === field;
-            field.bg.setStrokeStyle(5, isActive ? 0x214c74 : 0x2b5e8a, 1);
-        });
-    }
-
-    setupKeyboardInput() {
-        this.input.keyboard.on('keydown', (event) => {
-            if (!this.activeInput) {
-                return;
-            }
-
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
-                event.preventDefault();
-                this.pasteFromClipboard();
-                return;
-            }
-
-            const isNickname = this.activeInput === this.nicknameField;
-            const value = isNickname ? this.nickname : this.sessionId;
-            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
-
-            if (event.key === 'Backspace') {
-                this.setFieldValue(isNickname, value.slice(0, -1));
-                return;
-            }
-
-            if (event.key === 'Tab') {
-                event.preventDefault();
-                this.activeInput = this.joinCodeVisible && isNickname ? this.sessionField : this.nicknameField;
-                this.refreshInputStyles();
-                return;
-            }
-
-            if (event.key.length === 1 && value.length < maxLength) {
-                this.setFieldValue(isNickname, value + event.key);
-            }
-        });
-    }
-
-    async pasteFromClipboard() {
-        if (!navigator.clipboard?.readText || !this.activeInput) {
-            return;
-        }
-
-        try {
-            const isNickname = this.activeInput === this.nicknameField;
-            const value = isNickname ? this.nickname : this.sessionId;
-            const maxLength = isNickname ? this.nicknameField.maxLength : this.sessionField.maxLength;
-
-            const clipboardText = await navigator.clipboard.readText();
-            const cleanText = clipboardText.replace(/[\r\n]+/g, ' ').trim();
-            const nextValue = (value + cleanText).slice(0, maxLength);
-
-            this.setFieldValue(isNickname, nextValue);
-        } catch {
-            this.showMessage('Clipboard access is unavailable.');
+    focusField(field) {
+        if (field?.input && !field.input.disabled) {
+            field.input.focus();
         }
     }
 
-    setFieldValue(isNickname, value) {
-        const field = isNickname ? this.nicknameField : this.sessionField;
-
-        if (isNickname) {
-            this.nickname = value;
-        } else {
-            this.sessionId = value;
-        }
-
-        field.text.setText(value || field.placeholder);
-        field.text.setColor('#FF0000');
+    setFieldFocused(background, isFocused) {
+        background?.setStrokeStyle(5, isFocused ? FOCUSED_STROKE : PANEL_STROKE, 1);
     }
 
     showMessage(text) {

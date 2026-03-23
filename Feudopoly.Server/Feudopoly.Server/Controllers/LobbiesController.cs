@@ -71,7 +71,15 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
                     TurnsToSkip = 0
                 });
 
-            await NotifyLobbyListChanged(lobbyHub, session);
+            if (request.MaxPlayers == 1)
+            {
+                await StartAndNotifyAsync(session, request.CreatorId);
+            }
+            else
+            {
+                await NotifyLobbyListChanged(lobbyHub, session);
+            }
+
             return CreatedAtAction(nameof(GetLobby), new { lobbyId = session.SessionId }, ToDetails(session));
         }
         catch (InvalidDataException ex)
@@ -81,6 +89,10 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
     }
 
     [HttpPost("{lobbyId:guid}/join")]
+    [ProducesResponseType(typeof(LobbyDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiErrorDto), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> JoinLobby(Guid lobbyId, [FromBody] JoinLobbyRequest request)
     {
         if (!sessionStorage.TryGetSession(lobbyId, out var session) || session is null)
@@ -97,7 +109,19 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         }
         catch (InvalidDataException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            if (string.Equals(ex.Message, "Session is full.", StringComparison.Ordinal))
+            {
+                return Conflict(new ApiErrorDto
+                {
+                    Code = "lobby_full",
+                    Message = "Lobby is already full. No free slots left."
+                });
+            }
+
+            return BadRequest(new ApiErrorDto
+            {
+                Message = ex.Message
+            });
         }
     }
 
@@ -139,9 +163,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
 
         try
         {
-            sessionStorage.StartLobby(session, request.PlayerId);
-            await NotifyLobbyUpdated(lobbyHub, session);
-            await NotifyLobbyListChanged(lobbyHub, session);
+            await StartAndNotifyAsync(session, request.PlayerId);
             return Ok(ToDetails(session));
         }
         catch (InvalidDataException ex)
@@ -197,6 +219,13 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
             IsConnected = p.IsConnected
         }).ToArray()
     };
+
+    private async Task StartAndNotifyAsync(GameSession session, Guid playerId)
+    {
+        sessionStorage.StartLobby(session, playerId);
+        await NotifyLobbyUpdated(lobbyHub, session);
+        await NotifyLobbyListChanged(lobbyHub, session);
+    }
 
     private static Task NotifyLobbyUpdated(IHubContext<LobbyHub> lobbyHub, GameSession session)
     {

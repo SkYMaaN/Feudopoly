@@ -72,6 +72,7 @@ export class Board extends Phaser.Scene {
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
+        this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
         this.localPlayerIsDead = false;
         this.localPlayerIsSpectator = false;
@@ -106,8 +107,8 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
-                width: 600,
-                height: 300,
+                width: 800,
+                height: 400,
                 title: 'sad'
             }
         )
@@ -585,8 +586,9 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
-            player.activeRing.setVisible(true).setAlpha(1);
-            player.activeRingRotationTween.play();
+            //disable ring
+            player.activeRing.setVisible(true).setAlpha(0);
+            player.activeRingRotationTween.pause();
             this.updatePlayerScale(player);
         });
     }
@@ -747,16 +749,15 @@ export class Board extends Phaser.Scene {
         });
     }
 
-    refreshTurnUI() {
-        if (this.isTurnResultNotificationActive) {
-            const isLocalTurnAgain = this.activeTurnPlayerId === this.localPlayerId && !this.isTurnInProgress;
-            if (isLocalTurnAgain) {
-                this.hideTurnResultNotification();
-            } else {
-                this.turnOverlay.setVisible(false);
-                return;
-            }
+    refreshTurnUI({ force = false } = {}) {
+        // Keep the same UI lifecycle in every mode: result notification first, turn overlay second.
+        if (this.isTurnResultNotificationActive && !force) {
+            this.hasDeferredTurnUIRefresh = true;
+            this.turnOverlay.setVisible(false);
+            return;
         }
+
+        this.hasDeferredTurnUIRefresh = false;
 
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
@@ -993,20 +994,27 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnResultDismissHandler = () => {
-            this.hideTurnResultNotification();
-            this.refreshTurnUI();
+            this.hideTurnResultNotification({ refreshTurnUI: true });
         };
 
         this.input.once('pointerdown', this.turnResultDismissHandler);
     }
 
-    hideTurnResultNotification() {
+    hideTurnResultNotification({ refreshTurnUI = false } = {}) {
+        const shouldRefreshTurnUI = this.isTurnResultNotificationActive
+            && (refreshTurnUI || this.hasDeferredTurnUIRefresh);
+
         this.isTurnResultNotificationActive = false;
+        this.hasDeferredTurnUIRefresh = false;
         this.hideNotification();
 
         if (this.turnResultDismissHandler) {
             this.input.off('pointerdown', this.turnResultDismissHandler);
             this.turnResultDismissHandler = null;
+        }
+
+        if (shouldRefreshTurnUI) {
+            this.refreshTurnUI({ force: true });
         }
     }
 
@@ -2318,7 +2326,7 @@ export class Board extends Phaser.Scene {
             .setBlendMode(Phaser.BlendModes.SCREEN);
 
         const border = this.add.image(0, 0, textureKey)
-            .setAlpha(0.92);
+            .setAlpha(1);
 
         this.localPlayerCellHighlight = this.add.container(startCell.x, startCell.y, [glow, border])
             .setVisible(false)
@@ -2343,6 +2351,16 @@ export class Board extends Phaser.Scene {
             targets: glow,
             alpha: 0.34,
             duration: 1700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+
+        this.localPlayerCellHighlightBorderTween = this.tweens.add({
+            targets: border,
+            alpha: 0.38,
+            duration: 1200,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.InOut',
@@ -2425,13 +2443,16 @@ export class Board extends Phaser.Scene {
         if (!cell) {
             this.localPlayerCellHighlightPulseTween?.pause();
             this.localPlayerCellHighlightGlowTween?.pause();
+            this.localPlayerCellHighlightBorderTween?.pause();
+            this.localPlayerCellHighlightBorder?.setAlpha(1);
             this.localPlayerCellHighlight.setVisible(false).setAlpha(0);
             return;
         }
 
-        this.localPlayerCellHighlight.setVisible(true).setAlpha(0.9);
+        this.localPlayerCellHighlight.setVisible(true).setAlpha(1);
         this.localPlayerCellHighlightPulseTween?.play();
         this.localPlayerCellHighlightGlowTween?.play();
+        this.localPlayerCellHighlightBorderTween?.play();
 
         if (!animatePosition) {
             this.localPlayerCellHighlight.setPosition(cell.x, cell.y);

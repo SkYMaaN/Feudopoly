@@ -8,10 +8,31 @@ const PANEL_COLOR = 0x4682b4;
 const PANEL_STROKE = 0x2b5e8a;
 const BUTTON_COLOR = 0x9cbfd9;
 const BUTTON_HOVER_COLOR = 0x8fa9bf;
+const BUTTON_ACTIVE_COLOR = 0xd5e6f5;
+const BUTTON_DISABLED_COLOR = 0x6d9dc5;
+const ACTIVE_TOGGLE_BORDER_COLOR = 0xff0000;
+const ACCESS_OPEN_COLORS = {
+    defaultFill: 0x9fd9b7,
+    hoverFill: 0x88cda6,
+    activeFill: 0x43aa6b,
+    disabledFill: 0x7fa08b,
+    activeTextColor: '#ffffff',
+    inactiveTextColor: '#184d32'
+};
+const ACCESS_CLOSED_COLORS = {
+    defaultFill: 0xe2a2a2,
+    hoverFill: 0xd48f8f,
+    activeFill: 0xc44545,
+    disabledFill: 0x9e7f7f,
+    activeTextColor: '#ffffff',
+    inactiveTextColor: '#6e1e1e'
+};
+const DISABLED_INPUT_FILL = 0xd7dee6;
 const TEXT_COLOR = '#FF0000';
 const INPUT_TEXT_COLOR = '#1d3557';
 const PLACEHOLDER_COLOR = '#8a4f4f';
 const ERROR_COLOR = '#ffe082';
+const FOCUSED_STROKE = 0x214c74;
 
 export class LobbyList extends Phaser.Scene {
     constructor() {
@@ -44,16 +65,36 @@ export class LobbyList extends Phaser.Scene {
         });
 
         this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
-        this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
+        this.add.text(width / 2, 60, 'Lobby List', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        this.searchText = this.add.text(80, 130, 'Search: ', { fontSize: '28px', color: TEXT_COLOR });
+        /*this.add.text(200, 130, 'Search', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '30px',
+            color: TEXT_COLOR,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);*/
+
+        this.searchField = this.createSearchField({
+            x: 300,
+            y: 150,
+            width: 500,
+            height: 58,
+            placeholder: 'Search one lobby...',
+            value: this.search,
+            maxLength: 32,
+            onChange: (value) => {
+                this.search = value;
+                this.renderRows();
+            }
+        });
+
         this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
-        this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
-        this.createButton(1700, 230, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
+        //this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
+        this.createButton(1700, 70, 260, 60, 'REFRESH', () => this.syncLobbies());
+        this.createButton(1700, 150, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
 
-        this.listContainer = this.add.container(70, 200);
+        this.listContainer = this.add.container(70, 250);
         this.input.keyboard.on('keydown', (e) => this.onKey(e));
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupHub, this);
@@ -61,6 +102,14 @@ export class LobbyList extends Phaser.Scene {
         this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
 
         this.bootLobbyRealtime();
+        this.time.delayedCall(60, () => {
+            if (data.openCreateLobbyModal) {
+                this.openCreateLobbyModal();
+                return;
+            }
+
+            this.focusField(this.searchField);
+        });
     }
 
     async bootLobbyRealtime() {
@@ -129,18 +178,19 @@ export class LobbyList extends Phaser.Scene {
         this.listContainer.removeAll(true);
         this.rows = [];
 
-        this.searchText.setText(`Search: ${this.search || '-'}`);
         const normalizedSearch = this.search.trim().toLowerCase();
         const visibleLobbies = this.lobbies.filter(lobby => !normalizedSearch || lobby.name.toLowerCase().includes(normalizedSearch));
 
         visibleLobbies.forEach((lobby, idx) => {
             const y = idx * 75;
+            const hasFreeSlots = lobby.currentPlayers < lobby.maxPlayers;
             const bg = this.add.rectangle(0, y, 1275, 64, 0x7faed3, 0.95).setOrigin(0, 0);
             const text = this.add.text(20, y + 16,
                 `\'${lobby.name}\' | [${lobby.currentPlayers}/${lobby.maxPlayers}]  ${this.getLobbyStatusText(lobby.status)} | ${lobby.accessType == 1 ? 'Private' : 'Public'}`,
                 { fontSize: '26px', color: TEXT_COLOR });
             const detailsBtn = this.createButton(1000, y + 32, 150, 40, 'DETAILS', () => this.openLobby(lobby));
             const joinBtn = this.createButton(1170, y + 32, 150, 40, 'JOIN', async () => this.joinLobby(lobby));
+            this.setButtonDisabled(joinBtn, !hasFreeSlots);
             this.listContainer.add([bg, text, detailsBtn, joinBtn]);
             this.rows.push({ bg, text, detailsBtn, joinBtn });
         });
@@ -162,6 +212,7 @@ export class LobbyList extends Phaser.Scene {
         return {
             name: '',
             password: '',
+            accessType: 0,
             maxPlayers: 4,
             errors: {},
             formError: '',
@@ -180,10 +231,11 @@ export class LobbyList extends Phaser.Scene {
 
         const { width, height } = this.scale.gameSize;
         const panelWidth = Math.min(width * 0.7, 860);
-        const panelHeight = Math.min(height * 0.7, 620);
+        const panelHeight = Math.min(height * 0.74, 770);
         const centerX = width / 2;
         const centerY = height / 2;
         const layout = this.getCreateLobbyLayout(panelWidth, panelHeight);
+        this.createLobbyState.maxPlayers = 1;
 
         this.modalBackdrop = this.add.rectangle(centerX, centerY, width, height, OVERLAY_COLOR, 0.72)
             .setDepth(LOBBY_MODAL_DEPTH)
@@ -229,7 +281,7 @@ export class LobbyList extends Phaser.Scene {
             type: 'text',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 160,
+            labelY: centerY - panelHeight / 2 + 155,
             inputY: centerY - panelHeight / 2 + 210,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
@@ -239,8 +291,18 @@ export class LobbyList extends Phaser.Scene {
 
         this.playersField = this.createPlayersCountField({
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 285,
-            controlY: centerY - panelHeight / 2 + 340,
+            labelY: centerY - panelHeight / 2 + 288,
+            controlY: centerY - panelHeight / 2 + 343,
+            width: panelWidth - layout.paddingX * 2,
+            height: layout.inputHeight,
+            fontSize: layout.inputFontSize,
+            errorFontSize: layout.errorFontSize
+        });
+
+        this.accessTypeField = this.createAccessTypeField({
+            x: centerX,
+            labelY: centerY - panelHeight / 2 + 403,
+            controlY: centerY - panelHeight / 2 + 459,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
@@ -254,16 +316,22 @@ export class LobbyList extends Phaser.Scene {
             type: 'password',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 406,
-            inputY: centerY - panelHeight / 2 + 462,
+            labelY: centerY - panelHeight / 2 + 550,
+            inputY: centerY - panelHeight / 2 + 605,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
             errorFontSize: layout.errorFontSize
         });
 
-        this.backModalButton = this.createModalButton(centerX - panelWidth * 0.18, centerY + panelHeight / 2 - 63, layout.buttonWidth, layout.buttonHeight, 'BACK', () => this.closeCreateLobbyModal());
-        this.createModalButtonControl = this.createModalButton(centerX + panelWidth * 0.18, centerY + panelHeight / 2 - 63, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.closeModalButton = this.createModalIconButton(
+            centerX - panelWidth / 2 + layout.closeButtonOffsetX,
+            centerY - panelHeight / 2 + layout.closeButtonOffsetY,
+            layout.closeButtonSize,
+            '✕',
+            () => this.closeCreateLobbyModal()
+        );
+        this.createModalButtonControl = this.createModalButton(centerX, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
 
         this.modalElements = [
             this.modalBackdrop,
@@ -273,8 +341,9 @@ export class LobbyList extends Phaser.Scene {
             this.formErrorText,
             ...this.nameField.displayObjects,
             ...this.playersField.displayObjects,
+            ...this.accessTypeField.displayObjects,
             ...this.passwordField.displayObjects,
-            this.backModalButton,
+            this.closeModalButton,
             this.createModalButtonControl
         ];
         this.modalFields = [this.nameField, this.passwordField];
@@ -293,7 +362,10 @@ export class LobbyList extends Phaser.Scene {
             inputFontSize: panelWidth < 700 ? 24 : 28,
             errorFontSize: panelWidth < 700 ? 18 : 20,
             buttonWidth: panelWidth < 700 ? 220 : 250,
-            buttonHeight: 64
+            buttonHeight: 64,
+            closeButtonSize: panelWidth < 700 ? 52 : 56,
+            closeButtonOffsetX: panelWidth < 700 ? 46 : 52,
+            closeButtonOffsetY: panelWidth < 700 ? 44 : 48
         };
     }
 
@@ -363,7 +435,7 @@ export class LobbyList extends Phaser.Scene {
 
         shell.setInteractive({ useHandCursor: true });
         shell.on('pointerdown', () => {
-            if (!this.createLobbyState.submitting) {
+            if (!this.createLobbyState.submitting && !input.disabled) {
                 input.focus();
             }
         });
@@ -437,6 +509,55 @@ export class LobbyList extends Phaser.Scene {
         };
     }
 
+
+    createAccessTypeField(config) {
+        const label = this.add.text(config.x - config.width / 2, config.labelY, 'Lobby access', {
+            fontFamily: 'Georgia, serif',
+            fontSize: `${config.fontSize}px`,
+            color: TEXT_COLOR,
+            fontStyle: 'bold'
+        }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
+
+        const groupWidth = Math.min(config.width, 560);
+        const buttonGap = 24;
+        const buttonWidth = Math.floor((groupWidth - buttonGap) / 2);
+        const openButton = this.createModalToggleButton(
+            config.x - (buttonWidth + buttonGap) / 2,
+            config.controlY,
+            buttonWidth,
+            config.height,
+            'OPEN',
+            this.createLobbyState.accessType === 0,
+            () => this.setLobbyAccessType(0),
+            ACCESS_OPEN_COLORS
+        );
+        const closedButton = this.createModalToggleButton(
+            config.x + (buttonWidth + buttonGap) / 2,
+            config.controlY,
+            buttonWidth,
+            config.height,
+            'CLOSED',
+            this.createLobbyState.accessType === 1,
+            () => this.setLobbyAccessType(1),
+            ACCESS_CLOSED_COLORS
+        );
+
+        const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 12, 'Open lobbies do not require a password. Closed lobbies require one.', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: `${Math.max(16, config.errorFontSize - 2)}px`,
+            color: PLACEHOLDER_COLOR,
+            align: 'center',
+            wordWrap: { width: config.width }
+        }).setOrigin(0.5, 0).setDepth(LOBBY_MODAL_DEPTH + 2);
+
+        return {
+            openButton,
+            closedButton,
+            hintText,
+            displayObjects: [label, openButton, closedButton, hintText]
+        };
+    }
+
     createStepperButton(x, y, width, height, label, onClick) {
         const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, BUTTON_COLOR, 1)
             .setStrokeStyle(5, PANEL_STROKE, 1);
@@ -461,9 +582,21 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button, { useHover: true });
+                return;
+            }
+
             background.setFillStyle(BUTTON_HOVER_COLOR, 1);
         });
-        button.on('pointerout', () => background.setFillStyle(BUTTON_COLOR, 1));
+        button.on('pointerout', () => {
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button);
+                return;
+            }
+
+            background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1);
+        });
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
                 return;
@@ -477,15 +610,83 @@ export class LobbyList extends Phaser.Scene {
         return button;
     }
 
-    createModalButton(x, y, width, height, label, onClick) {
-        const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, BUTTON_COLOR, 1)
-            .setStrokeStyle(6, PANEL_STROKE, 1);
+    createModalToggleButton(x, y, width, height, label, isActive, onClick, colorSet) {
+        const button = this.createModalButton(x, y, width, height, label, onClick);
+        button.isActive = isActive;
+        button.isDisabled = false;
+        button.toggleColors = colorSet;
+        this.applyToggleButtonState(button, isActive);
+        return button;
+    }
 
-        const buttonText = this.add.text(0, 0, label, {
+    applyToggleButtonState(button, isActive) {
+        if (!button?.buttonBackground) {
+            return;
+        }
+
+        button.isActive = isActive;
+        this.applyToggleButtonVisualState(button, { useHover: false });
+    }
+
+    applyToggleButtonVisualState(button, { useHover = false } = {}) {
+        if (!button?.buttonBackground) {
+            return;
+        }
+
+        const colors = button.toggleColors;
+        const fillColor = button.isDisabled
+            ? (colors?.disabledFill ?? BUTTON_DISABLED_COLOR)
+            : useHover
+                ? (colors?.hoverFill ?? BUTTON_HOVER_COLOR)
+                : button.isActive
+                    ? (colors?.activeFill ?? BUTTON_ACTIVE_COLOR)
+                    : (colors?.defaultFill ?? BUTTON_COLOR);
+        const textColor = button.isActive
+            ? (colors?.activeTextColor ?? TEXT_COLOR)
+            : (colors?.inactiveTextColor ?? TEXT_COLOR);
+        const strokeColor = button.isActive
+            ? ACTIVE_TOGGLE_BORDER_COLOR
+            : PANEL_STROKE;
+
+        button.buttonBackground.setFillStyle(fillColor, 1);
+        button.buttonBackground.setStrokeStyle(6, strokeColor, 1);
+        button.buttonText.setColor(textColor);
+        button.buttonText.setAlpha(button.isDisabled ? 0.6 : (button.isActive ? 1 : 0.92));
+    }
+
+    createModalButton(x, y, width, height, label, onClick) {
+        const button = this.createModalIconButton(x, y, width, label, onClick, {
+            height,
+            radius: 16,
+            strokeWidth: 6,
             fontFamily: 'Georgia, serif',
             fontSize: '28px',
-            color: TEXT_COLOR,
+            textColor: TEXT_COLOR,
             fontStyle: 'bold'
+        });
+
+        button.setSize(width, height);
+        return button;
+    }
+
+    createModalIconButton(x, y, size, label, onClick, options = {}) {
+        const width = options.width ?? size;
+        const height = options.height ?? size;
+        const radius = options.radius ?? Math.round(Math.min(width, height) / 2);
+        const strokeWidth = options.strokeWidth ?? 6;
+        const textOffsetY = options.textOffsetY ?? 0;
+        const defaultColor = options.defaultFill ?? BUTTON_COLOR;
+        const hoverColor = options.hoverFill ?? BUTTON_HOVER_COLOR;
+        const activeColor = options.activeFill ?? BUTTON_ACTIVE_COLOR;
+
+        const background = this.rexUI.add.roundRectangle(0, 0, width, height, radius, defaultColor, 1)
+            .setStrokeStyle(strokeWidth, PANEL_STROKE, 1);
+
+        const buttonText = this.add.text(0, textOffsetY, label, {
+            fontFamily: options.fontFamily ?? 'Arial, sans-serif',
+            fontSize: options.fontSize ?? '36px',
+            color: options.textColor ?? TEXT_COLOR,
+            fontStyle: options.fontStyle ?? 'bold'
         }).setOrigin(0.5);
 
         const button = this.rexUI.add.label({
@@ -503,9 +704,21 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
-            background.setFillStyle(BUTTON_HOVER_COLOR, 1);
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button, { useHover: true });
+                return;
+            }
+
+            background.setFillStyle(hoverColor, 1);
         });
-        button.on('pointerout', () => background.setFillStyle(BUTTON_COLOR, 1));
+        button.on('pointerout', () => {
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button);
+                return;
+            }
+
+            background.setFillStyle(button.isActive ? activeColor : defaultColor, 1);
+        });
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
                 return;
@@ -519,8 +732,70 @@ export class LobbyList extends Phaser.Scene {
         return button;
     }
 
+    createSearchField(config) {
+        const background = this.rexUI.add.roundRectangle(0, 0, config.width, config.height, 16, 0x9cbfd9, 1)
+            .setStrokeStyle(5, PANEL_STROKE, 0.95);
+
+        const shell = this.rexUI.add.label({
+            x: config.x,
+            y: config.y,
+            width: config.width,
+            height: config.height,
+            background,
+            align: 'center'
+        }).layout();
+
+        const dom = this.add.dom(config.x - config.width / 2 + 100, config.y - 10).createFromHTML(`
+            <input
+                class="lobby-search-input"
+                type="text"
+                maxlength="${config.maxLength}"
+                placeholder="${config.placeholder}"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+            />
+        `);
+
+        const input = dom.node.querySelector('input');
+        input.value = config.value || '';
+        Object.assign(input.style, {
+            width: `${config.width - 30}px`,
+            height: `${config.height - 18}px`,
+            border: '0',
+            outline: 'none',
+            background: 'transparent',
+            color: 'red',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '30px',
+            textAlign: 'left',
+            padding: '0 4px',
+            borderRadius: '12px'
+        });
+
+        input.addEventListener('input', () => config.onChange?.(input.value));
+        input.addEventListener('focus', () => this.setFieldFocused(background, true));
+        input.addEventListener('blur', () => this.setFieldFocused(background, false));
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                this.syncLobbies();
+            }
+        });
+
+        shell.setInteractive({ useHandCursor: true });
+        shell.on('pointerdown', () => input.focus());
+
+        return { container: shell, background, dom, input };
+    }
+
+    focusField(field) {
+        if (field?.input && !field.input.disabled) {
+            field.input.focus();
+        }
+    }
+
     focusModalField(field) {
-        if (!field?.input || this.createLobbyState.submitting) {
+        if (!field?.input || this.createLobbyState.submitting || field.input.disabled) {
             return;
         }
 
@@ -528,7 +803,24 @@ export class LobbyList extends Phaser.Scene {
     }
 
     setFieldFocused(background, isFocused) {
-        background?.setStrokeStyle(5, isFocused ? 0x214c74 : PANEL_STROKE, 1);
+        background?.setStrokeStyle(5, isFocused ? FOCUSED_STROKE : PANEL_STROKE, 1);
+    }
+
+    setLobbyAccessType(accessType) {
+        if (this.createLobbyState.submitting || this.createLobbyState.accessType === accessType) {
+            return;
+        }
+
+        this.createLobbyState.accessType = accessType;
+        this.createLobbyState.formError = '';
+        this.validateCreateLobbyField('password');
+        this.refreshCreateLobbyForm();
+
+        if (accessType === 0) {
+            this.passwordField?.input?.blur();
+        } else {
+            this.focusModalField(this.passwordField);
+        }
     }
 
     adjustPlayersCount(delta) {
@@ -544,7 +836,7 @@ export class LobbyList extends Phaser.Scene {
 
     validateCreateLobbyField(fieldName) {
         const errors = { ...this.createLobbyState.errors };
-        const { name, password, maxPlayers } = this.createLobbyState;
+        const { name, password, maxPlayers, accessType } = this.createLobbyState;
 
         if (fieldName === 'name') {
             const trimmedName = name.trim();
@@ -557,8 +849,8 @@ export class LobbyList extends Phaser.Scene {
 
         if (fieldName === 'password') {
             const trimmedPassword = password.trim();
-            if (trimmedPassword.length < 3) {
-                errors.password = 'Password must contain at least 3 characters.';
+            if (accessType === 1 && trimmedPassword.length < 3) {
+                errors.password = 'Password is required for a closed lobby and must contain at least 3 characters.';
             } else {
                 delete errors.password;
             }
@@ -597,6 +889,13 @@ export class LobbyList extends Phaser.Scene {
         this.passwordField.input.value = this.createLobbyState.password;
         this.playersField.valueText.setText(String(this.createLobbyState.maxPlayers));
 
+        this.applyToggleButtonState(this.accessTypeField?.openButton, this.createLobbyState.accessType === 0);
+        this.applyToggleButtonState(this.accessTypeField?.closedButton, this.createLobbyState.accessType === 1);
+        this.passwordField.input.disabled = this.createLobbyState.submitting || this.createLobbyState.accessType === 0;
+        this.passwordField.input.style.opacity = this.passwordField.input.disabled ? '0.65' : '1';
+        this.passwordField.input.style.cursor = this.passwordField.input.disabled ? 'not-allowed' : 'text';
+        this.passwordField.background.setFillStyle(this.createLobbyState.accessType === 0 ? DISABLED_INPUT_FILL : 0xffffff, 1);
+
         this.nameField.errorText.setText(this.createLobbyState.errors.name || '');
         this.passwordField.errorText.setText(this.createLobbyState.errors.password || '');
         this.playersField.errorText.setText(this.createLobbyState.errors.maxPlayers || '');
@@ -612,11 +911,17 @@ export class LobbyList extends Phaser.Scene {
             }
 
             button.disableInteractive();
+            button.isDisabled = disabled;
             if (!disabled) {
                 button.setInteractive({ useHandCursor: true });
             }
 
-            button.buttonBackground.setFillStyle(disabled ? 0x6d9dc5 : BUTTON_COLOR, 1);
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button);
+                return;
+            }
+
+            button.buttonBackground.setFillStyle(disabled ? BUTTON_DISABLED_COLOR : (button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR), 1);
             button.buttonText.setAlpha(disabled ? 0.55 : 1);
         };
 
@@ -624,6 +929,8 @@ export class LobbyList extends Phaser.Scene {
         applyButtonState(this.createModalButtonControl, submitting);
         applyButtonState(this.playersField?.minusButton, submitting);
         applyButtonState(this.playersField?.plusButton, submitting);
+        applyButtonState(this.accessTypeField?.openButton, submitting);
+        applyButtonState(this.accessTypeField?.closedButton, submitting);
 
         this.modalFields.forEach((field) => {
             if (!field?.input) {
@@ -637,6 +944,8 @@ export class LobbyList extends Phaser.Scene {
         if (this.createModalButtonControl?.buttonText) {
             this.createModalButtonControl.buttonText.setText(submitting ? 'CREATING...' : 'CREATE');
         }
+
+        this.refreshCreateLobbyForm();
     }
 
     async submitCreateLobby() {
@@ -663,8 +972,8 @@ export class LobbyList extends Phaser.Scene {
         try {
             const lobby = await lobbyApi.create({
                 name: this.createLobbyState.name.trim(),
-                accessType: 1,
-                password: this.createLobbyState.password.trim(),
+                accessType: this.createLobbyState.accessType,
+                password: this.createLobbyState.accessType === 1 ? this.createLobbyState.password.trim() : null,
                 maxPlayers: this.createLobbyState.maxPlayers,
                 creatorId: this.profile.playerId,
                 creatorName: this.profile.displayName,
@@ -672,7 +981,13 @@ export class LobbyList extends Phaser.Scene {
                 isMuslim: this.profile.isMuslim
             });
 
+            const shouldStartSoloGameImmediately = this.createLobbyState.maxPlayers === 1;
             this.closeCreateLobbyModal();
+            if (shouldStartSoloGameImmediately) {
+                this.scene.start('Board', { sessionId: lobby.lobbyId, playerId: this.profile.playerId });
+                return;
+            }
+
             this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
         } catch (e) {
             this.createLobbyState.formError = e.message || 'Failed to create lobby.';
@@ -699,6 +1014,7 @@ export class LobbyList extends Phaser.Scene {
         this.nameField = null;
         this.playersField = null;
         this.passwordField = null;
+        this.accessTypeField = null;
         this.backModalButton = null;
         this.createModalButtonControl = null;
         this.createLobbyState = this.getDefaultCreateLobbyState();
@@ -710,6 +1026,11 @@ export class LobbyList extends Phaser.Scene {
     }
 
     async joinLobby(lobby) {
+        if (lobby.currentPlayers >= lobby.maxPlayers) {
+            this.showMessage('Lobby is already full. No free slots left.');
+            return;
+        }
+
         try {
             const password = lobby.accessType === 1 ? window.prompt('Password:') : null;
             await lobbyApi.join(lobby.lobbyId, {
@@ -721,6 +1042,12 @@ export class LobbyList extends Phaser.Scene {
             });
             this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
         } catch (e) {
+            if (e.code === 'lobby_full') {
+                await this.syncLobbies();
+                this.showMessage(e.message);
+                return;
+            }
+
             this.showMessage(e.message);
         }
     }
@@ -733,14 +1060,8 @@ export class LobbyList extends Phaser.Scene {
             return;
         }
 
-        if (event.key === 'Backspace') {
-            this.search = this.search.slice(0, -1);
-            this.renderRows();
-            return;
-        }
-        if (event.key.length === 1 && this.search.length < 32) {
-            this.search += event.key;
-            this.renderRows();
+        if (event.key === 'Escape') {
+            this.searchField?.input?.blur();
         }
     }
 
@@ -753,7 +1074,8 @@ export class LobbyList extends Phaser.Scene {
             ...this.createLobbyState,
             errors: { ...this.createLobbyState.errors },
             name: this.nameField?.input?.value ?? this.createLobbyState.name,
-            password: this.passwordField?.input?.value ?? this.createLobbyState.password
+            password: this.passwordField?.input?.value ?? this.createLobbyState.password,
+            accessType: this.createLobbyState.accessType
         };
 
         this.closeCreateLobbyModal();
@@ -766,6 +1088,10 @@ export class LobbyList extends Phaser.Scene {
     async cleanupHub() {
         this.scale.off(Phaser.Scale.Events.RESIZE, this.handleResize, this);
         this.closeCreateLobbyModal();
+        this.searchField?.input?.blur();
+        this.searchField?.container?.destroy();
+        this.searchField?.dom?.destroy();
+        this.searchField = null;
 
         this.hubUnsubscribers.forEach(unsubscribe => unsubscribe());
         this.hubUnsubscribers = [];
@@ -791,13 +1117,41 @@ export class LobbyList extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        rect.on('pointerover', () => rect.setFillStyle(BUTTON_HOVER_COLOR, 1));
-        rect.on('pointerout', () => rect.setFillStyle(BUTTON_COLOR, 1));
-        rect.on('pointerdown', onClick);
+        rect.on('pointerover', () => {
+            if (!rect.input?.enabled) {
+                return;
+            }
+
+            rect.setFillStyle(BUTTON_HOVER_COLOR, 1);
+        });
+        rect.on('pointerout', () => {
+            rect.setFillStyle(rect.input?.enabled ? BUTTON_COLOR : BUTTON_DISABLED_COLOR, 1);
+        });
+        rect.on('pointerdown', () => {
+            if (rect.input?.enabled) {
+                onClick();
+            }
+        });
 
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
+        container.buttonRect = rect;
+        container.buttonText = text;
 
         return container;
+    }
+
+    setButtonDisabled(button, disabled) {
+        if (!button?.buttonRect) {
+            return;
+        }
+
+        button.buttonRect.disableInteractive();
+        if (!disabled) {
+            button.buttonRect.setInteractive({ useHandCursor: true });
+        }
+
+        button.buttonRect.setFillStyle(disabled ? BUTTON_DISABLED_COLOR : BUTTON_COLOR, 1);
+        button.buttonText.setAlpha(disabled ? 0.55 : 1);
     }
 
     showMessage(msg) { this.messageText.setText(msg || ''); }
