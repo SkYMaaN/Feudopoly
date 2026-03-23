@@ -81,7 +81,7 @@ export class LobbyRoom extends Phaser.Scene {
         }).setOrigin(0, 0);
 
         this.playersListContainer = this.add.container(width / 2 - PLAYERS_PANEL_WIDTH / 2 + 30, 320);
-        this.actionButtonsContainer = this.add.container(width / 2, 630);
+        this.actionButtonsContainer = this.add.container(width / 2, 650);
 
         this.messageText = this.add.text(width / 2, height - 42, '', {
             fontFamily: 'Arial, sans-serif',
@@ -92,10 +92,10 @@ export class LobbyRoom extends Phaser.Scene {
         }).setOrigin(0.5);
 
         //this.backBtn = this.createButton(1130, 86, BUTTON_WIDTH, BUTTON_HEIGHT, 'BACK', () => this.goBack());
+        this.startBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'START', () => this.startLobby());
         this.leaveBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'LEAVE', () => this.leaveLobby());
         this.joinBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'JOIN', () => this.joinLobby());
-        this.startBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'START', () => this.startLobby());
-        this.actionButtonsContainer.add([this.leaveBtn, this.joinBtn, this.startBtn]);
+        this.actionButtonsContainer.add([this.startBtn, this.leaveBtn, this.joinBtn]);
 
         this.bootstrap();
 
@@ -358,14 +358,14 @@ export class LobbyRoom extends Phaser.Scene {
     }
 
     layoutActionButtons() {
-        const visibleButtons = [this.leaveBtn, this.joinBtn, this.startBtn].filter(button => button?.visible);
+        const visibleButtons = [this.startBtn, this.leaveBtn, this.joinBtn].filter(button => button?.visible);
 
         const totalWidth = visibleButtons.length > 0
             ? (visibleButtons.length * BUTTON_WIDTH) + ((visibleButtons.length - 1) * BUTTON_SPACING)
             : 0;
         let currentX = -totalWidth / 2 + BUTTON_WIDTH / 2;
 
-        [this.leaveBtn, this.joinBtn, this.startBtn].forEach(button => {
+        [this.startBtn, this.leaveBtn, this.joinBtn].forEach(button => {
             if (!button) {
                 return;
             }
