@@ -212,7 +212,7 @@ export class LobbyList extends Phaser.Scene {
 
         const { width, height } = this.scale.gameSize;
         const panelWidth = Math.min(width * 0.7, 860);
-        const panelHeight = Math.min(height * 0.74, 700);
+        const panelHeight = Math.min(height * 0.74, 770);
         const centerX = width / 2;
         const centerY = height / 2;
         const layout = this.getCreateLobbyLayout(panelWidth, panelHeight);
@@ -261,7 +261,7 @@ export class LobbyList extends Phaser.Scene {
             type: 'text',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 160,
+            labelY: centerY - panelHeight / 2 + 155,
             inputY: centerY - panelHeight / 2 + 210,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
@@ -271,8 +271,8 @@ export class LobbyList extends Phaser.Scene {
 
         this.playersField = this.createPlayersCountField({
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 285,
-            controlY: centerY - panelHeight / 2 + 340,
+            labelY: centerY - panelHeight / 2 + 288,
+            controlY: centerY - panelHeight / 2 + 343,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
@@ -281,8 +281,8 @@ export class LobbyList extends Phaser.Scene {
 
         this.accessTypeField = this.createAccessTypeField({
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 420,
-            controlY: centerY - panelHeight / 2 + 476,
+            labelY: centerY - panelHeight / 2 + 403,
+            controlY: centerY - panelHeight / 2 + 459,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
@@ -296,16 +296,16 @@ export class LobbyList extends Phaser.Scene {
             type: 'password',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 542,
-            inputY: centerY - panelHeight / 2 + 598,
+            labelY: centerY - panelHeight / 2 + 550,
+            inputY: centerY - panelHeight / 2 + 605,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
             errorFontSize: layout.errorFontSize
         });
 
-        this.backModalButton = this.createModalButton(centerX - panelWidth * 0.18, centerY + panelHeight / 2 - 63, layout.buttonWidth, layout.buttonHeight, 'BACK', () => this.closeCreateLobbyModal());
-        this.createModalButtonControl = this.createModalButton(centerX + panelWidth * 0.18, centerY + panelHeight / 2 - 63, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.backModalButton = this.createModalButton(centerX - panelWidth * 0.18, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'BACK', () => this.closeCreateLobbyModal());
+        this.createModalButtonControl = this.createModalButton(centerX + panelWidth * 0.18, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
 
         this.modalElements = [
             this.modalBackdrop,
@@ -511,7 +511,7 @@ export class LobbyList extends Phaser.Scene {
             () => this.setLobbyAccessType(1)
         );
 
-        const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 22, 'Open lobbies do not require a password. Closed lobbies require one.', {
+        const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 12, 'Open lobbies do not require a password. Closed lobbies require one.', {
             fontFamily: 'Arial, sans-serif',
             fontSize: `${Math.max(16, config.errorFontSize - 2)}px`,
             color: PLACEHOLDER_COLOR,
