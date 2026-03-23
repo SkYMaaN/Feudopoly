@@ -121,7 +121,7 @@ export class Board extends Phaser.Scene {
             .setVisible(false)
             .setMute(false)
             .setLoop(false)
-            .setScale(0.6);
+            .setScale(0.5);
 
         try {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
@@ -1045,7 +1045,7 @@ export class Board extends Phaser.Scene {
         this.input.once('pointerdown', this.notificationDismissHandler);
 
         this.notificationTextBox
-            .setPosition(width / 2, hasVideo ? height - 180 : height / 2)
+            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
             .setVisible(true)
             .stop(true);
         this.notificationTextBox.getElement('title')?.setText(title);
@@ -1057,7 +1057,7 @@ export class Board extends Phaser.Scene {
 
         if (hasVideo) {
             this.notificationVideo
-                .setPosition(width / 2, height / 2 - 180)
+                .setPosition(width / 2, height / 2 - 245)
                 .setVisible(true)
                 .setDepth(2090)
                 .stop();
