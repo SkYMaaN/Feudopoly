@@ -121,7 +121,16 @@ export class Board extends Phaser.Scene {
             .setVisible(false)
             .setMute(false)
             .setLoop(false)
-            .setScale(0.6);
+            .setScale(0.3);
+
+        this.notificationVideoFrame = this.createNotificationVideoFrame({
+            x: width / 2,
+            y: height / 2 - 160,
+            innerWidth: this.notificationVideo.displayWidth || 576,
+            innerHeight: this.notificationVideo.displayHeight || 324
+        })
+            .setDepth(2085)
+            .setVisible(false);
 
         try {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
@@ -1030,6 +1039,68 @@ export class Board extends Phaser.Scene {
         return fixedRequiresChoice || rollRequiresChoice;
     }
 
+
+    createNotificationVideoFrame({ x, y, innerWidth, innerHeight }) {
+        const frameWidth = innerWidth + 96;
+        const frameHeight = innerHeight + 96;
+        const outerShadow = this.add.rectangle(0, 10, frameWidth + 26, frameHeight + 26, 0x120b07, 0.38)
+            .setStrokeStyle(6, 0x2f1b12, 0.5);
+        const woodenFrame = this.add.rectangle(0, 0, frameWidth, frameHeight, 0x4f311b, 1)
+            .setStrokeStyle(10, 0x8b5a2b, 1);
+        const goldTrim = this.add.rectangle(0, 0, frameWidth - 22, frameHeight - 22, 0x20140d, 1)
+            .setStrokeStyle(6, 0xc9a45a, 1);
+        const velvetInset = this.add.rectangle(0, 0, frameWidth - 42, frameHeight - 42, 0x2b1c18, 0.92)
+            .setStrokeStyle(4, 0xe7d3a2, 0.95);
+        const topPlaque = this.add.rectangle(0, -(frameHeight / 2) - 14, 260, 38, 0x6b1113, 1)
+            .setStrokeStyle(4, 0xd6b46a, 1);
+        const plaqueText = this.add.text(0, -(frameHeight / 2) - 14, 'Royal Chronicle', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '22px',
+            color: '#f7e7be',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        const cornerOffsets = [
+            [-frameWidth / 2 + 26, -frameHeight / 2 + 26],
+            [frameWidth / 2 - 26, -frameHeight / 2 + 26],
+            [-frameWidth / 2 + 26, frameHeight / 2 - 26],
+            [frameWidth / 2 - 26, frameHeight / 2 - 26]
+        ];
+
+        const cornerOrnaments = cornerOffsets.flatMap(([cornerX, cornerY]) => ([
+            this.add.circle(cornerX, cornerY, 9, 0xd9bb72, 1).setStrokeStyle(3, 0x7a5121, 1),
+            this.add.text(cornerX, cornerY - 1, '✦', {
+                fontFamily: 'Georgia, serif',
+                fontSize: '18px',
+                color: '#6b1113'
+            }).setOrigin(0.5)
+        ]));
+
+        const sideTorches = [
+            this.add.text(-(frameWidth / 2) - 18, 0, '❖', {
+                fontFamily: 'Georgia, serif',
+                fontSize: '32px',
+                color: '#d6b46a'
+            }).setOrigin(0.5),
+            this.add.text(frameWidth / 2 + 18, 0, '❖', {
+                fontFamily: 'Georgia, serif',
+                fontSize: '32px',
+                color: '#d6b46a'
+            }).setOrigin(0.5)
+        ];
+
+        return this.add.container(x, y, [
+            outerShadow,
+            woodenFrame,
+            goldTrim,
+            velvetInset,
+            topPlaque,
+            plaqueText,
+            ...cornerOrnaments,
+            ...sideTorches
+        ]);
+    }
+
     showNotification({ title = '', text = '', videoKey = null, typingSpeed = 30 } = {}) {
         const { width, height } = this.scale.gameSize;
         const hasVideo = Boolean(videoKey);
@@ -1056,6 +1127,11 @@ export class Board extends Phaser.Scene {
         }
 
         if (hasVideo) {
+            this.notificationVideoFrame
+                ?.setPosition(width / 2, height / 2 - 180)
+                .setVisible(true)
+                .setDepth(2085);
+
             this.notificationVideo
                 .setPosition(width / 2, height / 2 - 180)
                 .setVisible(true)
@@ -1066,6 +1142,7 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        this.notificationVideoFrame?.setVisible(false);
         this.notificationVideo.stop();
         this.notificationVideo.setVisible(false);
     }
@@ -1078,6 +1155,8 @@ export class Board extends Phaser.Scene {
             this.input.off('pointerdown', this.notificationDismissHandler);
             this.notificationDismissHandler = null;
         }
+
+        this.notificationVideoFrame?.setVisible(false);
 
         if (this.notificationVideo) {
             this.notificationVideo.stop();
