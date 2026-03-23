@@ -854,6 +854,7 @@ export class LobbyList extends Phaser.Scene {
         this.nameField.input.value = this.createLobbyState.name;
         this.passwordField.input.value = this.createLobbyState.password;
         this.playersField.valueText.setText(String(1));
+        this.createLobbyState.maxPlayers = 1;
 
         this.applyToggleButtonState(this.accessTypeField?.openButton, this.createLobbyState.accessType === 0);
         this.applyToggleButtonState(this.accessTypeField?.closedButton, this.createLobbyState.accessType === 1);
