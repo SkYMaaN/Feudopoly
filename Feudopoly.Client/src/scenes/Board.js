@@ -2319,7 +2319,7 @@ export class Board extends Phaser.Scene {
             .setBlendMode(Phaser.BlendModes.SCREEN);
 
         const border = this.add.image(0, 0, textureKey)
-            .setAlpha(0.92);
+            .setAlpha(0.9);
 
         this.localPlayerCellHighlight = this.add.container(startCell.x, startCell.y, [glow, border])
             .setVisible(false)
@@ -2344,6 +2344,16 @@ export class Board extends Phaser.Scene {
             targets: glow,
             alpha: 0.34,
             duration: 1700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+            paused: true
+        });
+
+        this.localPlayerCellHighlightBorderTween = this.tweens.add({
+            targets: border,
+            alpha: 0.38,
+            duration: 1200,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.InOut',
@@ -2426,6 +2436,8 @@ export class Board extends Phaser.Scene {
         if (!cell) {
             this.localPlayerCellHighlightPulseTween?.pause();
             this.localPlayerCellHighlightGlowTween?.pause();
+            this.localPlayerCellHighlightBorderTween?.pause();
+            this.localPlayerCellHighlightBorder?.setAlpha(0.9);
             this.localPlayerCellHighlight.setVisible(false).setAlpha(0);
             return;
         }
@@ -2433,6 +2445,7 @@ export class Board extends Phaser.Scene {
         this.localPlayerCellHighlight.setVisible(true).setAlpha(0.9);
         this.localPlayerCellHighlightPulseTween?.play();
         this.localPlayerCellHighlightGlowTween?.play();
+        this.localPlayerCellHighlightBorderTween?.play();
 
         if (!animatePosition) {
             this.localPlayerCellHighlight.setPosition(cell.x, cell.y);
