@@ -23,7 +23,6 @@ export class LobbyRoom extends Phaser.Scene {
         this.leaveBtn = this.createButton(1700, 160, 260, 64, 'LEAVE', () => this.leaveLobby());
         this.joinBtn = this.createButton(1700, 160, 260, 64, 'JOIN', () => this.joinLobby());
         this.startBtn = this.createButton(1700, 240, 260, 64, 'START', () => this.startLobby());
-        this.playBtn = this.createButton(1700, 320, 260, 64, 'OPEN GAME', () => this.openGame());
 
         this.bootstrap();
 
@@ -80,6 +79,11 @@ export class LobbyRoom extends Phaser.Scene {
         const isOwner = this.lobby.ownerPlayerId === this.profile.playerId;
         const canStart = this.lobby.status === 1;
 
+        if (isMember && (this.lobby.status === 2 || this.lobby.status === 3)) {
+            this.openGame();
+            return;
+        }
+
         this.title.setText(`Lobby: ${this.lobby.name}`);
         this.statusText.setText(`Status: ${this.lobby.status} | ${this.lobby.currentPlayers}/${this.lobby.maxPlayers}`);
         this.playersText.setText(this.lobby.players.map(p => `${p.isOwner ? '👑 ' : ''}${p.displayName}${p.isConnected ? ' (online)' : ''}`).join('\n'));
@@ -87,7 +91,6 @@ export class LobbyRoom extends Phaser.Scene {
         this.leaveBtn.setVisible(isMember);
         this.startBtn.setVisible(isMember && isOwner);
         this.setButtonDisabled(this.startBtn, !canStart);
-        this.playBtn.setVisible(isMember && (this.lobby.status === 2 || this.lobby.status === 3));
 
         this.joinBtn.setVisible(!isMember);
         this.setButtonDisabled(this.joinBtn, !hasFreeSlots);
@@ -138,6 +141,10 @@ export class LobbyRoom extends Phaser.Scene {
     }
 
     openGame() {
+        if (this.scene.isActive('Board')) {
+            return;
+        }
+
         this.scene.start('Board', { sessionId: this.lobbyId, playerId: this.profile.playerId });
     }
 
