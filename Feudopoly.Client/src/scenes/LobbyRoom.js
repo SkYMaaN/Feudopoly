@@ -89,8 +89,8 @@ export class LobbyRoom extends Phaser.Scene {
         this.playersText.setText(this.lobby.players.map(p => `${p.isOwner ? '👑 ' : ''}${p.displayName}${p.isConnected ? ' (online)' : ''}`).join('\n'));
 
         this.leaveBtn.setVisible(isMember);
-        this.startBtn.setVisible(isMember && isOwner);
-        this.setButtonDisabled(this.startBtn, !canStart);
+        this.startBtn.setVisible(isOwner);
+        //this.setButtonDisabled(this.startBtn, !canStart);
 
         this.joinBtn.setVisible(!isMember);
         this.setButtonDisabled(this.joinBtn, !hasFreeSlots);

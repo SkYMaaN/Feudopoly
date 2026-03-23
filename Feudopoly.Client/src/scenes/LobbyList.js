@@ -235,6 +235,7 @@ export class LobbyList extends Phaser.Scene {
         const centerX = width / 2;
         const centerY = height / 2;
         const layout = this.getCreateLobbyLayout(panelWidth, panelHeight);
+        this.createLobbyState.maxPlayers = 1;
 
         this.modalBackdrop = this.add.rectangle(centerX, centerY, width, height, OVERLAY_COLOR, 0.72)
             .setDepth(LOBBY_MODAL_DEPTH)
@@ -886,8 +887,7 @@ export class LobbyList extends Phaser.Scene {
 
         this.nameField.input.value = this.createLobbyState.name;
         this.passwordField.input.value = this.createLobbyState.password;
-        this.playersField.valueText.setText(String(1));
-        this.createLobbyState.maxPlayers = 1;
+        this.playersField.valueText.setText(String(this.createLobbyState.maxPlayers));
 
         this.applyToggleButtonState(this.accessTypeField?.openButton, this.createLobbyState.accessType === 0);
         this.applyToggleButtonState(this.accessTypeField?.closedButton, this.createLobbyState.accessType === 1);
