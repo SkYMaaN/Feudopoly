@@ -947,7 +947,13 @@ export class LobbyList extends Phaser.Scene {
                 isMuslim: this.profile.isMuslim
             });
 
+            const shouldStartSoloGameImmediately = this.createLobbyState.maxPlayers === 1;
             this.closeCreateLobbyModal();
+            if (shouldStartSoloGameImmediately) {
+                this.scene.start('Board', { sessionId: lobby.lobbyId, playerId: this.profile.playerId });
+                return;
+            }
+
             this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
         } catch (e) {
             this.createLobbyState.formError = e.message || 'Failed to create lobby.';
