@@ -948,7 +948,7 @@ export class LobbyList extends Phaser.Scene {
             });
 
             this.closeCreateLobbyModal();
-            this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
+            this.openCreatedLobby(lobby);
         } catch (e) {
             this.createLobbyState.formError = e.message || 'Failed to create lobby.';
             this.formErrorText.setColor(ERROR_COLOR);
@@ -958,6 +958,17 @@ export class LobbyList extends Phaser.Scene {
                 this.setCreateLobbySubmitting(false);
             }
         }
+    }
+
+    openCreatedLobby(lobby) {
+        const shouldOpenGameImmediately = lobby?.status === 2 || lobby?.status === 3;
+
+        if (shouldOpenGameImmediately) {
+            this.scene.start('Board', { sessionId: lobby.lobbyId, playerId: this.profile.playerId });
+            return;
+        }
+
+        this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
     }
 
     closeCreateLobbyModal() {
