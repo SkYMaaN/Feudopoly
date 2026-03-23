@@ -121,7 +121,7 @@ export class Board extends Phaser.Scene {
             .setVisible(false)
             .setMute(false)
             .setLoop(false)
-            .setScale(0.6);
+            .setScale(0.5);
 
         try {
             this.sessionId = data?.sessionId ?? crypto.randomUUID();
@@ -1045,7 +1045,7 @@ export class Board extends Phaser.Scene {
         this.input.once('pointerdown', this.notificationDismissHandler);
 
         this.notificationTextBox
-            .setPosition(width / 2, hasVideo ? height - 180 : height / 2)
+            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
             .setVisible(true)
             .stop(true);
         this.notificationTextBox.getElement('title')?.setText(title);
@@ -1057,7 +1057,7 @@ export class Board extends Phaser.Scene {
 
         if (hasVideo) {
             this.notificationVideo
-                .setPosition(width / 2, height / 2 - 180)
+                .setPosition(width / 2, height / 2 - 245)
                 .setVisible(true)
                 .setDepth(2090)
                 .stop();
@@ -1139,6 +1139,11 @@ export class Board extends Phaser.Scene {
                     return hit.playerId;
                 }
             }
+        }
+
+        const activePlayers = this.players.filter(player => !player.isDead && !player.isSpectator && !player.isWinner);
+        if (activePlayers.length === 1 && String(activePlayers[0].playerId ?? '') === String(this.localPlayerId ?? '')) {
+            return activePlayers[0].playerId;
         }
 
         const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
