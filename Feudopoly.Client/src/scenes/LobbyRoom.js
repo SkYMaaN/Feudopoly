@@ -17,6 +17,9 @@ const OFFLINE_COLOR = 0xc44545;
 const OWNER_BADGE_COLOR = 0xf6bd60;
 const STATUS_PANEL_WIDTH = 940;
 const PLAYERS_PANEL_WIDTH = 940;
+const BUTTON_WIDTH = 220;
+const BUTTON_HEIGHT = 62;
+const BUTTON_SPACING = 26;
 
 export class LobbyRoom extends Phaser.Scene {
     constructor() {
@@ -78,6 +81,7 @@ export class LobbyRoom extends Phaser.Scene {
         }).setOrigin(0, 0);
 
         this.playersListContainer = this.add.container(width / 2 - PLAYERS_PANEL_WIDTH / 2 + 30, 320);
+        this.actionButtonsContainer = this.add.container(width / 2, 630);
 
         this.messageText = this.add.text(width / 2, height - 42, '', {
             fontFamily: 'Arial, sans-serif',
@@ -87,10 +91,11 @@ export class LobbyRoom extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        //this.backBtn = this.createButton(1130, 86, 220, 62, 'BACK', () => this.goBack());
-        this.leaveBtn = this.createButton(1130, 158, 220, 62, 'LEAVE', () => this.leaveLobby());
-        this.joinBtn = this.createButton(1130, 158, 220, 62, 'JOIN', () => this.joinLobby());
-        this.startBtn = this.createButton(1130, 230, 220, 62, 'START', () => this.startLobby());
+        //this.backBtn = this.createButton(1130, 86, BUTTON_WIDTH, BUTTON_HEIGHT, 'BACK', () => this.goBack());
+        this.leaveBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'LEAVE', () => this.leaveLobby());
+        this.joinBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'JOIN', () => this.joinLobby());
+        this.startBtn = this.createButton(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT, 'START', () => this.startLobby());
+        this.actionButtonsContainer.add([this.leaveBtn, this.joinBtn, this.startBtn]);
 
         this.bootstrap();
 
@@ -163,6 +168,7 @@ export class LobbyRoom extends Phaser.Scene {
 
         this.joinBtn.setVisible(!isMember);
         this.setButtonDisabled(this.joinBtn, !hasFreeSlots);
+        this.layoutActionButtons();
         if (!isMember && !hasFreeSlots) {
             this.showMessage('Lobby is already full. No free slots left.');
         }
@@ -349,6 +355,29 @@ export class LobbyRoom extends Phaser.Scene {
             .setStrokeStyle(6, PANEL_STROKE, 1)
             .setPosition(x, y)
             .setOrigin(0.5);
+    }
+
+    layoutActionButtons() {
+        const visibleButtons = [this.leaveBtn, this.joinBtn, this.startBtn].filter(button => button?.visible);
+
+        const totalWidth = visibleButtons.length > 0
+            ? (visibleButtons.length * BUTTON_WIDTH) + ((visibleButtons.length - 1) * BUTTON_SPACING)
+            : 0;
+        let currentX = -totalWidth / 2 + BUTTON_WIDTH / 2;
+
+        [this.leaveBtn, this.joinBtn, this.startBtn].forEach(button => {
+            if (!button) {
+                return;
+            }
+
+            if (!button.visible) {
+                button.setPosition(0, 0);
+                return;
+            }
+
+            button.setPosition(currentX, 0);
+            currentX += BUTTON_WIDTH + BUTTON_SPACING;
+        });
     }
 
     createButton(x, y, width, height, label, onClick) {
