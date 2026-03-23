@@ -89,6 +89,10 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
     }
 
     [HttpPost("{lobbyId:guid}/join")]
+    [ProducesResponseType(typeof(LobbyDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorDto), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiErrorDto), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> JoinLobby(Guid lobbyId, [FromBody] JoinLobbyRequest request)
     {
         if (!sessionStorage.TryGetSession(lobbyId, out var session) || session is null)
@@ -105,7 +109,19 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
         }
         catch (InvalidDataException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            if (string.Equals(ex.Message, "Session is full.", StringComparison.Ordinal))
+            {
+                return Conflict(new ApiErrorDto
+                {
+                    Code = "lobby_full",
+                    Message = "Lobby is already full. No free slots left."
+                });
+            }
+
+            return BadRequest(new ApiErrorDto
+            {
+                Message = ex.Message
+            });
         }
     }
 

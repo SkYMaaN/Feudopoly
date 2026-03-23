@@ -95,7 +95,7 @@ export class LobbyRoom extends Phaser.Scene {
         this.joinBtn.setVisible(!isMember);
         this.setButtonDisabled(this.joinBtn, !hasFreeSlots);
         if (!isMember && !hasFreeSlots) {
-            this.showMessage('Lobby is full. Join is unavailable.');
+            this.showMessage('Lobby is already full. No free slots left.');
         }
     }
 
@@ -122,7 +122,7 @@ export class LobbyRoom extends Phaser.Scene {
 
     async joinLobby() {
         if (this.lobby.currentPlayers >= this.lobby.maxPlayers) {
-            this.showMessage('Lobby is full.');
+            this.showMessage('Lobby is already full. No free slots left.');
             return;
         }
 
@@ -136,6 +136,18 @@ export class LobbyRoom extends Phaser.Scene {
                 password
             });
         } catch (e) {
+            if (e.code === 'lobby_full') {
+                try {
+                    const lobby = await lobbyApi.details(this.lobbyId);
+                    this.applyLobby(lobby);
+                } catch {
+                    // ignore refresh errors and keep the friendly full lobby message
+                }
+
+                this.showMessage(e.message);
+                return;
+            }
+
             this.showMessage(e.message);
         }
     }

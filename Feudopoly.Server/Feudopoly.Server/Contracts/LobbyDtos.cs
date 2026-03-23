@@ -39,6 +39,13 @@ public sealed class StartLobbyRequest
     public Guid PlayerId { get; set; }
 }
 
+
+public sealed class ApiErrorDto
+{
+    public required string Message { get; init; }
+    public string? Code { get; init; }
+}
+
 public sealed class LobbyListItemDto
 {
     public required Guid LobbyId { get; init; }
