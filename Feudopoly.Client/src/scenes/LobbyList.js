@@ -183,12 +183,14 @@ export class LobbyList extends Phaser.Scene {
 
         visibleLobbies.forEach((lobby, idx) => {
             const y = idx * 75;
+            const hasFreeSlots = lobby.currentPlayers < lobby.maxPlayers;
             const bg = this.add.rectangle(0, y, 1275, 64, 0x7faed3, 0.95).setOrigin(0, 0);
             const text = this.add.text(20, y + 16,
                 `\'${lobby.name}\' | [${lobby.currentPlayers}/${lobby.maxPlayers}]  ${this.getLobbyStatusText(lobby.status)} | ${lobby.accessType == 1 ? 'Private' : 'Public'}`,
                 { fontSize: '26px', color: TEXT_COLOR });
             const detailsBtn = this.createButton(1000, y + 32, 150, 40, 'DETAILS', () => this.openLobby(lobby));
             const joinBtn = this.createButton(1170, y + 32, 150, 40, 'JOIN', async () => this.joinLobby(lobby));
+            this.setButtonDisabled(joinBtn, !hasFreeSlots);
             this.listContainer.add([bg, text, detailsBtn, joinBtn]);
             this.rows.push({ bg, text, detailsBtn, joinBtn });
         });
@@ -984,6 +986,11 @@ export class LobbyList extends Phaser.Scene {
     }
 
     async joinLobby(lobby) {
+        if (lobby.currentPlayers >= lobby.maxPlayers) {
+            this.showMessage('Lobby is already full. No free slots left.');
+            return;
+        }
+
         try {
             const password = lobby.accessType === 1 ? window.prompt('Password:') : null;
             await lobbyApi.join(lobby.lobbyId, {
@@ -995,6 +1002,12 @@ export class LobbyList extends Phaser.Scene {
             });
             this.scene.start('LobbyRoom', { lobbyId: lobby.lobbyId });
         } catch (e) {
+            if (e.code === 'lobby_full') {
+                await this.syncLobbies();
+                this.showMessage(e.message);
+                return;
+            }
+
             this.showMessage(e.message);
         }
     }
@@ -1064,13 +1077,41 @@ export class LobbyList extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        rect.on('pointerover', () => rect.setFillStyle(BUTTON_HOVER_COLOR, 1));
-        rect.on('pointerout', () => rect.setFillStyle(BUTTON_COLOR, 1));
-        rect.on('pointerdown', onClick);
+        rect.on('pointerover', () => {
+            if (!rect.input?.enabled) {
+                return;
+            }
+
+            rect.setFillStyle(BUTTON_HOVER_COLOR, 1);
+        });
+        rect.on('pointerout', () => {
+            rect.setFillStyle(rect.input?.enabled ? BUTTON_COLOR : BUTTON_DISABLED_COLOR, 1);
+        });
+        rect.on('pointerdown', () => {
+            if (rect.input?.enabled) {
+                onClick();
+            }
+        });
 
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
+        container.buttonRect = rect;
+        container.buttonText = text;
 
         return container;
+    }
+
+    setButtonDisabled(button, disabled) {
+        if (!button?.buttonRect) {
+            return;
+        }
+
+        button.buttonRect.disableInteractive();
+        if (!disabled) {
+            button.buttonRect.setInteractive({ useHandCursor: true });
+        }
+
+        button.buttonRect.setFillStyle(disabled ? BUTTON_DISABLED_COLOR : BUTTON_COLOR, 1);
+        button.buttonText.setAlpha(disabled ? 0.55 : 1);
     }
 
     showMessage(msg) { this.messageText.setText(msg || ''); }
