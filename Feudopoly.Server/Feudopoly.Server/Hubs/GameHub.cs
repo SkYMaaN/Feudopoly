@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Feudopoly.Server.Hubs;
 
-public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventStorage, ILogger<GameHub> logger) : Hub
+public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventStorage, IHubContext<LobbyHub> lobbyHub, ILogger<GameHub> logger) : Hub
 {
     private const int BoardCellsCount = 30;
     private const string SessionIdContextKey = "sessionId";
@@ -25,37 +25,41 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         PlayerState? removedPlayer;
-        GameStateDto state;
+        GameStateDto? state = null;
+        var removedSession = false;
 
         lock (session)
         {
             removedPlayer = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId);
-            if (removedPlayer is null)
+            if (removedPlayer is not null)
             {
-                state = SessionStorage.ToDto(session);
-            }
-            else
-            {
-                var wasActive = removedPlayer.PlayerId == session.ActiveTurnPlayerId;
-                removedPlayer.IsConnected = false;
-                removedPlayer.ConnectionId = string.Empty;
-
-                if (session.IsEventRollPhase)
+                if (session.Players.Count == 1)
                 {
-                    session.PendingEventRollPlayerIds.Remove(removedPlayer.PlayerId);
-                    if (session.PendingEventRollPlayerIds.Count == 0)
+                    removedSession = _sessionStore.RemovePlayerFromSession(session, removedPlayer.PlayerId);
+                }
+                else
+                {
+                    var wasActive = removedPlayer.PlayerId == session.ActiveTurnPlayerId;
+                    removedPlayer.IsConnected = false;
+                    removedPlayer.ConnectionId = string.Empty;
+
+                    if (session.IsEventRollPhase)
                     {
-                        EndEventRollPhase(session);
+                        session.PendingEventRollPlayerIds.Remove(removedPlayer.PlayerId);
+                        if (session.PendingEventRollPlayerIds.Count == 0)
+                        {
+                            EndEventRollPhase(session);
+                            AdvanceTurn(session);
+                        }
+                    }
+                    else if (wasActive)
+                    {
                         AdvanceTurn(session);
                     }
-                }
-                else if (wasActive)
-                {
-                    AdvanceTurn(session);
-                }
 
-                SessionStorage.TouchSession(session);
-                state = SessionStorage.ToDto(session);
+                    SessionStorage.TouchSession(session);
+                    state = SessionStorage.ToDto(session);
+                }
             }
         }
 
@@ -64,10 +68,20 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         if (removedPlayer is not null)
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
-            await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayer.PlayerId);
-            await Clients.Group(groupName).SendAsync("StateUpdated", state);
 
-            logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId);
+            if (removedSession)
+            {
+                await Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
+                await lobbyHub.Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
+                await lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListDeleted", sessionId);
+            }
+            else if (state is not null)
+            {
+                await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayer.PlayerId);
+                await Clients.Group(groupName).SendAsync("StateUpdated", state);
+            }
+
+            logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}. SessionRemoved: {SessionRemoved}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId, removedSession);
         }
 
         await base.OnDisconnectedAsync(exception);
@@ -414,11 +428,16 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         var groupName = sessionId.ToString();
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
 
-        if (!removedSession)
+        if (removedSession)
         {
-            await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayerId);
-            await Clients.Group(groupName).SendAsync("StateUpdated", state);
+            await Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
+            await lobbyHub.Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
+            await lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListDeleted", sessionId);
+            return;
         }
+
+        await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayerId);
+        await Clients.Group(groupName).SendAsync("StateUpdated", state);
     }
 
     public async Task SyncState(Guid sessionId)
