@@ -78,6 +78,7 @@ export class LobbyRoom extends Phaser.Scene {
         const hasFreeSlots = this.lobby.currentPlayers < this.lobby.maxPlayers;
         const isOwner = this.lobby.ownerPlayerId === this.profile.playerId;
         const canStart = this.lobby.status === 1;
+        const canJoin = !isMember && hasFreeSlots && this.lobby.status <= 1;
 
         if (isMember && (this.lobby.status === 2 || this.lobby.status === 3)) {
             this.openGame();
@@ -93,9 +94,11 @@ export class LobbyRoom extends Phaser.Scene {
         this.setButtonDisabled(this.startBtn, !canStart);
 
         this.joinBtn.setVisible(!isMember);
-        this.setButtonDisabled(this.joinBtn, !hasFreeSlots);
+        this.setButtonDisabled(this.joinBtn, !canJoin);
         if (!isMember && !hasFreeSlots) {
             this.showMessage('Lobby is full. Join is unavailable.');
+        } else if (!isMember && this.lobby.status > 1) {
+            this.showMessage('Lobby has already started. Join is unavailable.');
         }
     }
 
@@ -123,6 +126,11 @@ export class LobbyRoom extends Phaser.Scene {
     async joinLobby() {
         if (this.lobby.currentPlayers >= this.lobby.maxPlayers) {
             this.showMessage('Lobby is full.');
+            return;
+        }
+
+        if (this.lobby.status > 1) {
+            this.showMessage('Lobby has already started.');
             return;
         }
 
@@ -186,14 +194,14 @@ export class LobbyRoom extends Phaser.Scene {
         }).setOrigin(0.5);
 
         rect.on('pointerover', () => {
-            if (!rect.input?.enabled) {
+            if (container.isDisabled) {
                 return;
             }
 
             rect.setFillStyle(0x8FA9BF, 1);
         });
         rect.on('pointerout', () => {
-            rect.setFillStyle(0x9cbfd9, 1);
+            rect.setFillStyle(container.isDisabled ? 0x6d9dc5 : 0x4682b4, 1);
         });
         rect.on('pointerdown', () => {
             if (rect.input?.enabled) {
@@ -204,6 +212,9 @@ export class LobbyRoom extends Phaser.Scene {
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
         container.buttonRect = rect;
         container.buttonText = text;
+        container.isDisabled = false;
+
+        rect.setFillStyle(0x4682b4, 1);
 
         return container;
     }
@@ -213,6 +224,7 @@ export class LobbyRoom extends Phaser.Scene {
             return;
         }
 
+        button.isDisabled = disabled;
         button.buttonRect.disableInteractive();
         if (!disabled) {
             button.buttonRect.setInteractive({ useHandCursor: true });
