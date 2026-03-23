@@ -10,6 +10,7 @@ const BUTTON_COLOR = 0x9cbfd9;
 const BUTTON_HOVER_COLOR = 0x8fa9bf;
 const BUTTON_ACTIVE_COLOR = 0xd5e6f5;
 const BUTTON_DISABLED_COLOR = 0x6d9dc5;
+const ACTIVE_TOGGLE_BORDER_COLOR = 0xff0000;
 const ACCESS_OPEN_COLORS = {
     defaultFill: 0x9fd9b7,
     hoverFill: 0x88cda6,
@@ -631,8 +632,12 @@ export class LobbyList extends Phaser.Scene {
         const textColor = button.isActive
             ? (colors?.activeTextColor ?? TEXT_COLOR)
             : (colors?.inactiveTextColor ?? TEXT_COLOR);
+        const strokeColor = button.isActive
+            ? ACTIVE_TOGGLE_BORDER_COLOR
+            : PANEL_STROKE;
 
         button.buttonBackground.setFillStyle(fillColor, 1);
+        button.buttonBackground.setStrokeStyle(6, strokeColor, 1);
         button.buttonText.setColor(textColor);
         button.buttonText.setAlpha(button.isDisabled ? 0.6 : (button.isActive ? 1 : 0.92));
     }
