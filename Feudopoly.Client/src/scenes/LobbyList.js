@@ -10,6 +10,22 @@ const BUTTON_COLOR = 0x9cbfd9;
 const BUTTON_HOVER_COLOR = 0x8fa9bf;
 const BUTTON_ACTIVE_COLOR = 0xd5e6f5;
 const BUTTON_DISABLED_COLOR = 0x6d9dc5;
+const ACCESS_OPEN_COLORS = {
+    defaultFill: 0x9fd9b7,
+    hoverFill: 0x88cda6,
+    activeFill: 0x43aa6b,
+    disabledFill: 0x7fa08b,
+    activeTextColor: '#ffffff',
+    inactiveTextColor: '#184d32'
+};
+const ACCESS_CLOSED_COLORS = {
+    defaultFill: 0xe2a2a2,
+    hoverFill: 0xd48f8f,
+    activeFill: 0xc44545,
+    disabledFill: 0x9e7f7f,
+    activeTextColor: '#ffffff',
+    inactiveTextColor: '#6e1e1e'
+};
 const DISABLED_INPUT_FILL = 0xd7dee6;
 const TEXT_COLOR = '#FF0000';
 const INPUT_TEXT_COLOR = '#1d3557';
@@ -499,7 +515,8 @@ export class LobbyList extends Phaser.Scene {
             config.height,
             'OPEN',
             this.createLobbyState.accessType === 0,
-            () => this.setLobbyAccessType(0)
+            () => this.setLobbyAccessType(0),
+            ACCESS_OPEN_COLORS
         );
         const closedButton = this.createModalToggleButton(
             config.x + (buttonWidth + buttonGap) / 2,
@@ -508,7 +525,8 @@ export class LobbyList extends Phaser.Scene {
             config.height,
             'CLOSED',
             this.createLobbyState.accessType === 1,
-            () => this.setLobbyAccessType(1)
+            () => this.setLobbyAccessType(1),
+            ACCESS_CLOSED_COLORS
         );
 
         const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 12, 'Open lobbies do not require a password. Closed lobbies require one.', {
@@ -551,9 +569,21 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button, { useHover: true });
+                return;
+            }
+
             background.setFillStyle(BUTTON_HOVER_COLOR, 1);
         });
-        button.on('pointerout', () => background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1));
+        button.on('pointerout', () => {
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button);
+                return;
+            }
+
+            background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1);
+        });
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
                 return;
@@ -567,9 +597,11 @@ export class LobbyList extends Phaser.Scene {
         return button;
     }
 
-    createModalToggleButton(x, y, width, height, label, isActive, onClick) {
+    createModalToggleButton(x, y, width, height, label, isActive, onClick, colorSet) {
         const button = this.createModalButton(x, y, width, height, label, onClick);
         button.isActive = isActive;
+        button.isDisabled = false;
+        button.toggleColors = colorSet;
         this.applyToggleButtonState(button, isActive);
         return button;
     }
@@ -580,8 +612,29 @@ export class LobbyList extends Phaser.Scene {
         }
 
         button.isActive = isActive;
-        button.buttonBackground.setFillStyle(isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1);
-        button.buttonText.setAlpha(isActive ? 1 : 0.9);
+        this.applyToggleButtonVisualState(button, { useHover: false });
+    }
+
+    applyToggleButtonVisualState(button, { useHover = false } = {}) {
+        if (!button?.buttonBackground) {
+            return;
+        }
+
+        const colors = button.toggleColors;
+        const fillColor = button.isDisabled
+            ? (colors?.disabledFill ?? BUTTON_DISABLED_COLOR)
+            : useHover
+                ? (colors?.hoverFill ?? BUTTON_HOVER_COLOR)
+                : button.isActive
+                    ? (colors?.activeFill ?? BUTTON_ACTIVE_COLOR)
+                    : (colors?.defaultFill ?? BUTTON_COLOR);
+        const textColor = button.isActive
+            ? (colors?.activeTextColor ?? TEXT_COLOR)
+            : (colors?.inactiveTextColor ?? TEXT_COLOR);
+
+        button.buttonBackground.setFillStyle(fillColor, 1);
+        button.buttonText.setColor(textColor);
+        button.buttonText.setAlpha(button.isDisabled ? 0.6 : (button.isActive ? 1 : 0.92));
     }
 
     createModalButton(x, y, width, height, label, onClick) {
@@ -610,9 +663,21 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button, { useHover: true });
+                return;
+            }
+
             background.setFillStyle(BUTTON_HOVER_COLOR, 1);
         });
-        button.on('pointerout', () => background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1));
+        button.on('pointerout', () => {
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button);
+                return;
+            }
+
+            background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1);
+        });
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
                 return;
@@ -805,8 +870,14 @@ export class LobbyList extends Phaser.Scene {
             }
 
             button.disableInteractive();
+            button.isDisabled = disabled;
             if (!disabled) {
                 button.setInteractive({ useHandCursor: true });
+            }
+
+            if (button.toggleColors) {
+                this.applyToggleButtonVisualState(button);
+                return;
             }
 
             button.buttonBackground.setFillStyle(disabled ? BUTTON_DISABLED_COLOR : (button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR), 1);
