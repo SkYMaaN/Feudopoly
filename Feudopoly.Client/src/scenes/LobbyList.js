@@ -189,9 +189,6 @@ export class LobbyList extends Phaser.Scene {
                 { fontSize: '26px', color: TEXT_COLOR });
             const detailsBtn = this.createButton(1000, y + 32, 150, 40, 'DETAILS', () => this.openLobby(lobby));
             const joinBtn = this.createButton(1170, y + 32, 150, 40, 'JOIN', async () => this.joinLobby(lobby));
-            const joinDisabled = lobby.currentPlayers >= lobby.maxPlayers || lobby.status > 1;
-
-            this.setButtonDisabled(joinBtn, joinDisabled);
             this.listContainer.add([bg, text, detailsBtn, joinBtn]);
             this.rows.push({ bg, text, detailsBtn, joinBtn });
         });
@@ -987,16 +984,6 @@ export class LobbyList extends Phaser.Scene {
     }
 
     async joinLobby(lobby) {
-        if (lobby.currentPlayers >= lobby.maxPlayers) {
-            this.showMessage('Lobby is full.');
-            return;
-        }
-
-        if (lobby.status > 1) {
-            this.showMessage('Lobby has already started.');
-            return;
-        }
-
         try {
             const password = lobby.accessType === 1 ? window.prompt('Password:') : null;
             await lobbyApi.join(lobby.lobbyId, {
@@ -1077,43 +1064,13 @@ export class LobbyList extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
+        rect.on('pointerover', () => rect.setFillStyle(BUTTON_HOVER_COLOR, 1));
+        rect.on('pointerout', () => rect.setFillStyle(BUTTON_COLOR, 1));
+        rect.on('pointerdown', onClick);
+
         const container = this.add.container(0, 0, [rect, text]).setSize(width, height);
-        container.buttonRect = rect;
-        container.buttonText = text;
-        container.isDisabled = false;
-
-        rect.on('pointerover', () => {
-            if (container.isDisabled) {
-                return;
-            }
-
-            rect.setFillStyle(BUTTON_HOVER_COLOR, 1);
-        });
-        rect.on('pointerout', () => rect.setFillStyle(container.isDisabled ? BUTTON_DISABLED_COLOR : BUTTON_COLOR, 1));
-        rect.on('pointerdown', () => {
-            if (container.isDisabled) {
-                return;
-            }
-
-            onClick();
-        });
 
         return container;
-    }
-
-    setButtonDisabled(button, disabled) {
-        if (!button?.buttonRect) {
-            return;
-        }
-
-        button.isDisabled = disabled;
-        button.buttonRect.disableInteractive();
-        if (!disabled) {
-            button.buttonRect.setInteractive({ useHandCursor: true });
-        }
-
-        button.buttonRect.setFillStyle(disabled ? BUTTON_DISABLED_COLOR : BUTTON_COLOR, 1);
-        button.buttonText.setAlpha(disabled ? 0.55 : 1);
     }
 
     showMessage(msg) { this.messageText.setText(msg || ''); }
