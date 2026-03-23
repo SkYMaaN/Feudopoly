@@ -1141,6 +1141,11 @@ export class Board extends Phaser.Scene {
             }
         }
 
+        const activePlayers = this.players.filter(player => !player.isDead && !player.isSpectator && !player.isWinner);
+        if (activePlayers.length === 1 && String(activePlayers[0].playerId ?? '') === String(this.localPlayerId ?? '')) {
+            return activePlayers[0].playerId;
+        }
+
         const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
         if (candidates.length === 1) {
             return candidates[0].playerId;
