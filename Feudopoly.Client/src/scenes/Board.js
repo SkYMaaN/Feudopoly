@@ -72,6 +72,7 @@ export class Board extends Phaser.Scene {
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
+        this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
         this.localPlayerIsDead = false;
         this.localPlayerIsSpectator = false;
@@ -748,16 +749,15 @@ export class Board extends Phaser.Scene {
         });
     }
 
-    refreshTurnUI() {
-        if (this.isTurnResultNotificationActive) {
-            const isLocalTurnAgain = this.activeTurnPlayerId === this.localPlayerId && !this.isTurnInProgress;
-            if (isLocalTurnAgain) {
-                this.hideTurnResultNotification();
-            } else {
-                this.turnOverlay.setVisible(false);
-                return;
-            }
+    refreshTurnUI({ force = false } = {}) {
+        // Keep the same UI lifecycle in every mode: result notification first, turn overlay second.
+        if (this.isTurnResultNotificationActive && !force) {
+            this.hasDeferredTurnUIRefresh = true;
+            this.turnOverlay.setVisible(false);
+            return;
         }
+
+        this.hasDeferredTurnUIRefresh = false;
 
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
@@ -994,20 +994,27 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnResultDismissHandler = () => {
-            this.hideTurnResultNotification();
-            this.refreshTurnUI();
+            this.hideTurnResultNotification({ refreshTurnUI: true });
         };
 
         this.input.once('pointerdown', this.turnResultDismissHandler);
     }
 
-    hideTurnResultNotification() {
+    hideTurnResultNotification({ refreshTurnUI = false } = {}) {
+        const shouldRefreshTurnUI = this.isTurnResultNotificationActive
+            && (refreshTurnUI || this.hasDeferredTurnUIRefresh);
+
         this.isTurnResultNotificationActive = false;
+        this.hasDeferredTurnUIRefresh = false;
         this.hideNotification();
 
         if (this.turnResultDismissHandler) {
             this.input.off('pointerdown', this.turnResultDismissHandler);
             this.turnResultDismissHandler = null;
+        }
+
+        if (shouldRefreshTurnUI) {
+            this.refreshTurnUI({ force: true });
         }
     }
 
