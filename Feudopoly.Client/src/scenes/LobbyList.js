@@ -65,7 +65,7 @@ export class LobbyList extends Phaser.Scene {
         });
 
         this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
-        this.add.text(width / 2, 60, 'Lobbies', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
+        this.add.text(width / 2, 60, 'Lobby List', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
 
         /*this.add.text(200, 130, 'Search', {
             fontFamily: 'Georgia, serif',

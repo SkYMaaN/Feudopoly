@@ -85,7 +85,7 @@ export class LobbyRoom extends Phaser.Scene {
         }
 
         this.title.setText(`Lobby: ${this.lobby.name}`);
-        this.statusText.setText(`Status: ${this.lobby.status} | ${this.lobby.currentPlayers}/${this.lobby.maxPlayers}`);
+        this.statusText.setText(`Status: ${this.getLobbyStatusText(this.lobby.status)} | ${this.lobby.currentPlayers}/${this.lobby.maxPlayers} 👥`);
         this.playersText.setText(this.lobby.players.map(p => `${p.isOwner ? '👑 ' : ''}${p.displayName}${p.isConnected ? ' (online)' : ''}`).join('\n'));
 
         this.leaveBtn.setVisible(isMember);
@@ -157,8 +157,20 @@ export class LobbyRoom extends Phaser.Scene {
         this.unsubscribers = [];
 
         if (this.lobbyId) {
-            lobbyHubClient.unsubscribeLobby(this.lobbyId).catch(() => {});
+            lobbyHubClient.unsubscribeLobby(this.lobbyId).catch(() => { });
         }
+    }
+
+    getLobbyStatusText(status) {
+        const map = {
+            0: "Waiting for players",
+            1: "Ready",
+            2: "Launching",
+            3: "In progress",
+            4: "Completed"
+        };
+
+        return map[status] ?? "Unknown";
     }
 
     createButton(x, y, width, height, label, onClick) {
