@@ -8,6 +8,9 @@ const PANEL_COLOR = 0x4682b4;
 const PANEL_STROKE = 0x2b5e8a;
 const BUTTON_COLOR = 0x9cbfd9;
 const BUTTON_HOVER_COLOR = 0x8fa9bf;
+const BUTTON_ACTIVE_COLOR = 0xd5e6f5;
+const BUTTON_DISABLED_COLOR = 0x6d9dc5;
+const DISABLED_INPUT_FILL = 0xd7dee6;
 const TEXT_COLOR = '#FF0000';
 const INPUT_TEXT_COLOR = '#1d3557';
 const PLACEHOLDER_COLOR = '#8a4f4f';
@@ -190,6 +193,7 @@ export class LobbyList extends Phaser.Scene {
         return {
             name: '',
             password: '',
+            accessType: 0,
             maxPlayers: 4,
             errors: {},
             formError: '',
@@ -208,7 +212,7 @@ export class LobbyList extends Phaser.Scene {
 
         const { width, height } = this.scale.gameSize;
         const panelWidth = Math.min(width * 0.7, 860);
-        const panelHeight = Math.min(height * 0.7, 620);
+        const panelHeight = Math.min(height * 0.74, 700);
         const centerX = width / 2;
         const centerY = height / 2;
         const layout = this.getCreateLobbyLayout(panelWidth, panelHeight);
@@ -275,6 +279,16 @@ export class LobbyList extends Phaser.Scene {
             errorFontSize: layout.errorFontSize
         });
 
+        this.accessTypeField = this.createAccessTypeField({
+            x: centerX,
+            labelY: centerY - panelHeight / 2 + 420,
+            controlY: centerY - panelHeight / 2 + 476,
+            width: panelWidth - layout.paddingX * 2,
+            height: layout.inputHeight,
+            fontSize: layout.inputFontSize,
+            errorFontSize: layout.errorFontSize
+        });
+
         this.passwordField = this.createModalTextField({
             key: 'password',
             label: 'Password',
@@ -282,8 +296,8 @@ export class LobbyList extends Phaser.Scene {
             type: 'password',
             maxLength: 32,
             x: centerX,
-            labelY: centerY - panelHeight / 2 + 406,
-            inputY: centerY - panelHeight / 2 + 462,
+            labelY: centerY - panelHeight / 2 + 542,
+            inputY: centerY - panelHeight / 2 + 598,
             width: panelWidth - layout.paddingX * 2,
             height: layout.inputHeight,
             fontSize: layout.inputFontSize,
@@ -301,6 +315,7 @@ export class LobbyList extends Phaser.Scene {
             this.formErrorText,
             ...this.nameField.displayObjects,
             ...this.playersField.displayObjects,
+            ...this.accessTypeField.displayObjects,
             ...this.passwordField.displayObjects,
             this.backModalButton,
             this.createModalButtonControl
@@ -391,7 +406,7 @@ export class LobbyList extends Phaser.Scene {
 
         shell.setInteractive({ useHandCursor: true });
         shell.on('pointerdown', () => {
-            if (!this.createLobbyState.submitting) {
+            if (!this.createLobbyState.submitting && !input.disabled) {
                 input.focus();
             }
         });
@@ -465,6 +480,53 @@ export class LobbyList extends Phaser.Scene {
         };
     }
 
+
+    createAccessTypeField(config) {
+        const label = this.add.text(config.x - config.width / 2, config.labelY, 'Lobby access', {
+            fontFamily: 'Georgia, serif',
+            fontSize: `${config.fontSize}px`,
+            color: TEXT_COLOR,
+            fontStyle: 'bold'
+        }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
+
+        const groupWidth = Math.min(config.width, 560);
+        const buttonGap = 24;
+        const buttonWidth = Math.floor((groupWidth - buttonGap) / 2);
+        const openButton = this.createModalToggleButton(
+            config.x - (buttonWidth + buttonGap) / 2,
+            config.controlY,
+            buttonWidth,
+            config.height,
+            'OPEN',
+            this.createLobbyState.accessType === 0,
+            () => this.setLobbyAccessType(0)
+        );
+        const closedButton = this.createModalToggleButton(
+            config.x + (buttonWidth + buttonGap) / 2,
+            config.controlY,
+            buttonWidth,
+            config.height,
+            'CLOSED',
+            this.createLobbyState.accessType === 1,
+            () => this.setLobbyAccessType(1)
+        );
+
+        const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 22, 'Open lobbies do not require a password. Closed lobbies require one.', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: `${Math.max(16, config.errorFontSize - 2)}px`,
+            color: PLACEHOLDER_COLOR,
+            align: 'center',
+            wordWrap: { width: config.width }
+        }).setOrigin(0.5, 0).setDepth(LOBBY_MODAL_DEPTH + 2);
+
+        return {
+            openButton,
+            closedButton,
+            hintText,
+            displayObjects: [label, openButton, closedButton, hintText]
+        };
+    }
+
     createStepperButton(x, y, width, height, label, onClick) {
         const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, BUTTON_COLOR, 1)
             .setStrokeStyle(5, PANEL_STROKE, 1);
@@ -491,7 +553,7 @@ export class LobbyList extends Phaser.Scene {
 
             background.setFillStyle(BUTTON_HOVER_COLOR, 1);
         });
-        button.on('pointerout', () => background.setFillStyle(BUTTON_COLOR, 1));
+        button.on('pointerout', () => background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1));
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
                 return;
@@ -503,6 +565,23 @@ export class LobbyList extends Phaser.Scene {
         button.buttonBackground = background;
         button.buttonText = text;
         return button;
+    }
+
+    createModalToggleButton(x, y, width, height, label, isActive, onClick) {
+        const button = this.createModalButton(x, y, width, height, label, onClick);
+        button.isActive = isActive;
+        this.applyToggleButtonState(button, isActive);
+        return button;
+    }
+
+    applyToggleButtonState(button, isActive) {
+        if (!button?.buttonBackground) {
+            return;
+        }
+
+        button.isActive = isActive;
+        button.buttonBackground.setFillStyle(isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1);
+        button.buttonText.setAlpha(isActive ? 1 : 0.9);
     }
 
     createModalButton(x, y, width, height, label, onClick) {
@@ -533,7 +612,7 @@ export class LobbyList extends Phaser.Scene {
 
             background.setFillStyle(BUTTON_HOVER_COLOR, 1);
         });
-        button.on('pointerout', () => background.setFillStyle(BUTTON_COLOR, 1));
+        button.on('pointerout', () => background.setFillStyle(button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR, 1));
         button.on('pointerdown', () => {
             if (!button.input?.enabled) {
                 return;
@@ -610,7 +689,7 @@ export class LobbyList extends Phaser.Scene {
     }
 
     focusModalField(field) {
-        if (!field?.input || this.createLobbyState.submitting) {
+        if (!field?.input || this.createLobbyState.submitting || field.input.disabled) {
             return;
         }
 
@@ -619,6 +698,23 @@ export class LobbyList extends Phaser.Scene {
 
     setFieldFocused(background, isFocused) {
         background?.setStrokeStyle(5, isFocused ? FOCUSED_STROKE : PANEL_STROKE, 1);
+    }
+
+    setLobbyAccessType(accessType) {
+        if (this.createLobbyState.submitting || this.createLobbyState.accessType === accessType) {
+            return;
+        }
+
+        this.createLobbyState.accessType = accessType;
+        this.createLobbyState.formError = '';
+        this.validateCreateLobbyField('password');
+        this.refreshCreateLobbyForm();
+
+        if (accessType === 0) {
+            this.passwordField?.input?.blur();
+        } else {
+            this.focusModalField(this.passwordField);
+        }
     }
 
     adjustPlayersCount(delta) {
@@ -634,7 +730,7 @@ export class LobbyList extends Phaser.Scene {
 
     validateCreateLobbyField(fieldName) {
         const errors = { ...this.createLobbyState.errors };
-        const { name, password, maxPlayers } = this.createLobbyState;
+        const { name, password, maxPlayers, accessType } = this.createLobbyState;
 
         if (fieldName === 'name') {
             const trimmedName = name.trim();
@@ -647,8 +743,8 @@ export class LobbyList extends Phaser.Scene {
 
         if (fieldName === 'password') {
             const trimmedPassword = password.trim();
-            if (trimmedPassword.length < 3) {
-                errors.password = 'Password must contain at least 3 characters.';
+            if (accessType === 1 && trimmedPassword.length < 3) {
+                errors.password = 'Password is required for a closed lobby and must contain at least 3 characters.';
             } else {
                 delete errors.password;
             }
@@ -687,6 +783,13 @@ export class LobbyList extends Phaser.Scene {
         this.passwordField.input.value = this.createLobbyState.password;
         this.playersField.valueText.setText(String(this.createLobbyState.maxPlayers));
 
+        this.applyToggleButtonState(this.accessTypeField?.openButton, this.createLobbyState.accessType === 0);
+        this.applyToggleButtonState(this.accessTypeField?.closedButton, this.createLobbyState.accessType === 1);
+        this.passwordField.input.disabled = this.createLobbyState.submitting || this.createLobbyState.accessType === 0;
+        this.passwordField.input.style.opacity = this.passwordField.input.disabled ? '0.65' : '1';
+        this.passwordField.input.style.cursor = this.passwordField.input.disabled ? 'not-allowed' : 'text';
+        this.passwordField.background.setFillStyle(this.createLobbyState.accessType === 0 ? DISABLED_INPUT_FILL : 0xffffff, 1);
+
         this.nameField.errorText.setText(this.createLobbyState.errors.name || '');
         this.passwordField.errorText.setText(this.createLobbyState.errors.password || '');
         this.playersField.errorText.setText(this.createLobbyState.errors.maxPlayers || '');
@@ -706,7 +809,7 @@ export class LobbyList extends Phaser.Scene {
                 button.setInteractive({ useHandCursor: true });
             }
 
-            button.buttonBackground.setFillStyle(disabled ? 0x6d9dc5 : BUTTON_COLOR, 1);
+            button.buttonBackground.setFillStyle(disabled ? BUTTON_DISABLED_COLOR : (button.isActive ? BUTTON_ACTIVE_COLOR : BUTTON_COLOR), 1);
             button.buttonText.setAlpha(disabled ? 0.55 : 1);
         };
 
@@ -714,6 +817,8 @@ export class LobbyList extends Phaser.Scene {
         applyButtonState(this.createModalButtonControl, submitting);
         applyButtonState(this.playersField?.minusButton, submitting);
         applyButtonState(this.playersField?.plusButton, submitting);
+        applyButtonState(this.accessTypeField?.openButton, submitting);
+        applyButtonState(this.accessTypeField?.closedButton, submitting);
 
         this.modalFields.forEach((field) => {
             if (!field?.input) {
@@ -727,6 +832,8 @@ export class LobbyList extends Phaser.Scene {
         if (this.createModalButtonControl?.buttonText) {
             this.createModalButtonControl.buttonText.setText(submitting ? 'CREATING...' : 'CREATE');
         }
+
+        this.refreshCreateLobbyForm();
     }
 
     async submitCreateLobby() {
@@ -753,8 +860,8 @@ export class LobbyList extends Phaser.Scene {
         try {
             const lobby = await lobbyApi.create({
                 name: this.createLobbyState.name.trim(),
-                accessType: 1,
-                password: this.createLobbyState.password.trim(),
+                accessType: this.createLobbyState.accessType,
+                password: this.createLobbyState.accessType === 1 ? this.createLobbyState.password.trim() : null,
                 maxPlayers: this.createLobbyState.maxPlayers,
                 creatorId: this.profile.playerId,
                 creatorName: this.profile.displayName,
@@ -789,6 +896,7 @@ export class LobbyList extends Phaser.Scene {
         this.nameField = null;
         this.playersField = null;
         this.passwordField = null;
+        this.accessTypeField = null;
         this.backModalButton = null;
         this.createModalButtonControl = null;
         this.createLobbyState = this.getDefaultCreateLobbyState();
@@ -837,7 +945,8 @@ export class LobbyList extends Phaser.Scene {
             ...this.createLobbyState,
             errors: { ...this.createLobbyState.errors },
             name: this.nameField?.input?.value ?? this.createLobbyState.name,
-            password: this.passwordField?.input?.value ?? this.createLobbyState.password
+            password: this.passwordField?.input?.value ?? this.createLobbyState.password,
+            accessType: this.createLobbyState.accessType
         };
 
         this.closeCreateLobbyModal();
