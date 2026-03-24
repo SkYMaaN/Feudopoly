@@ -341,9 +341,11 @@ export class LobbyList extends Phaser.Scene {
             panelWidth,
             fullPanelHeight: panelHeight,
             fullCreateButtonY: centerY + panelHeight / 2 - 55,
-            compactCreateButtonY: this.accessTypeField.hintText.y + this.accessTypeField.hintText.height + layout.buttonHeight / 2 + 24,
+            compactCreateButtonY: this.accessTypeField.hintText.y + this.accessTypeField.hintText.height + layout.buttonHeight / 2 + 10,
             topPadding: 22,
-            bottomPadding: 30
+            compactTopShiftY: -24,
+            bottomPadding: 30,
+            compactBottomPadding: 22
         };
 
         this.modalElements = [
@@ -936,7 +938,8 @@ export class LobbyList extends Phaser.Scene {
             this.passwordField.input.style.display = showPasswordField ? '' : 'none';
         }
 
-        const createButtonY = showPasswordField ? this.modalGeometry.fullCreateButtonY : this.modalGeometry.compactCreateButtonY;
+        const compactLayout = !showPasswordField;
+        const createButtonY = compactLayout ? this.modalGeometry.compactCreateButtonY : this.modalGeometry.fullCreateButtonY;
         this.createModalButtonControl?.setPosition(this.modalGeometry.centerX, createButtonY);
         this.createModalButtonControl?.layout?.();
 
@@ -946,8 +949,8 @@ export class LobbyList extends Phaser.Scene {
             this.modalSubtitle?.y - (this.modalSubtitle?.height ?? 0) / 2
         );
         const bottomMostY = createButtonY + (this.createModalButtonControl?.height ?? 0) / 2;
-        const panelTopY = topMostY - this.modalGeometry.topPadding;
-        const panelBottomY = bottomMostY + this.modalGeometry.bottomPadding;
+        const panelTopY = topMostY - this.modalGeometry.topPadding + (compactLayout ? this.modalGeometry.compactTopShiftY : 0);
+        const panelBottomY = bottomMostY + (compactLayout ? this.modalGeometry.compactBottomPadding : this.modalGeometry.bottomPadding);
         const nextHeight = Math.max(260, panelBottomY - panelTopY);
         const nextCenterY = (panelTopY + panelBottomY) / 2;
 
