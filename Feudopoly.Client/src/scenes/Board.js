@@ -2069,12 +2069,12 @@ export class Board extends Phaser.Scene {
 
         this.diceVisualScale = diceScaleMultiplier;
 
-        this.diceShadow = this.add.ellipse(0, 135, 315, 105, 0x000000, 0.3);
+        this.diceShadow = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
         this.diceShadow.setScale(1.05, 0.8);
 
         this.diceGraphics = this.add.graphics();
 
-        this.diceValueText = this.add.text(0, -230, '1', {
+        this.diceValueText = this.add.text(0, -180, '1', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '76px',
             color: '#ffffff',
