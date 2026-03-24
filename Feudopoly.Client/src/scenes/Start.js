@@ -71,7 +71,7 @@ export class Start extends Phaser.Scene {
             this.gender = value;
         });
 
-        this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
+        this.religionLabel = this.add.text(width / 2, height / 2 + 25, 'Religion', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: TEXT_COLOR
@@ -226,7 +226,7 @@ export class Start extends Phaser.Scene {
             strokeThickness: 5
         }).setOrigin(0.5);
 
-        const dropdown = this.rexUI.add.dropDownList({
+        let dropdown = this.rexUI.add.dropDownList({
             x,
             y,
             width: 330,
@@ -278,10 +278,13 @@ export class Start extends Phaser.Scene {
                     }).layout();
 
                     optionButton.value = option.value;
+                    optionButton.setInteractive({ useHandCursor: true });
+                    optionButton.on('pointerdown', () => {
+                        console.log('Selected: ' + option.value);
+                        dropdown.setValue(option.value);
+                        dropdown.closeListPanel();
+                    });
                     return optionButton;
-                },
-                onButtonClick: function (button) {
-                    this.setValue(button.value);
                 },
                 onButtonOver: (button) => {
                     button.getElement('background')?.setFillStyle(0x8FA9BF, 1);
