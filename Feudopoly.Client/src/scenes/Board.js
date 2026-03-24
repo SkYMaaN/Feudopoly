@@ -70,6 +70,10 @@ export class Board extends Phaser.Scene {
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
         this.turnResultCountdownEvent = null;
+        this.rollRequestCountdownEvent = null;
+        this.rollRequestCountdownKey = null;
+        this.rollRequestCountdownSecondsLeft = null;
+        this.rollRequestCountdownDurationMs = 10000;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
@@ -331,6 +335,10 @@ export class Board extends Phaser.Scene {
     }
 
     cleanupHubEvents() {
+        this.stopRollRequestCountdown();
+        this.stopTurnBeganCountdown();
+        this.stopTurnResultCountdown();
+
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
         gameHubClient.disconnect().catch(() => {});
@@ -769,11 +777,8 @@ export class Board extends Phaser.Scene {
         const current = activeTurnPlayerId
             ? this.players.find(player => String(player.playerId) === activeTurnPlayerId) ?? null
             : null;
-        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
-        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
-        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && !isSkippingTurn && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+        const rollState = this.getLocalRollState();
+        const { isLocalTurn, mustRollForEvent, isSkippingTurn, canRoll } = rollState;
 
         if (isLocalTurn && this.isTurnInProgress) {
             return;
@@ -804,34 +809,32 @@ export class Board extends Phaser.Scene {
         }
 
         if (canRoll) {
+            this.ensureRollRequestCountdown(rollState);
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!');
+            this.updateRollButtonText(mustRollForEvent, this.rollRequestCountdownSecondsLeft);
         }
         else {
+            this.stopRollRequestCountdown();
             this.rollButton.setVisible(false);
             this.rollButton.disableInteractive();
             this.rollButtonBackground.setFillStyle(0x555555, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!');
+            this.updateRollButtonText(mustRollForEvent);
         }
 
         this.turnOverlay.setVisible(true);
     }
 
     async requestRoll() {
-        const activeTurnPlayerId = this.activeTurnPlayerId ? String(this.activeTurnPlayerId) : null;
-        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
-        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
-        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && !isSkippingTurn && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+        const { canRoll } = this.getLocalRollState();
 
         if (this.isRolling || !canRoll) {
             return;
         }
 
         try {
+            this.stopRollRequestCountdown();
             this.isRolling = true;
             this.animatingPlayerId = this.localPlayerId;
             this.pendingRepeatRoll = false;
@@ -854,7 +857,93 @@ export class Board extends Phaser.Scene {
             this.isRolling = false;
             this.animatingPlayerId = null;
             this.turnOverlay.setVisible(true);
+            this.refreshTurnUI();
         }
+    }
+
+    getLocalRollState() {
+        const activeTurnPlayerId = this.activeTurnPlayerId ? String(this.activeTurnPlayerId) : null;
+        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
+        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
+        const canRoll = !this.localPlayerIsDead
+            && !this.localPlayerIsSpectator
+            && !this.localPlayerIsWinner
+            && !this.isTurnInProgress
+            && !isSkippingTurn
+            && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+
+        return {
+            activeTurnPlayerId,
+            isLocalTurn,
+            mustRollForEvent,
+            isSkippingTurn,
+            canRoll
+        };
+    }
+
+    getRollRequestCountdownKey(rollState) {
+        return [
+            String(this.sessionId ?? ''),
+            String(rollState.activeTurnPlayerId ?? ''),
+            rollState.mustRollForEvent ? 'event' : 'normal',
+            this.pendingRepeatRoll ? 'repeat' : 'single'
+        ].join('|');
+    }
+
+    ensureRollRequestCountdown(rollState) {
+        const countdownKey = this.getRollRequestCountdownKey(rollState);
+
+        if (this.rollRequestCountdownEvent && this.rollRequestCountdownKey === countdownKey) {
+            return;
+        }
+
+        this.stopRollRequestCountdown();
+
+        const durationMs = this.rollRequestCountdownDurationMs;
+        const deadline = Date.now() + durationMs;
+        this.rollRequestCountdownKey = countdownKey;
+        this.rollRequestCountdownSecondsLeft = Math.ceil(durationMs / 1000);
+        this.updateRollButtonText(rollState.mustRollForEvent, this.rollRequestCountdownSecondsLeft);
+
+        this.rollRequestCountdownEvent = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                const currentRollState = this.getLocalRollState();
+                const currentCountdownKey = this.getRollRequestCountdownKey(currentRollState);
+
+                if (!currentRollState.canRoll || currentCountdownKey !== this.rollRequestCountdownKey) {
+                    this.stopRollRequestCountdown();
+                    return;
+                }
+
+                const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                this.rollRequestCountdownSecondsLeft = secondsLeft;
+                this.updateRollButtonText(currentRollState.mustRollForEvent, secondsLeft);
+
+                if (secondsLeft <= 0) {
+                    this.stopRollRequestCountdown();
+                    this.requestRoll();
+                }
+            }
+        });
+    }
+
+    stopRollRequestCountdown() {
+        if (this.rollRequestCountdownEvent) {
+            this.rollRequestCountdownEvent.remove(false);
+            this.rollRequestCountdownEvent = null;
+        }
+
+        this.rollRequestCountdownKey = null;
+        this.rollRequestCountdownSecondsLeft = null;
+    }
+
+    updateRollButtonText(mustRollForEvent, secondsLeft = null) {
+        const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!';
+        const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
+        this.rollButtonText.setText(`${label}${suffix}`);
     }
 
     turnBegan(payload) {
