@@ -9,7 +9,6 @@ export class Start extends Phaser.Scene {
         this.nickname = '';
         this.gender = 'Other';
         this.religion = 'Islam';
-        this.openDropdown = null;
     }
 
     preload() {
@@ -101,18 +100,6 @@ export class Start extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
         this.time.delayedCall(60, () => this.focusField(this.nicknameField));
-
-        this.input.on('pointerdown', (pointer, currentlyOver) => {
-            if (!this.openDropdown) {
-                return;
-            }
-
-            const hoveredObjects = currentlyOver || [];
-            const isClickInsideDropdown = hoveredObjects.some((gameObject) => this.isInDropdownHierarchy(gameObject));
-            if (!isClickInsideDropdown) {
-                this.closeDropdown(this.openDropdown);
-            }
-        });
     }
 
     createTextField(config) {
@@ -238,116 +225,86 @@ export class Start extends Phaser.Scene {
             strokeThickness: 5
         }).setOrigin(0.5);
 
-        const dropdown = this.rexUI.add.label({
+        const dropdownOptions = options.map((option) => ({ text: option.label, value: option.value }));
+
+        const dropdown = this.rexUI.add.dropDownList({
             x,
             y,
             width: 330,
             height: 40,
+            options: dropdownOptions,
             background,
             text,
             icon: arrow,
             align: 'left',
+            list: {
+                createBackgroundCallback: () => this.rexUI.add.roundRectangle(0, 0, 230, 10, 16, 0x4682b4, 1)
+                    .setStrokeStyle(5, 0x2b5e8a, 1),
+                createButtonCallback: (scene, option) => {
+                    const optionBackground = scene.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x9cbfd9, 1)
+                        .setStrokeStyle(4, 0x2b5e8a, 1);
+                    const optionText = scene.add.text(0, 0, option.text, {
+                        fontFamily: 'Georgia, serif',
+                        fontSize: '28px',
+                        color: TEXT_COLOR,
+                    }).setOrigin(0, 0.5);
+
+                    const button = scene.rexUI.add.label({
+                        background: optionBackground,
+                        text: optionText,
+                        align: 'left',
+                        space: {
+                            left: 20,
+                            right: 20,
+                            top: 8,
+                            bottom: 8
+                        }
+                    });
+
+                    button.text = option.text;
+                    button.value = option.value;
+
+                    return button;
+                },
+                onButtonOver: (button) => {
+                    button.getElement('background')?.setFillStyle(0x8FA9BF, 1);
+                },
+                onButtonOut: (button) => {
+                    button.getElement('background')?.setFillStyle(0x9cbfd9, 1);
+                },
+                onButtonClick: function (button) {
+                    this.text = button.text;
+                    this.value = button.value;
+                },
+                easeIn: 0,
+                easeOut: 0
+            },
+            setValueCallback: (_dropDownList, value) => {
+                const selectedOption = dropdownOptions.find((option) => option.value === value);
+                text.setText(selectedOption?.text ?? '');
+                onSelect(value);
+            },
             space: {
                 left: 25,
                 right: 20,
                 top: 10,
                 bottom: 10,
                 icon: 18
-            }
-        }).layout().setInteractive({ useHandCursor: true, pixelPerfect: false });
+            },
+            value: initialValue
+        }).layout();
 
-        const optionButtons = options.map((option, index) => {
-            const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x9cbfd9, 1)
-                .setStrokeStyle(4, 0x2b5e8a, 1);
-
-            const optionText = this.add.text(0, 0, option.label, {
-                fontFamily: 'Georgia, serif',
-                fontSize: '28px',
-                color: TEXT_COLOR,
-            }).setOrigin(0, 0.5);
-
-            const button = this.rexUI.add.label({
-                x: 0,
-                y: 40 + index * 68,
-                width: 200,
-                height: 20,
-                background: optionBackground,
-                text: optionText,
-                align: 'left',
-                space: {
-                    left: 20,
-                    right: 20,
-                    top: 8,
-                    bottom: 8
-                }
-            }).layout().setOrigin(0.5, 0).setInteractive({ useHandCursor: true, pixelPerfect: false });
-
-            button.on('pointerover', () => optionBackground.setFillStyle(0x8FA9BF, 1));
-            button.on('pointerout', () => optionBackground.setFillStyle(0x9cbfd9, 1));
-            button.on('pointerdown', () => {
-                text.setText(option.label);
-                onSelect(option.value);
-                this.closeDropdown(dropdownData);
-            });
-
-            return button;
-        });
-
-        const panelHeight = options.length * 68 + 10;
-        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 230, panelHeight, 16, 0x4682b4, 1)
-            .setStrokeStyle(5, 0x2b5e8a, 1)
-            .setOrigin(0.5, 0);
-        const panel = this.add.container(x, y + 40, [panelBackground, ...optionButtons]).setVisible(false).setDepth(250);
-
-        const dropdownData = { container: dropdown, panel, arrow, background, optionButtons };
-
-        dropdown.on('pointerdown', () => {
-            if (this.openDropdown && this.openDropdown !== dropdownData) {
-                this.closeDropdown(this.openDropdown);
-            }
-
-            if (panel.visible) {
-                this.closeDropdown(dropdownData);
-                return;
-            }
-
-            this.openDropdown = dropdownData;
-            panel.setVisible(true);
+        dropdown.on('list.open', () => {
             arrow.setText('▲');
             background.setStrokeStyle(5, 0x214c74, 1);
         });
 
-        return dropdownData;
-    }
+        dropdown.on('list.close', () => {
+            arrow.setText('▼');
+            background.setStrokeStyle(5, PANEL_STROKE, 0.95);
+        });
 
-    closeDropdown(dropdown) {
-        if (!dropdown) {
-            return;
-        }
-
-        dropdown.panel.setVisible(false);
-        dropdown.arrow.setText('▼');
-        dropdown.background.setStrokeStyle(5, PANEL_STROKE, 0.95);
-
-        if (this.openDropdown === dropdown) {
-            this.openDropdown = null;
-        }
-    }
-
-    isInDropdownHierarchy(gameObject) {
-        if (!this.openDropdown || !gameObject) {
-            return false;
-        }
-
-        if (gameObject === this.openDropdown.container || gameObject === this.openDropdown.panel) {
-            return true;
-        }
-
-        if (this.openDropdown.optionButtons.includes(gameObject)) {
-            return true;
-        }
-
-        return this.openDropdown.panel.list?.includes(gameObject) ?? false;
+        return dropdown;
     }
 
     focusField(field) {
