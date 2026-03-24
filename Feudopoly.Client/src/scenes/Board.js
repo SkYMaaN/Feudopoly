@@ -1058,7 +1058,8 @@ export class Board extends Phaser.Scene {
                     const roll = Number(entry?.roll ?? 0);
 
                     if (roll > 0) {
-                        return `${playerName}: 🎲 ${roll}${outcomeText ? ` — ${outcomeText}` : ''}`;
+                        //return `${playerName}: 🎲 ${roll}${outcomeText ? ` — ${outcomeText}` : ''}`;
+                        return `${playerName}: ${outcomeText ? ` ${outcomeText}` : ''}`;
                     }
 
                     return outcomeText ? `${playerName}: ${outcomeText}` : '';
