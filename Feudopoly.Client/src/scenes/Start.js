@@ -7,7 +7,7 @@ export class Start extends Phaser.Scene {
     constructor() {
         super('Start');
         this.nickname = '';
-        this.gender = 'Male';
+        this.gender = 'Other';
         this.religion = 'Islam';
         this.openDropdown = null;
     }
@@ -66,7 +66,6 @@ export class Start extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
-            { label: 'Male', value: 'Male' },
             { label: 'Female', value: 'Female' },
             { label: 'Other', value: 'Other' }
         ], this.gender, (value) => {
