@@ -261,7 +261,7 @@ export class Start extends Phaser.Scene {
                         color: TEXT_COLOR,
                     }).setOrigin(0, 0.5);
 
-                    return this.rexUI.add.label({
+                    const optionButton = this.rexUI.add.label({
                         x: 0,
                         y: 0,
                         width: 200,
@@ -276,15 +276,18 @@ export class Start extends Phaser.Scene {
                             bottom: 8
                         }
                     }).layout();
+
+                    optionButton.value = option.value;
+                    return optionButton;
+                },
+                onButtonClick: function (button) {
+                    this.setValue(button.value);
                 },
                 onButtonOver: (button) => {
                     button.getElement('background')?.setFillStyle(0x8FA9BF, 1);
                 },
                 onButtonOut: (button) => {
                     button.getElement('background')?.setFillStyle(0x9cbfd9, 1);
-                },
-                onButtonClick: (button, index, pointer, event) => {
-                    event?.stopPropagation?.();
                 },
                 easeIn: 0,
                 easeOut: 0
