@@ -251,6 +251,8 @@ export class LobbyList extends Phaser.Scene {
             background: panelBackground,
             align: 'center'
         }).layout().setDepth(LOBBY_MODAL_DEPTH + 1);
+        this.modalPanel = panel;
+        this.modalPanelBackground = panelBackground;
 
         const title = this.add.text(centerX, centerY - panelHeight / 2 + 56, 'Create lobby', {
             fontFamily: 'Georgia, serif',
@@ -258,6 +260,7 @@ export class LobbyList extends Phaser.Scene {
             color: TEXT_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
+        this.modalTitle = title;
 
         const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 102, 'Set lobby parameters.', {
             fontFamily: 'Georgia, serif',
@@ -265,6 +268,7 @@ export class LobbyList extends Phaser.Scene {
             color: '#ffe7cf',
             align: 'center'
         }).setOrigin(0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
+        this.modalSubtitle = subtitle;
 
         this.formErrorText = this.add.text(centerX, centerY - panelHeight / 2 + 128, '', {
             fontFamily: 'Arial, sans-serif',
@@ -332,6 +336,15 @@ export class LobbyList extends Phaser.Scene {
             () => this.closeCreateLobbyModal()
         );
         this.createModalButtonControl = this.createModalButton(centerX, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.modalGeometry = {
+            centerX,
+            panelWidth,
+            fullPanelHeight: panelHeight,
+            fullCreateButtonY: centerY + panelHeight / 2 - 55,
+            compactCreateButtonY: this.accessTypeField.hintText.y + this.accessTypeField.hintText.height + layout.buttonHeight / 2 + 24,
+            topPadding: 22,
+            bottomPadding: 30
+        };
 
         this.modalElements = [
             this.modalBackdrop,
@@ -349,6 +362,7 @@ export class LobbyList extends Phaser.Scene {
         this.modalFields = [this.nameField, this.passwordField];
 
         this.refreshCreateLobbyForm();
+        this.updateCreateLobbyModalVisibility();
         this.setCreateLobbySubmitting(false);
         this.time.delayedCall(60, () => this.focusModalField(this.nameField));
     }
@@ -449,6 +463,7 @@ export class LobbyList extends Phaser.Scene {
 
         return {
             key: config.key,
+            label,
             container: shell,
             background,
             dom,
@@ -900,6 +915,46 @@ export class LobbyList extends Phaser.Scene {
         this.passwordField.errorText.setText(this.createLobbyState.errors.password || '');
         this.playersField.errorText.setText(this.createLobbyState.errors.maxPlayers || '');
         this.formErrorText.setText(this.createLobbyState.formError || '');
+        this.updateCreateLobbyModalVisibility();
+    }
+
+    updateCreateLobbyModalVisibility() {
+        if (!this.modalOpen || !this.passwordField || !this.modalGeometry) {
+            return;
+        }
+
+        const showPasswordField = this.createLobbyState.accessType === 1;
+        const passwordObjects = [
+            this.passwordField.label,
+            this.passwordField.container,
+            this.passwordField.dom,
+            this.passwordField.errorText
+        ];
+
+        passwordObjects.forEach((object) => object?.setVisible(showPasswordField));
+        if (this.passwordField.input) {
+            this.passwordField.input.style.display = showPasswordField ? '' : 'none';
+        }
+
+        const createButtonY = showPasswordField ? this.modalGeometry.fullCreateButtonY : this.modalGeometry.compactCreateButtonY;
+        this.createModalButtonControl?.setPosition(this.modalGeometry.centerX, createButtonY);
+        this.createModalButtonControl?.layout?.();
+
+        const topMostY = Math.min(
+            this.closeModalButton?.y - (this.closeModalButton?.height ?? 0) / 2,
+            this.modalTitle?.y - (this.modalTitle?.height ?? 0) / 2,
+            this.modalSubtitle?.y - (this.modalSubtitle?.height ?? 0) / 2
+        );
+        const bottomMostY = createButtonY + (this.createModalButtonControl?.height ?? 0) / 2;
+        const panelTopY = topMostY - this.modalGeometry.topPadding;
+        const panelBottomY = bottomMostY + this.modalGeometry.bottomPadding;
+        const nextHeight = Math.max(260, panelBottomY - panelTopY);
+        const nextCenterY = (panelTopY + panelBottomY) / 2;
+
+        this.modalPanelBackground?.setSize(this.modalGeometry.panelWidth, nextHeight);
+        this.modalPanel?.setSize(this.modalGeometry.panelWidth, nextHeight);
+        this.modalPanel?.setPosition(this.modalGeometry.centerX, nextCenterY);
+        this.modalPanel?.layout();
     }
 
     setCreateLobbySubmitting(submitting) {
@@ -1010,6 +1065,11 @@ export class LobbyList extends Phaser.Scene {
         this.modalElements = [];
         this.modalFields = [];
         this.modalBackdrop = null;
+        this.modalPanel = null;
+        this.modalPanelBackground = null;
+        this.modalGeometry = null;
+        this.modalTitle = null;
+        this.modalSubtitle = null;
         this.formErrorText = null;
         this.nameField = null;
         this.playersField = null;
