@@ -226,8 +226,22 @@ export class Start extends Phaser.Scene {
         }).setOrigin(0.5);
 
         const dropdownOptions = options.map((option) => ({ text: option.label, value: option.value }));
+        const getOptionValue = (optionLike) => {
+            if (typeof optionLike === 'string') {
+                return optionLike;
+            }
 
-        const dropdown = this.rexUI.add.dropDownList({
+            return optionLike?.value ?? optionLike?.text ?? optionLike;
+        };
+        const getOptionLabel = (valueLike) => {
+            const normalizedValue = getOptionValue(valueLike);
+            const selectedOption = dropdownOptions.find((option) => option.value === normalizedValue || option.text === normalizedValue);
+
+            return selectedOption?.text ?? String(normalizedValue ?? '');
+        };
+
+        let dropdown;
+        dropdown = this.rexUI.add.dropDownList({
             x,
             y,
             width: 330,
@@ -240,6 +254,7 @@ export class Start extends Phaser.Scene {
             list: {
                 modal: true,
                 touchOutsideClose: true,
+                closeOnButtonClick: true,
                 createBackgroundCallback: () => this.rexUI.add.roundRectangle(0, 0, 230, 10, 16, 0x4682b4, 1)
                     .setStrokeStyle(5, 0x2b5e8a, 1),
                 createButtonCallback: (scene, option) => {
@@ -269,13 +284,17 @@ export class Start extends Phaser.Scene {
                 onButtonOut: (button) => {
                     button.getElement('background')?.setFillStyle(0x9cbfd9, 1);
                 },
+                onButtonClick: (_button, _index, option) => {
+                    dropdown.setValue(getOptionValue(option));
+                    dropdown.closeList();
+                },
                 easeIn: 0,
                 easeOut: 0
             },
             setValueCallback: (_dropDownList, value) => {
-                const selectedOption = dropdownOptions.find((option) => option.value === value);
-                text.setText(selectedOption?.text ?? '');
-                onSelect(value);
+                const normalizedValue = getOptionValue(value);
+                text.setText(getOptionLabel(normalizedValue));
+                onSelect(normalizedValue);
             },
             space: {
                 left: 25,
