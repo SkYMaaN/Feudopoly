@@ -60,7 +60,7 @@ export class LobbyList extends Phaser.Scene {
         this.profile = saveProfile({
             ...getOrCreateProfile(),
             displayName: data.displayName,
-            isMan: data.isMan,
+            isWomen: data.isWomen,
             isMuslim: data.isMuslim
         });
 
@@ -977,7 +977,7 @@ export class LobbyList extends Phaser.Scene {
                 maxPlayers: this.createLobbyState.maxPlayers,
                 creatorId: this.profile.playerId,
                 creatorName: this.profile.displayName,
-                isMan: this.profile.isMan,
+                isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim
             });
 
@@ -1036,7 +1036,7 @@ export class LobbyList extends Phaser.Scene {
             await lobbyApi.join(lobby.lobbyId, {
                 playerId: this.profile.playerId,
                 displayName: this.profile.displayName,
-                isMan: this.profile.isMan,
+                isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim,
                 password
             });

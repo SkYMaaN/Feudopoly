@@ -15,7 +15,7 @@ public sealed class CreateLobbyRequest
     public Guid CreatorId { get; set; }
     [Required, MinLength(2), MaxLength(28)]
     public string CreatorName { get; set; } = string.Empty;
-    public bool IsMan { get; set; }
+    public bool IsWomen { get; set; }
     public bool IsMuslim { get; set; }
 }
 
@@ -24,7 +24,7 @@ public sealed class JoinLobbyRequest
     public Guid PlayerId { get; set; }
     [Required, MinLength(2), MaxLength(28)]
     public string DisplayName { get; set; } = string.Empty;
-    public bool IsMan { get; set; }
+    public bool IsWomen { get; set; }
     public bool IsMuslim { get; set; }
     public string? Password { get; set; }
 }
