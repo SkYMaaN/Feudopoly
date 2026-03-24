@@ -2061,26 +2061,29 @@ export class Board extends Phaser.Scene {
 
     createDiceUI() {
         const { width, height } = this.scale.gameSize;
+        const diceScaleMultiplier = 1.5;
 
         this.diceContainer = this.add.container(width / 2, height / 2);
         this.diceContainer.setDepth(1000);
         this.diceContainer.setVisible(false);
 
-        this.diceShadow = this.add.ellipse(0, 90, 210, 70, 0x000000, 0.3);
+        this.diceVisualScale = diceScaleMultiplier;
+
+        this.diceShadow = this.add.ellipse(0, 135, 315, 105, 0x000000, 0.3);
         this.diceShadow.setScale(1.05, 0.8);
 
         this.diceGraphics = this.add.graphics();
 
-        this.diceValueText = this.add.text(0, -158, '1', {
+        this.diceValueText = this.add.text(0, -230, '1', {
             fontFamily: 'Arial, sans-serif',
-            fontSize: '68px',
+            fontSize: '76px',
             color: '#ffffff',
             stroke: '#000000',
             strokeThickness: 8,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.diceHintText = this.add.text(0, 150, 'Waiting for dice result...', {
+        this.diceHintText = this.add.text(0, 225, 'Waiting for dice result...', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             color: '#f5f5f5',
@@ -2089,7 +2092,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceTimerText = this.add.text(0, 198, '', {
+        this.diceTimerText = this.add.text(0, 285, '', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '26px',
             color: '#ffffff',
@@ -2189,7 +2192,7 @@ export class Board extends Phaser.Scene {
         const g = this.diceGraphics;
         g.clear();
 
-        const size = 100;
+        const size = 100 * (this.diceVisualScale ?? 1);
         const cameraZ = 5.2;
         const perspective = 220;
         const rot = this.diceSpinState;
@@ -2310,7 +2313,7 @@ export class Board extends Phaser.Scene {
             6: [[0.3, 0.25], [0.7, 0.25], [0.3, 0.5], [0.7, 0.5], [0.3, 0.75], [0.7, 0.75]]
         };
 
-        const pipRadius = Phaser.Math.Clamp(3 + pipVisibility * 4, 3, 7);
+        const pipRadius = Phaser.Math.Clamp((3 + pipVisibility * 4) * (this.diceVisualScale ?? 1), 4, 10.5);
 
         graphics.fillStyle(0x111111, 0.95);
         positions[value].forEach(([u, v]) => {
