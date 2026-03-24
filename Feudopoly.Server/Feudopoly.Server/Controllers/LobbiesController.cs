@@ -61,7 +61,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
                 {
                     PlayerId = request.CreatorId,
                     DisplayName = request.CreatorName.Trim(),
-                    IsMan = request.IsMan,
+                    IsWomen = request.IsWomen,
                     IsMuslim = request.IsMuslim,
                     Position = 0,
                     IsConnected = false,
@@ -102,7 +102,7 @@ public sealed class LobbiesController(SessionStorage sessionStorage, IHubContext
 
         try
         {
-            sessionStorage.JoinLobby(session, request.PlayerId, request.DisplayName, request.IsMan, request.IsMuslim, request.Password);
+            sessionStorage.JoinLobby(session, request.PlayerId, request.DisplayName, request.IsWomen, request.IsMuslim, request.Password);
             await NotifyLobbyUpdated(lobbyHub, session);
             await NotifyLobbyListChanged(lobbyHub, session);
             return Ok(ToDetails(session));

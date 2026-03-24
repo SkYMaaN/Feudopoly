@@ -499,7 +499,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 .Select(player => player.PlayerId)
                 .ToArray(),
             OutcomeTarget.Women => session.Players
-                .Where(player => !player.IsMan && IsActiveParticipant(player))
+                .Where(player => player.IsWomen && IsActiveParticipant(player))
                 .Select(player => player.PlayerId)
                 .ToArray(),
             OutcomeTarget.Muslims => session.Players
@@ -739,7 +739,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 ?? session.Players.FirstOrDefault(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p))
                 ?? currentPlayer],
             OutcomeTarget.AllPlayers => session.Players.Where(IsActiveParticipant),
-            OutcomeTarget.Women => session.Players.Where(p => !p.IsMan && IsActiveParticipant(p)),
+            OutcomeTarget.Women => session.Players.Where(p => p.IsWomen && IsActiveParticipant(p)),
             OutcomeTarget.Muslims => session.Players.Where(p => p.IsMuslim && IsActiveParticipant(p)),
             OutcomeTarget.NonMuslims => session.Players.Where(p => !p.IsMuslim && IsActiveParticipant(p)),
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null)

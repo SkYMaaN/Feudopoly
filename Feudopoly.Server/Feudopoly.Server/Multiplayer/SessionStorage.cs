@@ -78,7 +78,7 @@ public sealed class SessionStorage
         }
     }
 
-    public void JoinLobby(GameSession session, Guid playerId, string displayName, bool isMan, bool isMuslim, string? password)
+    public void JoinLobby(GameSession session, Guid playerId, string displayName, bool isWomen, bool isMuslim, string? password)
     {
         lock (session)
         {
@@ -106,7 +106,7 @@ public sealed class SessionStorage
             {
                 PlayerId = playerId,
                 DisplayName = displayName.Trim(),
-                IsMan = isMan,
+                IsWomen = isWomen,
                 IsMuslim = isMuslim,
                 Position = 0,
                 IsConnected = false,
@@ -328,7 +328,7 @@ public sealed class SessionStorage
             {
                 PlayerId = player.PlayerId,
                 DisplayName = player.DisplayName,
-                IsMan = player.IsMan,
+                IsWomen = player.IsWomen,
                 IsMuslim = player.IsMuslim,
                 Position = player.Position,
                 TurnsToSkip = player.TurnsToSkip,

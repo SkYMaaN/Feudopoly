@@ -164,7 +164,7 @@ export class Start extends Phaser.Scene {
 
         this.scene.start('LobbyList', {
             displayName: nickname,
-            isMan: this.gender === 'Male',
+            isWomen: this.gender === 'Female',
             isMuslim: this.religion === 'Islam',
             ...additionalData
         });
