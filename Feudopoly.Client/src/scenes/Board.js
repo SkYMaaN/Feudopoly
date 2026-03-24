@@ -1561,11 +1561,16 @@ export class Board extends Phaser.Scene {
 
     updateDeathChoiceButtons() {
         const showActions = this.isDeathChoicePending;
-        this.deathScreen?.primaryButton?.setVisible(showActions);
+        const canStayAsSpectator = this.hasOtherLivingPlayers();
+        const disableActions = !showActions || this.isProcessingDeathChoice;
+
+        this.deathScreen?.primaryButton?.setVisible(showActions && canStayAsSpectator);
         this.deathScreen?.secondaryButton?.setVisible(showActions);
 
-        const disableActions = !showActions || this.isProcessingDeathChoice;
-        this.setEndgameActionButtonDisabled(this.deathScreen?.primaryButton, disableActions);
+        this.setEndgameActionButtonDisabled(
+            this.deathScreen?.primaryButton,
+            !showActions || !canStayAsSpectator || this.isProcessingDeathChoice
+        );
         this.setEndgameActionButtonDisabled(this.deathScreen?.secondaryButton, disableActions);
     }
 
