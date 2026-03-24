@@ -498,7 +498,7 @@ export class LobbyList extends Phaser.Scene {
             color: INPUT_TEXT_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
-        const hintText = this.add.text(config.x, config.controlY + 18, 'Use − / + to pick a value from 1 to 4', {
+        const hintText = this.add.text(config.x, config.controlY + 18, 'Pick a value from 1 to 4', {
             fontFamily: 'Arial, sans-serif',
             fontSize: `${Math.max(16, config.errorFontSize - 2)}px`,
             color: PLACEHOLDER_COLOR
@@ -934,7 +934,7 @@ export class LobbyList extends Phaser.Scene {
         }
 
         const nextHeight = showPasswordField ? this.modalGeometry.fullPanelHeight : this.modalGeometry.compactPanelHeight;
-        const nextCenterY = this.modalGeometry.panelTopY + nextHeight / 2;
+        const nextCenterY = showPasswordField ? this.modalGeometry.panelTopY + nextHeight / 2 : this.modalGeometry.panelTopY + nextHeight / 2 + 70;
         this.modalPanelBackground?.setSize(this.modalGeometry.panelWidth, nextHeight);
         this.modalPanel?.setSize(this.modalGeometry.panelWidth, nextHeight);
         this.modalPanel?.setPosition(this.modalGeometry.centerX, nextCenterY);
