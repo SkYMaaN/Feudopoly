@@ -1935,7 +1935,8 @@ export class Board extends Phaser.Scene {
 
         this.renderDice3D();
         this.diceValueText.setText(String(rollValue));
-        this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
+        //this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
+        this.diceHintText.setText(`The bones have spoken.`);
         this.diceTimerText.setText('');
 
         this.tweens.add({
