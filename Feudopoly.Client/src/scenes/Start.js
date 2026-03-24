@@ -238,6 +238,8 @@ export class Start extends Phaser.Scene {
             icon: arrow,
             align: 'left',
             list: {
+                modal: true,
+                touchOutsideClose: true,
                 createBackgroundCallback: () => this.rexUI.add.roundRectangle(0, 0, 230, 10, 16, 0x4682b4, 1)
                     .setStrokeStyle(5, 0x2b5e8a, 1),
                 createButtonCallback: (scene, option) => {
@@ -266,13 +268,6 @@ export class Start extends Phaser.Scene {
                 },
                 onButtonOut: (button) => {
                     button.getElement('background')?.setFillStyle(0x9cbfd9, 1);
-                },
-                onButtonClick: (_button, index, _pointer, event) => {
-                    event?.stopPropagation();
-                    const selected = dropdownOptions[index];
-                    if (selected) {
-                        dropdown.setValue(selected.value);
-                    }
                 },
                 easeIn: 0,
                 easeOut: 0
