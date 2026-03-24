@@ -69,6 +69,7 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = [];
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
+        this.turnResultCountdownEvent = null;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
@@ -981,6 +982,8 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        this.stopTurnResultCountdown();
+
         this.showNotification({
             title: eventTitle,
             text: entriesText,
@@ -994,16 +997,19 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnResultDismissHandler = () => {
+            this.stopTurnResultCountdown();
             this.hideTurnResultNotification({ refreshTurnUI: true });
         };
 
         this.input.once('pointerdown', this.turnResultDismissHandler);
+        this.startTurnResultCountdown(10000);
     }
 
     hideTurnResultNotification({ refreshTurnUI = false } = {}) {
         const shouldRefreshTurnUI = this.isTurnResultNotificationActive
             && (refreshTurnUI || this.hasDeferredTurnUIRefresh);
 
+        this.stopTurnResultCountdown();
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hideNotification();
@@ -1117,6 +1123,38 @@ export class Board extends Phaser.Scene {
         }
 
         this.updateTurnStartActionText();
+    }
+
+    startTurnResultCountdown(durationMs = 10000) {
+        const durationSeconds = Math.ceil(durationMs / 1000);
+        const deadline = Date.now() + durationMs;
+
+        this.updateTurnStartActionText(durationSeconds);
+
+        this.turnResultCountdownEvent = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                if (!this.isTurnResultNotificationActive) {
+                    this.stopTurnResultCountdown();
+                    return;
+                }
+
+                const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                this.updateTurnStartActionText(secondsLeft);
+
+                if (secondsLeft <= 0) {
+                    this.hideTurnResultNotification({ refreshTurnUI: true });
+                }
+            }
+        });
+    }
+
+    stopTurnResultCountdown() {
+        if (this.turnResultCountdownEvent) {
+            this.turnResultCountdownEvent.remove(false);
+            this.turnResultCountdownEvent = null;
+        }
     }
 
     updateTurnStartActionText(secondsLeft = null) {
