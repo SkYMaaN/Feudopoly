@@ -2066,7 +2066,7 @@ export class Board extends Phaser.Scene {
         this.diceContainer.setDepth(1000);
         this.diceContainer.setVisible(false);
 
-        this.diceShadow = this.add.ellipse(10, 90, 210, 70, 0x000000, 0.3);
+        this.diceShadow = this.add.ellipse(0, 90, 210, 70, 0x000000, 0.3);
         this.diceShadow.setScale(1.05, 0.8);
 
         this.diceGraphics = this.add.graphics();
