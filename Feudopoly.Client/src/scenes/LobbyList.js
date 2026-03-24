@@ -526,7 +526,7 @@ export class LobbyList extends Phaser.Scene {
             config.controlY,
             buttonWidth,
             config.height,
-            'With Password',
+            'Without Password',
             this.createLobbyState.accessType === 0,
             () => this.setLobbyAccessType(0),
             ACCESS_OPEN_COLORS
@@ -536,7 +536,7 @@ export class LobbyList extends Phaser.Scene {
             config.controlY,
             buttonWidth,
             config.height,
-            'Without password',
+            'With Password',
             this.createLobbyState.accessType === 1,
             () => this.setLobbyAccessType(1),
             ACCESS_CLOSED_COLORS
