@@ -296,7 +296,7 @@ export class LobbyRoom extends Phaser.Scene {
             await lobbyApi.join(this.lobbyId, {
                 playerId: this.profile.playerId,
                 displayName: this.profile.displayName,
-                isMan: this.profile.isMan,
+                isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim,
                 password
             });

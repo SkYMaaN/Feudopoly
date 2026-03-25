@@ -69,6 +69,11 @@ export class Board extends Phaser.Scene {
         this.pendingEventRollPlayerIds = [];
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
+        this.turnResultCountdownEvent = null;
+        this.rollRequestCountdownEvent = null;
+        this.rollRequestCountdownKey = null;
+        this.rollRequestCountdownSecondsLeft = null;
+        this.rollRequestCountdownDurationMs = 10000;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.isTurnResultNotificationActive = false;
@@ -330,9 +335,13 @@ export class Board extends Phaser.Scene {
     }
 
     cleanupHubEvents() {
+        this.stopRollRequestCountdown();
+        this.stopTurnBeganCountdown();
+        this.stopTurnResultCountdown();
+
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
-        gameHubClient.disconnect().catch(() => {});
+        gameHubClient.disconnect().catch(() => { });
     }
 
     async forceReturnToLobbyList(message) {
@@ -768,11 +777,8 @@ export class Board extends Phaser.Scene {
         const current = activeTurnPlayerId
             ? this.players.find(player => String(player.playerId) === activeTurnPlayerId) ?? null
             : null;
-        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
-        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
-        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && !isSkippingTurn && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+        const rollState = this.getLocalRollState();
+        const { isLocalTurn, mustRollForEvent, isSkippingTurn, canRoll } = rollState;
 
         if (isLocalTurn && this.isTurnInProgress) {
             return;
@@ -803,34 +809,32 @@ export class Board extends Phaser.Scene {
         }
 
         if (canRoll) {
+            this.ensureRollRequestCountdown(rollState);
             this.rollButton.setVisible(true);
             this.rollButton.setInteractive({ useHandCursor: true });
             this.rollButtonBackground.setFillStyle(0x3E5A2E, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!');
+            this.updateRollButtonText(mustRollForEvent, this.rollRequestCountdownSecondsLeft);
         }
         else {
+            this.stopRollRequestCountdown();
             this.rollButton.setVisible(false);
             this.rollButton.disableInteractive();
             this.rollButtonBackground.setFillStyle(0x555555, 1);
-            this.rollButtonText.setText(this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!');
+            this.updateRollButtonText(mustRollForEvent);
         }
 
         this.turnOverlay.setVisible(true);
     }
 
     async requestRoll() {
-        const activeTurnPlayerId = this.activeTurnPlayerId ? String(this.activeTurnPlayerId) : null;
-        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
-        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
-        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
-        const canRoll = !this.localPlayerIsDead && !this.localPlayerIsSpectator && !this.localPlayerIsWinner
-            && !this.isTurnInProgress && !isSkippingTurn && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+        const { canRoll } = this.getLocalRollState();
 
         if (this.isRolling || !canRoll) {
             return;
         }
 
         try {
+            this.stopRollRequestCountdown();
             this.isRolling = true;
             this.animatingPlayerId = this.localPlayerId;
             this.pendingRepeatRoll = false;
@@ -853,7 +857,93 @@ export class Board extends Phaser.Scene {
             this.isRolling = false;
             this.animatingPlayerId = null;
             this.turnOverlay.setVisible(true);
+            this.refreshTurnUI();
         }
+    }
+
+    getLocalRollState() {
+        const activeTurnPlayerId = this.activeTurnPlayerId ? String(this.activeTurnPlayerId) : null;
+        const isLocalTurn = String(activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
+        const mustRollForEvent = this.isEventRollPhase && this.pendingEventRollPlayerIds.includes(String(this.localPlayerId ?? ''));
+        const isSkippingTurn = !this.isEventRollPhase && isLocalTurn && this.localPlayerTurnsToSkip > 0;
+        const canRoll = !this.localPlayerIsDead
+            && !this.localPlayerIsSpectator
+            && !this.localPlayerIsWinner
+            && !this.isTurnInProgress
+            && !isSkippingTurn
+            && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
+
+        return {
+            activeTurnPlayerId,
+            isLocalTurn,
+            mustRollForEvent,
+            isSkippingTurn,
+            canRoll
+        };
+    }
+
+    getRollRequestCountdownKey(rollState) {
+        return [
+            String(this.sessionId ?? ''),
+            String(rollState.activeTurnPlayerId ?? ''),
+            rollState.mustRollForEvent ? 'event' : 'normal',
+            this.pendingRepeatRoll ? 'repeat' : 'single'
+        ].join('|');
+    }
+
+    ensureRollRequestCountdown(rollState) {
+        const countdownKey = this.getRollRequestCountdownKey(rollState);
+
+        if (this.rollRequestCountdownEvent && this.rollRequestCountdownKey === countdownKey) {
+            return;
+        }
+
+        this.stopRollRequestCountdown();
+
+        const durationMs = this.rollRequestCountdownDurationMs;
+        const deadline = Date.now() + durationMs;
+        this.rollRequestCountdownKey = countdownKey;
+        this.rollRequestCountdownSecondsLeft = Math.ceil(durationMs / 1000);
+        this.updateRollButtonText(rollState.mustRollForEvent, this.rollRequestCountdownSecondsLeft);
+
+        this.rollRequestCountdownEvent = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                const currentRollState = this.getLocalRollState();
+                const currentCountdownKey = this.getRollRequestCountdownKey(currentRollState);
+
+                if (!currentRollState.canRoll || currentCountdownKey !== this.rollRequestCountdownKey) {
+                    this.stopRollRequestCountdown();
+                    return;
+                }
+
+                const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                this.rollRequestCountdownSecondsLeft = secondsLeft;
+                this.updateRollButtonText(currentRollState.mustRollForEvent, secondsLeft);
+
+                if (secondsLeft <= 0) {
+                    this.stopRollRequestCountdown();
+                    this.requestRoll();
+                }
+            }
+        });
+    }
+
+    stopRollRequestCountdown() {
+        if (this.rollRequestCountdownEvent) {
+            this.rollRequestCountdownEvent.remove(false);
+            this.rollRequestCountdownEvent = null;
+        }
+
+        this.rollRequestCountdownKey = null;
+        this.rollRequestCountdownSecondsLeft = null;
+    }
+
+    updateRollButtonText(mustRollForEvent, secondsLeft = null) {
+        const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!';
+        const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
+        this.rollButtonText.setText(`${label}${suffix}`);
     }
 
     turnBegan(payload) {
@@ -865,7 +955,7 @@ export class Board extends Phaser.Scene {
         this.hideVictoryScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
-        let notificationText = payload.description ?? '';
+        let notificationText = payload.description?.replace(/\s*\n\s*/g, ' ').trim() ?? '';
 
         if (this.turnRequiresChosenPlayer) {
             notificationText += ' Choose player.';
@@ -968,7 +1058,8 @@ export class Board extends Phaser.Scene {
                     const roll = Number(entry?.roll ?? 0);
 
                     if (roll > 0) {
-                        return `${playerName}: 🎲 ${roll}${outcomeText ? ` — ${outcomeText}` : ''}`;
+                        //return `${playerName}: 🎲 ${roll}${outcomeText ? ` — ${outcomeText}` : ''}`;
+                        return `${playerName}: ${outcomeText ? ` ${outcomeText}` : ''}`;
                     }
 
                     return outcomeText ? `${playerName}: ${outcomeText}` : '';
@@ -980,6 +1071,8 @@ export class Board extends Phaser.Scene {
         if (!hasDiceEntries) {
             return;
         }
+
+        this.stopTurnResultCountdown();
 
         this.showNotification({
             title: eventTitle,
@@ -994,16 +1087,19 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnResultDismissHandler = () => {
+            this.stopTurnResultCountdown();
             this.hideTurnResultNotification({ refreshTurnUI: true });
         };
 
         this.input.once('pointerdown', this.turnResultDismissHandler);
+        this.startTurnResultCountdown(10000);
     }
 
     hideTurnResultNotification({ refreshTurnUI = false } = {}) {
         const shouldRefreshTurnUI = this.isTurnResultNotificationActive
             && (refreshTurnUI || this.hasDeferredTurnUIRefresh);
 
+        this.stopTurnResultCountdown();
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hideNotification();
@@ -1117,6 +1213,38 @@ export class Board extends Phaser.Scene {
         }
 
         this.updateTurnStartActionText();
+    }
+
+    startTurnResultCountdown(durationMs = 10000) {
+        const durationSeconds = Math.ceil(durationMs / 1000);
+        const deadline = Date.now() + durationMs;
+
+        this.updateTurnStartActionText(durationSeconds);
+
+        this.turnResultCountdownEvent = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                if (!this.isTurnResultNotificationActive) {
+                    this.stopTurnResultCountdown();
+                    return;
+                }
+
+                const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+                this.updateTurnStartActionText(secondsLeft);
+
+                if (secondsLeft <= 0) {
+                    this.hideTurnResultNotification({ refreshTurnUI: true });
+                }
+            }
+        });
+    }
+
+    stopTurnResultCountdown() {
+        if (this.turnResultCountdownEvent) {
+            this.turnResultCountdownEvent.remove(false);
+            this.turnResultCountdownEvent = null;
+        }
     }
 
     updateTurnStartActionText(secondsLeft = null) {
@@ -1561,11 +1689,16 @@ export class Board extends Phaser.Scene {
 
     updateDeathChoiceButtons() {
         const showActions = this.isDeathChoicePending;
-        this.deathScreen?.primaryButton?.setVisible(showActions);
+        const canStayAsSpectator = this.hasOtherLivingPlayers();
+        const disableActions = !showActions || this.isProcessingDeathChoice;
+
+        this.deathScreen?.primaryButton?.setVisible(showActions && canStayAsSpectator);
         this.deathScreen?.secondaryButton?.setVisible(showActions);
 
-        const disableActions = !showActions || this.isProcessingDeathChoice;
-        this.setEndgameActionButtonDisabled(this.deathScreen?.primaryButton, disableActions);
+        this.setEndgameActionButtonDisabled(
+            this.deathScreen?.primaryButton,
+            !showActions || !canStayAsSpectator || this.isProcessingDeathChoice
+        );
         this.setEndgameActionButtonDisabled(this.deathScreen?.secondaryButton, disableActions);
     }
 
@@ -1802,7 +1935,8 @@ export class Board extends Phaser.Scene {
 
         this.renderDice3D();
         this.diceValueText.setText(String(rollValue));
-        this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
+        //this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
+        this.diceHintText.setText(`The bones have spoken.`);
         this.diceTimerText.setText('');
 
         this.tweens.add({
@@ -1928,26 +2062,29 @@ export class Board extends Phaser.Scene {
 
     createDiceUI() {
         const { width, height } = this.scale.gameSize;
+        const diceScaleMultiplier = 1.5;
 
         this.diceContainer = this.add.container(width / 2, height / 2);
         this.diceContainer.setDepth(1000);
         this.diceContainer.setVisible(false);
 
-        this.diceShadow = this.add.ellipse(10, 90, 210, 70, 0x000000, 0.3);
+        this.diceVisualScale = diceScaleMultiplier;
+
+        this.diceShadow = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
         this.diceShadow.setScale(1.05, 0.8);
 
         this.diceGraphics = this.add.graphics();
 
-        this.diceValueText = this.add.text(0, -158, '1', {
+        this.diceValueText = this.add.text(0, -180, '1', {
             fontFamily: 'Arial, sans-serif',
-            fontSize: '68px',
+            fontSize: '76px',
             color: '#ffffff',
             stroke: '#000000',
             strokeThickness: 8,
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.diceHintText = this.add.text(0, 150, 'Waiting for dice result...', {
+        this.diceHintText = this.add.text(0, 225, 'Waiting for dice result...', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             color: '#f5f5f5',
@@ -1956,7 +2093,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceTimerText = this.add.text(0, 198, '', {
+        this.diceTimerText = this.add.text(0, 285, '', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '26px',
             color: '#ffffff',
@@ -2056,7 +2193,7 @@ export class Board extends Phaser.Scene {
         const g = this.diceGraphics;
         g.clear();
 
-        const size = 100;
+        const size = 100 * (this.diceVisualScale ?? 1);
         const cameraZ = 5.2;
         const perspective = 220;
         const rot = this.diceSpinState;
@@ -2177,7 +2314,7 @@ export class Board extends Phaser.Scene {
             6: [[0.3, 0.25], [0.7, 0.25], [0.3, 0.5], [0.7, 0.5], [0.3, 0.75], [0.7, 0.75]]
         };
 
-        const pipRadius = Phaser.Math.Clamp(3 + pipVisibility * 4, 3, 7);
+        const pipRadius = Phaser.Math.Clamp((3 + pipVisibility * 4) * (this.diceVisualScale ?? 1), 4, 10.5);
 
         graphics.fillStyle(0x111111, 0.95);
         positions[value].forEach(([u, v]) => {
@@ -2475,10 +2612,11 @@ export class Board extends Phaser.Scene {
     }
 
     createTextBox(scene, x, y, config) {
+        var horizontalSpace = 80; // left + right
         var width = Phaser.Utils.Objects.GetValue(config, 'width', 0);
         var height = Phaser.Utils.Objects.GetValue(config, 'height', 0);
-        var wrapWidth = Phaser.Utils.Objects.GetValue(config, 'wrapWidth', 0);
-        var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', 0);
+        var wrapWidth = Phaser.Utils.Objects.GetValue(config, 'wrapWidth', width - horizontalSpace);
+        var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', width - horizontalSpace);
         var fixedHeight = Phaser.Utils.Objects.GetValue(config, 'fixedHeight', 0);
         var titleText = Phaser.Utils.Objects.GetValue(config, 'title', undefined);
         var typingMode = Phaser.Utils.Objects.GetValue(config, 'typingMode', 'page');
@@ -2509,7 +2647,7 @@ export class Board extends Phaser.Scene {
                 color: '#d7ccc8'
             }),
 
-            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '30px', }) : undefined,
+            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '36px', }) : undefined,
 
             separator: (titleText) ? scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }) : undefined,
 
@@ -2549,7 +2687,7 @@ export class Board extends Phaser.Scene {
 
     getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight) {
         return scene.add.text(0, 0, '', {
-            fontSize: '24px',
+            fontSize: '30px',
             wordWrap: {
                 width: wrapWidth
             },
@@ -2563,7 +2701,7 @@ export class Board extends Phaser.Scene {
             fixedWidth: fixedWidth,
             fixedHeight: fixedHeight,
 
-            fontSize: '24px',
+            fontSize: '30px',
             wrap: {
                 mode: 'word',
                 width: wrapWidth

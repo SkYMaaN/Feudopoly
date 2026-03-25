@@ -60,7 +60,7 @@ export class LobbyList extends Phaser.Scene {
         this.profile = saveProfile({
             ...getOrCreateProfile(),
             displayName: data.displayName,
-            isMan: data.isMan,
+            isWomen: data.isWomen,
             isMuslim: data.isMuslim
         });
 
@@ -251,6 +251,8 @@ export class LobbyList extends Phaser.Scene {
             background: panelBackground,
             align: 'center'
         }).layout().setDepth(LOBBY_MODAL_DEPTH + 1);
+        this.modalPanel = panel;
+        this.modalPanelBackground = panelBackground;
 
         const title = this.add.text(centerX, centerY - panelHeight / 2 + 56, 'Create lobby', {
             fontFamily: 'Georgia, serif',
@@ -332,6 +334,14 @@ export class LobbyList extends Phaser.Scene {
             () => this.closeCreateLobbyModal()
         );
         this.createModalButtonControl = this.createModalButton(centerX, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.modalGeometry = {
+            centerX,
+            panelWidth,
+            panelTopY: centerY - panelHeight / 2,
+            fullPanelHeight: panelHeight,
+            compactPanelHeight: panelHeight - Math.max(140, Math.round(layout.inputHeight + 76)),
+            buttonBottomOffset: 55
+        };
 
         this.modalElements = [
             this.modalBackdrop,
@@ -349,6 +359,7 @@ export class LobbyList extends Phaser.Scene {
         this.modalFields = [this.nameField, this.passwordField];
 
         this.refreshCreateLobbyForm();
+        this.updateCreateLobbyModalVisibility();
         this.setCreateLobbySubmitting(false);
         this.time.delayedCall(60, () => this.focusModalField(this.nameField));
     }
@@ -449,6 +460,7 @@ export class LobbyList extends Phaser.Scene {
 
         return {
             key: config.key,
+            label,
             container: shell,
             background,
             dom,
@@ -486,7 +498,7 @@ export class LobbyList extends Phaser.Scene {
             color: INPUT_TEXT_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
-        const hintText = this.add.text(config.x, config.controlY + 18, 'Use − / + to pick a value from 1 to 4', {
+        const hintText = this.add.text(config.x, config.controlY + 18, 'Pick a value from 1 to 4', {
             fontFamily: 'Arial, sans-serif',
             fontSize: `${Math.max(16, config.errorFontSize - 2)}px`,
             color: PLACEHOLDER_COLOR
@@ -526,7 +538,7 @@ export class LobbyList extends Phaser.Scene {
             config.controlY,
             buttonWidth,
             config.height,
-            'OPEN',
+            'Without Password',
             this.createLobbyState.accessType === 0,
             () => this.setLobbyAccessType(0),
             ACCESS_OPEN_COLORS
@@ -536,13 +548,13 @@ export class LobbyList extends Phaser.Scene {
             config.controlY,
             buttonWidth,
             config.height,
-            'CLOSED',
+            'With Password',
             this.createLobbyState.accessType === 1,
             () => this.setLobbyAccessType(1),
             ACCESS_CLOSED_COLORS
         );
 
-        const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 12, 'Open lobbies do not require a password. Closed lobbies require one.', {
+        const hintText = this.add.text(config.x, config.controlY + config.height / 2 + 12, 'Select whether players should enter a password when joining the lobby.', {
             fontFamily: 'Arial, sans-serif',
             fontSize: `${Math.max(16, config.errorFontSize - 2)}px`,
             color: PLACEHOLDER_COLOR,
@@ -900,6 +912,37 @@ export class LobbyList extends Phaser.Scene {
         this.passwordField.errorText.setText(this.createLobbyState.errors.password || '');
         this.playersField.errorText.setText(this.createLobbyState.errors.maxPlayers || '');
         this.formErrorText.setText(this.createLobbyState.formError || '');
+        this.updateCreateLobbyModalVisibility();
+    }
+
+    updateCreateLobbyModalVisibility() {
+        if (!this.modalOpen || !this.passwordField || !this.modalGeometry) {
+            return;
+        }
+
+        const showPasswordField = this.createLobbyState.accessType === 1;
+        const passwordObjects = [
+            this.passwordField.label,
+            this.passwordField.container,
+            this.passwordField.dom,
+            this.passwordField.errorText
+        ];
+
+        passwordObjects.forEach((object) => object?.setVisible(showPasswordField));
+        if (this.passwordField.input) {
+            this.passwordField.input.style.display = showPasswordField ? '' : 'none';
+        }
+
+        const nextHeight = showPasswordField ? this.modalGeometry.fullPanelHeight : this.modalGeometry.compactPanelHeight;
+        const nextCenterY = showPasswordField ? this.modalGeometry.panelTopY + nextHeight / 2 : this.modalGeometry.panelTopY + nextHeight / 2 + 70;
+        this.modalPanelBackground?.setSize(this.modalGeometry.panelWidth, nextHeight);
+        this.modalPanel?.setSize(this.modalGeometry.panelWidth, nextHeight);
+        this.modalPanel?.setPosition(this.modalGeometry.centerX, nextCenterY);
+        this.modalPanel?.layout();
+
+        const createButtonY = this.modalGeometry.panelTopY + nextHeight - this.modalGeometry.buttonBottomOffset;
+        this.createModalButtonControl?.setPosition(this.modalGeometry.centerX, createButtonY);
+        this.createModalButtonControl?.layout?.();
     }
 
     setCreateLobbySubmitting(submitting) {
@@ -977,7 +1020,7 @@ export class LobbyList extends Phaser.Scene {
                 maxPlayers: this.createLobbyState.maxPlayers,
                 creatorId: this.profile.playerId,
                 creatorName: this.profile.displayName,
-                isMan: this.profile.isMan,
+                isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim
             });
 
@@ -1010,6 +1053,9 @@ export class LobbyList extends Phaser.Scene {
         this.modalElements = [];
         this.modalFields = [];
         this.modalBackdrop = null;
+        this.modalPanel = null;
+        this.modalPanelBackground = null;
+        this.modalGeometry = null;
         this.formErrorText = null;
         this.nameField = null;
         this.playersField = null;
@@ -1036,7 +1082,7 @@ export class LobbyList extends Phaser.Scene {
             await lobbyApi.join(lobby.lobbyId, {
                 playerId: this.profile.playerId,
                 displayName: this.profile.displayName,
-                isMan: this.profile.isMan,
+                isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim,
                 password
             });

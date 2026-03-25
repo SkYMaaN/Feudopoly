@@ -7,9 +7,8 @@ export class Start extends Phaser.Scene {
     constructor() {
         super('Start');
         this.nickname = '';
-        this.gender = 'Male';
+        this.gender = 'Other';
         this.religion = 'Islam';
-        this.openDropdown = null;
     }
 
     preload() {
@@ -66,14 +65,13 @@ export class Start extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
-            { label: 'Male', value: 'Male' },
             { label: 'Female', value: 'Female' },
             { label: 'Other', value: 'Other' }
         ], this.gender, (value) => {
             this.gender = value;
         });
 
-        this.religionLabel = this.add.text(width / 2, height / 2 + 25 , 'Religion', {
+        this.religionLabel = this.add.text(width / 2, height / 2 + 25, 'Religion', {
             fontFamily: 'Georgia, serif',
             fontSize: '30px',
             color: TEXT_COLOR
@@ -103,17 +101,6 @@ export class Start extends Phaser.Scene {
         }).setOrigin(0.5);
         this.time.delayedCall(60, () => this.focusField(this.nicknameField));
 
-        this.input.on('pointerdown', (pointer, currentlyOver) => {
-            if (!this.openDropdown) {
-                return;
-            }
-
-            const hoveredObjects = currentlyOver || [];
-            const isClickInsideDropdown = hoveredObjects.some((gameObject) => this.isInDropdownHierarchy(gameObject));
-            if (!isClickInsideDropdown) {
-                this.closeDropdown(this.openDropdown);
-            }
-        });
     }
 
     createTextField(config) {
@@ -177,7 +164,7 @@ export class Start extends Phaser.Scene {
 
         this.scene.start('LobbyList', {
             displayName: nickname,
-            isMan: this.gender === 'Male',
+            isWomen: this.gender === 'Female',
             isMuslim: this.religion === 'Islam',
             ...additionalData
         });
@@ -239,11 +226,10 @@ export class Start extends Phaser.Scene {
             strokeThickness: 5
         }).setOrigin(0.5);
 
-        const dropdown = this.rexUI.add.label({
+        let dropdown = this.rexUI.add.dropDownList({
             x,
             y,
             width: 330,
-            height: 40,
             background,
             text,
             icon: arrow,
@@ -254,101 +240,75 @@ export class Start extends Phaser.Scene {
                 top: 10,
                 bottom: 10,
                 icon: 18
+            },
+            options: options.map((option) => ({ text: option.label, value: option.value })),
+            value: initialValue,
+            setValueCallback: (dropDownList, value) => {
+                const selectedOption = dropDownList.options.find((option) => option.value === value);
+                text.setText(selectedOption?.text ?? '');
+                onSelect(value);
+            },
+            list: {
+                createBackgroundCallback: () => this.rexUI.add.roundRectangle(0, 0, 230, 10, 16, 0x4682b4, 1)
+                    .setStrokeStyle(5, 0x2b5e8a, 1),
+                createButtonCallback: (scene, option) => {
+                    const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x9cbfd9, 1)
+                        .setStrokeStyle(4, 0x2b5e8a, 1);
+
+                    const optionText = this.add.text(0, 0, option.text, {
+                        fontFamily: 'Georgia, serif',
+                        fontSize: '28px',
+                        color: TEXT_COLOR,
+                    }).setOrigin(0, 0.5);
+
+                    const optionButton = this.rexUI.add.label({
+                        x: 0,
+                        y: 0,
+                        width: 200,
+                        height: 20,
+                        background: optionBackground,
+                        text: optionText,
+                        align: 'left',
+                        space: {
+                            left: 20,
+                            right: 20,
+                            top: 8,
+                            bottom: 8
+                        }
+                    }).layout();
+
+                    optionButton.value = option.value;
+                    optionButton.setInteractive({ useHandCursor: true });
+                    optionButton.on('pointerdown', () => {
+                        console.log('Selected: ' + option.value);
+                        dropdown.setValue(option.value);
+                        dropdown.closeListPanel();
+                    });
+                    return optionButton;
+                },
+                onButtonOver: (button) => {
+                    button.getElement('background')?.setFillStyle(0x8FA9BF, 1);
+                },
+                onButtonOut: (button) => {
+                    button.getElement('background')?.setFillStyle(0x9cbfd9, 1);
+                },
+                easeIn: 0,
+                easeOut: 0
             }
-        }).layout().setInteractive({ useHandCursor: true, pixelPerfect: false });
+        }).layout();
 
-        const optionButtons = options.map((option, index) => {
-            const optionBackground = this.rexUI.add.roundRectangle(0, 0, 500, 64, 12, 0x9cbfd9, 1)
-                .setStrokeStyle(4, 0x2b5e8a, 1);
-
-            const optionText = this.add.text(0, 0, option.label, {
-                fontFamily: 'Georgia, serif',
-                fontSize: '28px',
-                color: TEXT_COLOR,
-            }).setOrigin(0, 0.5);
-
-            const button = this.rexUI.add.label({
-                x: 0,
-                y: 40 + index * 68,
-                width: 200,
-                height: 20,
-                background: optionBackground,
-                text: optionText,
-                align: 'left',
-                space: {
-                    left: 20,
-                    right: 20,
-                    top: 8,
-                    bottom: 8
-                }
-            }).layout().setOrigin(0.5, 0).setInteractive({ useHandCursor: true, pixelPerfect: false });
-
-            button.on('pointerover', () => optionBackground.setFillStyle(0x8FA9BF, 1));
-            button.on('pointerout', () => optionBackground.setFillStyle(0x9cbfd9, 1));
-            button.on('pointerdown', () => {
-                text.setText(option.label);
-                onSelect(option.value);
-                this.closeDropdown(dropdownData);
-            });
-
-            return button;
-        });
-
-        const panelHeight = options.length * 68 + 10;
-        const panelBackground = this.rexUI.add.roundRectangle(0, 0, 230, panelHeight, 16, 0x4682b4, 1)
-            .setStrokeStyle(5, 0x2b5e8a, 1)
-            .setOrigin(0.5, 0);
-        const panel = this.add.container(x, y + 40, [panelBackground, ...optionButtons]).setVisible(false).setDepth(250);
-
-        const dropdownData = { container: dropdown, panel, arrow, background, optionButtons };
-
-        dropdown.on('pointerdown', () => {
-            if (this.openDropdown && this.openDropdown !== dropdownData) {
-                this.closeDropdown(this.openDropdown);
-            }
-
-            if (panel.visible) {
-                this.closeDropdown(dropdownData);
-                return;
-            }
-
-            this.openDropdown = dropdownData;
-            panel.setVisible(true);
+        dropdown.on('list.open', (dropDownList, listPanel) => {
+            listPanel.setDepth(1000);
             arrow.setText('▲');
-            background.setStrokeStyle(5, 0x214c74, 1);
+            background.setStrokeStyle(5, FOCUSED_STROKE, 1);
         });
 
-        return dropdownData;
-    }
+        dropdown.on('list.close', () => {
+            arrow.setText('▼');
+            background.setStrokeStyle(5, PANEL_STROKE, 0.95);
+        });
 
-    closeDropdown(dropdown) {
-        if (!dropdown) {
-            return;
-        }
-
-        dropdown.panel.setVisible(false);
-        dropdown.arrow.setText('▼');
-        dropdown.background.setStrokeStyle(5, PANEL_STROKE, 0.95);
-
-        if (this.openDropdown === dropdown) {
-            this.openDropdown = null;
-        }
-    }
-
-    isInDropdownHierarchy(gameObject) {
-        if (!this.openDropdown || !gameObject) {
-            return false;
-        }
-
-        if (gameObject === this.openDropdown.container || gameObject === this.openDropdown.panel) {
-            return true;
-        }
-
-        if (this.openDropdown.optionButtons.includes(gameObject)) {
-            return true;
-        }
-
-        return this.openDropdown.panel.list?.includes(gameObject) ?? false;
+        return dropdown;
     }
 
     focusField(field) {
