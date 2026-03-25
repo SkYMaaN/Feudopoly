@@ -2647,7 +2647,7 @@ export class Board extends Phaser.Scene {
                 color: '#d7ccc8'
             }),
 
-            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '30px', }) : undefined,
+            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '36px', }) : undefined,
 
             separator: (titleText) ? scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }) : undefined,
 
@@ -2687,7 +2687,7 @@ export class Board extends Phaser.Scene {
 
     getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight) {
         return scene.add.text(0, 0, '', {
-            fontSize: '24px',
+            fontSize: '30px',
             wordWrap: {
                 width: wrapWidth
             },
@@ -2701,7 +2701,7 @@ export class Board extends Phaser.Scene {
             fixedWidth: fixedWidth,
             fixedHeight: fixedHeight,
 
-            fontSize: '24px',
+            fontSize: '30px',
             wrap: {
                 mode: 'word',
                 width: wrapWidth
