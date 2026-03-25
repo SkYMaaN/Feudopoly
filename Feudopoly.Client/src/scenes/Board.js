@@ -955,7 +955,7 @@ export class Board extends Phaser.Scene {
         this.hideVictoryScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
-        let notificationText = payload.description ?? '';
+        let notificationText = this.normalizeNotificationText(payload.description ?? '');
 
         if (this.turnRequiresChosenPlayer) {
             notificationText += ' Choose player.';
@@ -1124,6 +1124,14 @@ export class Board extends Phaser.Scene {
             && payload.rollOutcomes.some(item => item?.outcome?.target === chosenTarget || item?.outcome?.target === 1);
 
         return fixedRequiresChoice || rollRequiresChoice;
+    }
+
+    normalizeNotificationText(text) {
+        return String(text)
+            .replace(/\r\n/g, '\n')
+            .replace(/[ \t]*\n[ \t]*/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
     }
 
     showNotification({ title = '', text = '', videoKey = null, typingSpeed = 30 } = {}) {

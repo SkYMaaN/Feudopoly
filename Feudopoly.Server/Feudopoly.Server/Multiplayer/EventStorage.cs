@@ -127,31 +127,31 @@ namespace Feudopoly.Server.Multiplayer
                     RO(RollResultKind.Tie, R(3, 4), O(OutcomeKind.None, "The priest now legal. You think it's good to be able to have a woman. Smile and be happy. It could be worse.")),
                     RO(RollResultKind.Lose, R(5, 6), O(OutcomeKind.None, "You're basically worshipping the tooth fairy. Smile and be happy. It could be worse."))),
 
-                [23] = Fixed("Confessions and incense", "Actually, you love confessions and incense. You are sad and suspend a turn. The priest now legal: you think it's good to be able to have a woman. Smile and be happy. It could be worse.",
-                    O(OutcomeKind.SkipTurns, "Suspend a turn.", skipTurns: 1), "Smile and be happy. It could be worse."),
-
-                [24] = Fixed("Ottomans strong", "The Ottomans are currently strong. All Muslims move forward one space. All others move back one space.",
+                [23] = Fixed("Ottomans strong", "The Ottomans are currently strong. All Muslims move forward one space. All others move back one space.",
                     O(OutcomeKind.MoveByOffset, "All Muslims move forward one space.", OutcomeTarget.Muslims, moveOffset: 1),
                     O(OutcomeKind.MoveByOffset, "All others move back one space.", OutcomeTarget.NonMuslims, moveOffset: -1)),
 
-                [25] = Roll("Thirty Years' War", "The Thirty Years' War mercilessly paralyzes all of Europe. Roll again.",
+                [24] = Roll("Thirty Years' War", "The Thirty Years' War mercilessly paralyzes all of Europe. Roll again.",
                     RO(RollResultKind.Lose, R(1, 1), O(OutcomeKind.Eliminate, "You die in battle.")),
                     RO(RollResultKind.Tie, R(2, 2), O(OutcomeKind.Eliminate, "You die without ever having fought.")),
                     RO(RollResultKind.Win, R(3, 6), O(OutcomeKind.SkipTurns, "Skip 2 moves.", skipTurns: 2))),
 
-                [26] = Fixed("Peace after war", "Peace comes after war. Smile and be happy. Try to recover until the next war.",
+                [25] = Fixed("Peace after war", "Peace comes after war. Smile and be happy. Try to recover until the next war.",
                     O(OutcomeKind.None, "Nothing happens."), "Smile and be happy."),
 
-                [27] = Fixed("Banker in Florence", "You become a banker in Florence. The Pope needs a loan – you gladly help (for an interest rate, of course). Move forward 2 spaces.",
+                [26] = Fixed("Banker in Florence", "You become a banker in Florence. The Pope needs a loan – you gladly help (for an interest rate, of course). Move forward 2 spaces.",
                     O(OutcomeKind.MoveByOffset, "Move forward 2 spaces.", moveOffset: 2)),
 
-                [28] = Roll("Telescope discoveries", "You observe the sky with a telescope, discover many new things, and publish a book about it. The church takes notice of you. Roll again.",
+                [27] = Roll("Telescope discoveries", "You observe the sky with a telescope, discover many new things, and publish a book about it. The church takes notice of you. Roll again.",
                     [
                         RO(RollResultKind.Tie, R(1, 2), O(OutcomeKind.SkipTurns, "You recant your discoveries and beg for mercy. Skip 1 move.", skipTurns: 1)),
                         RO(RollResultKind.Lose, R(3, 4), O(OutcomeKind.Eliminate, "You will be accused of heresy and end up at the stake.")),
                         RO(RollResultKind.Win, R(5, 6), O(OutcomeKind.MoveByOffset, "You are revolutionizing science - go forward 3 spaces, you survived!", moveOffset: 3))
                     ],
                     "You survived!"),
+
+                [28] = Fixed("A Brief Moment of Happiness", "You smiled and you were happy. And then things got worse. Go to field 24.",
+                    O(OutcomeKind.MoveToCell, "Go to field 24.", moveToCell: 24)),
 
                 [29] = Roll("Industrialization begins", "Industrialization begins. Roll again.",
                     [
