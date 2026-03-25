@@ -341,7 +341,7 @@ export class Board extends Phaser.Scene {
 
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
-        gameHubClient.disconnect().catch(() => {});
+        gameHubClient.disconnect().catch(() => { });
     }
 
     async forceReturnToLobbyList(message) {
@@ -955,7 +955,7 @@ export class Board extends Phaser.Scene {
         this.hideVictoryScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
 
-        let notificationText = payload.description ?? '';
+        let notificationText = payload.description?.replace(/\s*\n\s*/g, ' ').trim() ?? '';
 
         if (this.turnRequiresChosenPlayer) {
             notificationText += ' Choose player.';
@@ -2612,10 +2612,11 @@ export class Board extends Phaser.Scene {
     }
 
     createTextBox(scene, x, y, config) {
+        var horizontalSpace = 80; // left + right
         var width = Phaser.Utils.Objects.GetValue(config, 'width', 0);
         var height = Phaser.Utils.Objects.GetValue(config, 'height', 0);
-        var wrapWidth = Phaser.Utils.Objects.GetValue(config, 'wrapWidth', 0);
-        var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', 0);
+        var wrapWidth = Phaser.Utils.Objects.GetValue(config, 'wrapWidth', width - horizontalSpace);
+        var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', width - horizontalSpace);
         var fixedHeight = Phaser.Utils.Objects.GetValue(config, 'fixedHeight', 0);
         var titleText = Phaser.Utils.Objects.GetValue(config, 'title', undefined);
         var typingMode = Phaser.Utils.Objects.GetValue(config, 'typingMode', 'page');
