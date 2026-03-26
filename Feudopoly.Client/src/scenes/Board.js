@@ -790,7 +790,7 @@ export class Board extends Phaser.Scene {
 
         if (mustRollForEvent) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Event requires your roll. Throw the dice!');
+            this.turnSubtitleText.setText('Throw the dice for event!');
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
@@ -803,7 +803,7 @@ export class Board extends Phaser.Scene {
             this.turnSubtitleText.setText('Waiting for turn state to sync...');
         } else if (isLocalTurn) {
             this.hideNotification();
-            this.turnSubtitleText.setText('It is your turn. Roll the dice!');
+            this.turnSubtitleText.setText('Throw the dice!');
         } else {
             this.turnSubtitleText.setText("Waiting for opponent's move...");
         }
