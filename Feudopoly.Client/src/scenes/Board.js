@@ -2665,19 +2665,8 @@ export class Board extends Phaser.Scene {
         var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', width - horizontalSpace);
         var titleText = Phaser.Utils.Objects.GetValue(config, 'title', '');
 
-        var title = scene.add.text(0, 0, titleText, {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '36px',
-            fontStyle: 'bold',
-            color: '#f5e8db'
-        });
-
-        var action = scene.add.text(0, 0, 'Click to continue', {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '18px',
-            fontStyle: 'italic',
-            color: '#d7ccc8'
-        });
+        const { headerLabel, headerText } = this.createNotificationHeader(scene, titleText);
+        const { footerLabel, footerText } = this.createNotificationFooter(scene);
 
         var textArea = scene.rexUI.add.textArea({
             x: x,
@@ -2696,10 +2685,10 @@ export class Board extends Phaser.Scene {
             slider: false,
             mouseWheelScroller: false,
 
-            header: title,
+            header: headerLabel,
             headerSeparator: scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }),
             footerSeparator: scene.rexUI.add.roundRectangle({ height: 2, color: this.COLOR_DARK }),
-            footer: action,
+            footer: footerLabel,
 
             space: {
                 left: 20,
@@ -2721,10 +2710,66 @@ export class Board extends Phaser.Scene {
             .setOrigin(0)
             .layout();
 
-        this.notificationHeaderText = title;
-        this.notificationFooterText = action;
+        this.notificationHeaderText = headerText;
+        this.notificationFooterText = footerText;
 
         return textArea;
+    }
+
+    createNotificationHeader(scene, titleText) {
+        const text = scene.add.text(0, 0, titleText, {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '36px',
+            fontStyle: 'bold',
+            color: '#f5e8db'
+        });
+
+        const label = scene.rexUI.add.label({
+            height: 56,
+            orientation: 0,
+            background: scene.rexUI.add.roundRectangle(0, 0, 10, 10, 14, this.COLOR_DARK, 0.95),
+            text: text,
+            align: 'center',
+            space: {
+                left: 18,
+                right: 18,
+                top: 10,
+                bottom: 10
+            }
+        });
+
+        return {
+            headerLabel: label,
+            headerText: text
+        };
+    }
+
+    createNotificationFooter(scene) {
+        const text = scene.add.text(0, 0, 'Click to continue', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '18px',
+            fontStyle: 'italic',
+            color: '#d7ccc8'
+        });
+
+        const label = scene.rexUI.add.label({
+            height: 48,
+            orientation: 0,
+            background: scene.rexUI.add.roundRectangle(0, 0, 10, 10, 12, this.COLOR_DARK, 0.8),
+            text: text,
+            align: 'center',
+            space: {
+                left: 16,
+                right: 16,
+                top: 8,
+                bottom: 8
+            }
+        });
+
+        return {
+            footerLabel: label,
+            footerText: text
+        };
     }
 
     getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight) {
