@@ -4,33 +4,34 @@ import { getOrCreateProfile, saveProfile } from '../network/profileStorage.js';
 
 const LOBBY_MODAL_DEPTH = 200;
 const OVERLAY_COLOR = 0x0d1b2a;
-const PANEL_COLOR = 0x4682b4;
+const PANEL_COLOR = 0x3f6f97;
 const PANEL_STROKE = 0x2b5e8a;
-const BUTTON_COLOR = 0x9cbfd9;
-const BUTTON_HOVER_COLOR = 0x8fa9bf;
-const BUTTON_ACTIVE_COLOR = 0xd5e6f5;
-const BUTTON_DISABLED_COLOR = 0x6d9dc5;
-const ACTIVE_TOGGLE_BORDER_COLOR = 0xff0000;
+const BUTTON_COLOR = 0x89abc3;
+const BUTTON_HOVER_COLOR = 0x789db8;
+const BUTTON_ACTIVE_COLOR = 0x5f8fb4;
+const BUTTON_DISABLED_COLOR = 0x5f7f97;
+const ACTIVE_TOGGLE_BORDER_COLOR = 0x9ec3e4;
 const ACCESS_OPEN_COLORS = {
-    defaultFill: 0x9fd9b7,
-    hoverFill: 0x88cda6,
-    activeFill: 0x43aa6b,
-    disabledFill: 0x7fa08b,
-    activeTextColor: '#ffffff',
-    inactiveTextColor: '#184d32'
+    defaultFill: 0x8aa48f,
+    hoverFill: 0x7f9b85,
+    activeFill: 0x68846d,
+    disabledFill: 0x6f8172,
+    activeTextColor: '#eef5ef',
+    inactiveTextColor: '#183222'
 };
 const ACCESS_CLOSED_COLORS = {
-    defaultFill: 0xe2a2a2,
-    hoverFill: 0xd48f8f,
-    activeFill: 0xc44545,
-    disabledFill: 0x9e7f7f,
-    activeTextColor: '#ffffff',
-    inactiveTextColor: '#6e1e1e'
+    defaultFill: 0xa98d8d,
+    hoverFill: 0x987d7d,
+    activeFill: 0x7f6666,
+    disabledFill: 0x7f7272,
+    activeTextColor: '#f5f0f0',
+    inactiveTextColor: '#3a2121'
 };
 const DISABLED_INPUT_FILL = 0xd7dee6;
-const TEXT_COLOR = '#FF0000';
+const TEXT_COLOR = '#e8eff8';
+const MODAL_LABEL_COLOR = '#ff3b3b';
 const INPUT_TEXT_COLOR = '#1d3557';
-const PLACEHOLDER_COLOR = '#8a4f4f';
+const PLACEHOLDER_COLOR = '#c4d3e4';
 const ERROR_COLOR = '#ffe082';
 const FOCUSED_STROKE = 0x214c74;
 
@@ -386,7 +387,7 @@ export class LobbyList extends Phaser.Scene {
         const label = this.add.text(config.x - config.width / 2, config.labelY, config.label, {
             fontFamily: 'Georgia, serif',
             fontSize: `${config.fontSize}px`,
-            color: TEXT_COLOR,
+            color: MODAL_LABEL_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
@@ -476,7 +477,7 @@ export class LobbyList extends Phaser.Scene {
         const label = this.add.text(config.x - config.width / 2, config.labelY, 'Players count', {
             fontFamily: 'Georgia, serif',
             fontSize: `${config.fontSize}px`,
-            color: TEXT_COLOR,
+            color: MODAL_LABEL_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
@@ -528,7 +529,7 @@ export class LobbyList extends Phaser.Scene {
         const label = this.add.text(config.x - config.width / 2, config.labelY, 'Lobby access', {
             fontFamily: 'Georgia, serif',
             fontSize: `${config.fontSize}px`,
-            color: TEXT_COLOR,
+            color: MODAL_LABEL_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
@@ -578,7 +579,7 @@ export class LobbyList extends Phaser.Scene {
         const text = this.add.text(0, -2, label, {
             fontFamily: 'Georgia, serif',
             fontSize: '44px',
-            color: TEXT_COLOR,
+            color: '#173451',
             fontStyle: 'bold'
         }).setOrigin(0.5);
         const button = this.rexUI.add.label({
@@ -675,8 +676,11 @@ export class LobbyList extends Phaser.Scene {
             strokeWidth: 6,
             fontFamily: 'Georgia, serif',
             fontSize: '28px',
-            textColor: TEXT_COLOR,
-            fontStyle: 'bold'
+            textColor: '#173451',
+            fontStyle: 'bold',
+            defaultFill: 0x98bad2,
+            hoverFill: 0x85abc8,
+            activeFill: 0x6f98ba
         });
 
         button.setSize(width, height);
@@ -779,7 +783,7 @@ export class LobbyList extends Phaser.Scene {
             border: '0',
             outline: 'none',
             background: 'transparent',
-            color: 'red',
+            color: INPUT_TEXT_COLOR,
             fontFamily: 'Arial, sans-serif',
             fontSize: '30px',
             textAlign: 'left',
