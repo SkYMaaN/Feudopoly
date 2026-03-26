@@ -90,9 +90,9 @@ export class LobbyList extends Phaser.Scene {
 
         this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        //this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
-        this.createButton(1700, 70, 260, 60, 'REFRESH', () => this.syncLobbies());
-        this.createButton(1700, 150, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
+        this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
+        this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
+        //this.createButton(1700, 150, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
 
         this.listContainer = this.add.container(70, 250);
         this.input.keyboard.on('keydown', (e) => this.onKey(e));
@@ -314,7 +314,7 @@ export class LobbyList extends Phaser.Scene {
         this.passwordField = this.createModalTextField({
             key: 'password',
             label: 'Password',
-            placeholder: 'Minimum 3 characters',
+            placeholder: 'Minimum 3 symbols',
             type: 'password',
             maxLength: 32,
             x: centerX,
@@ -325,6 +325,8 @@ export class LobbyList extends Phaser.Scene {
             fontSize: layout.inputFontSize,
             errorFontSize: layout.errorFontSize
         });
+
+        this.createLobbyState.accessType === 0;
 
         this.closeModalButton = this.createModalIconButton(
             centerX - panelWidth / 2 + layout.closeButtonOffsetX,
@@ -862,7 +864,7 @@ export class LobbyList extends Phaser.Scene {
         if (fieldName === 'password') {
             const trimmedPassword = password.trim();
             if (accessType === 1 && trimmedPassword.length < 3) {
-                errors.password = 'Password is required for a closed lobby and must contain at least 3 characters.';
+                errors.password = 'Password is required for a closed lobby and must contain at least 3 symbols.';
             } else {
                 delete errors.password;
             }
