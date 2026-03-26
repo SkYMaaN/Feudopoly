@@ -29,6 +29,7 @@ const ACCESS_CLOSED_COLORS = {
 };
 const DISABLED_INPUT_FILL = 0xd7dee6;
 const TEXT_COLOR = '#e8eff8';
+const MODAL_LABEL_COLOR = '#ff3b3b';
 const INPUT_TEXT_COLOR = '#1d3557';
 const PLACEHOLDER_COLOR = '#c4d3e4';
 const ERROR_COLOR = '#ffe082';
@@ -386,7 +387,7 @@ export class LobbyList extends Phaser.Scene {
         const label = this.add.text(config.x - config.width / 2, config.labelY, config.label, {
             fontFamily: 'Georgia, serif',
             fontSize: `${config.fontSize}px`,
-            color: TEXT_COLOR,
+            color: MODAL_LABEL_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
@@ -476,7 +477,7 @@ export class LobbyList extends Phaser.Scene {
         const label = this.add.text(config.x - config.width / 2, config.labelY, 'Players count', {
             fontFamily: 'Georgia, serif',
             fontSize: `${config.fontSize}px`,
-            color: TEXT_COLOR,
+            color: MODAL_LABEL_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
@@ -528,7 +529,7 @@ export class LobbyList extends Phaser.Scene {
         const label = this.add.text(config.x - config.width / 2, config.labelY, 'Lobby access', {
             fontFamily: 'Georgia, serif',
             fontSize: `${config.fontSize}px`,
-            color: TEXT_COLOR,
+            color: MODAL_LABEL_COLOR,
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(LOBBY_MODAL_DEPTH + 2);
 
