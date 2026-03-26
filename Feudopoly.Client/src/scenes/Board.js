@@ -76,6 +76,9 @@ export class Board extends Phaser.Scene {
         this.rollRequestCountdownDurationMs = 10000;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
+        this.notificationTypingEvent = null;
+        this.notificationTypingText = '';
+        this.notificationTypingIndex = 0;
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
@@ -114,7 +117,7 @@ export class Board extends Phaser.Scene {
             {
                 width: 800,
                 height: 400,
-                title: 'sad'
+                title: ''
             }
         )
             .setOrigin(0.5)
@@ -784,6 +787,7 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        this.turnTitleText.setColor(current ? `#${this.getPlayerColor(current.playerId).toString(16).padStart(6, '0')}` : '#ffe066');
         this.turnTitleText.setText(this.isEventRollPhase
             ? (this.pendingEventRollPlayerIds.length === 1 ? 'Roll phase' : 'Event roll phase')
             : `${current?.displayName ?? 'Player'} turn`);
@@ -1140,12 +1144,11 @@ export class Board extends Phaser.Scene {
 
         this.input.once('pointerdown', this.notificationDismissHandler);
 
-        this.notificationTextBox
-            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
-            .setVisible(true)
-            .stop(true);
-        this.notificationTextBox.getElement('title')?.setText(title);
-        this.notificationTextBox.setText('').layout().start(text, typingSpeed);
+        this.notificationTextBox.setPosition(width / 2, hasVideo ? height - 260 : height / 2).setVisible(true);
+
+        this.notificationTextBox.getElement('header')?.setText(title);
+        this.notificationTextBox.layout();
+        this.startNotificationTyping(text, typingSpeed);
 
         if (!this.notificationVideo) {
             return;
@@ -1167,7 +1170,8 @@ export class Board extends Phaser.Scene {
     }
 
     hideNotification() {
-        this.notificationTextBox?.setVisible(false).stop(true);
+        this.stopNotificationTyping();
+        this.notificationTextBox?.setVisible(false);
         this.updateTurnStartActionText();
 
         if (this.notificationDismissHandler) {
@@ -1248,7 +1252,7 @@ export class Board extends Phaser.Scene {
     }
 
     updateTurnStartActionText(secondsLeft = null) {
-        const actionText = this.notificationTextBox?.getElement('action');
+        const actionText = this.notificationFooterText;
         if (!actionText?.setText) {
             return;
         }
@@ -1256,6 +1260,47 @@ export class Board extends Phaser.Scene {
         const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
         actionText.setText(`Click to continue${suffix}`);
         this.notificationTextBox.layout();
+    }
+
+    startNotificationTyping(text = '', typingSpeed = 30) {
+        this.stopNotificationTyping();
+
+        this.notificationTypingText = String(text ?? '');
+        this.notificationTypingIndex = 0;
+        this.notificationTextBox?.setText('');
+
+        if (!this.notificationTypingText.length) {
+            this.notificationTextBox?.layout();
+            return;
+        }
+
+        const normalizedSpeed = Math.max(0, Number(typingSpeed) || 0);
+        if (normalizedSpeed === 0) {
+            this.notificationTextBox?.setText(this.notificationTypingText);
+            this.notificationTextBox?.layout();
+            return;
+        }
+
+        this.notificationTypingEvent = this.time.addEvent({
+            delay: normalizedSpeed,
+            loop: true,
+            callback: () => {
+                this.notificationTypingIndex += 1;
+                this.notificationTextBox?.setText(this.notificationTypingText.slice(0, this.notificationTypingIndex));
+                this.notificationTextBox?.layout();
+
+                if (this.notificationTypingIndex >= this.notificationTypingText.length) {
+                    this.stopNotificationTyping();
+                }
+            }
+        });
+    }
+
+    stopNotificationTyping() {
+        if (this.notificationTypingEvent) {
+            this.notificationTypingEvent.remove(false);
+            this.notificationTypingEvent = null;
+        }
     }
 
     resolveChosenPlayerId(currentlyOver) {
@@ -2617,72 +2662,63 @@ export class Board extends Phaser.Scene {
         var height = Phaser.Utils.Objects.GetValue(config, 'height', 0);
         var wrapWidth = Phaser.Utils.Objects.GetValue(config, 'wrapWidth', width - horizontalSpace);
         var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', width - horizontalSpace);
-        var fixedHeight = Phaser.Utils.Objects.GetValue(config, 'fixedHeight', 0);
-        var titleText = Phaser.Utils.Objects.GetValue(config, 'title', undefined);
-        var typingMode = Phaser.Utils.Objects.GetValue(config, 'typingMode', 'page');
-        var maxLines = (width > 0) ? 0 : 3;
+        var titleText = Phaser.Utils.Objects.GetValue(config, 'title', '');
 
-        var textBox = scene.rexUI.add.textBox({
-            x: x, y: y,
-            width: width, height: height,
+        var textArea = scene.rexUI.add.textArea({
+            x: x,
+            y: y,
+            width: width,
+            height: height,
 
-            typingMode: typingMode,
+            background: scene.rexUI.add.roundRectangle({
+                radius: 20,
+                color: this.COLOR_MAIN,
+                strokeColor: this.COLOR_LIGHT,
+                strokeWidth: 2
+            }),
+            text: this.getBBcodeText(scene, wrapWidth, fixedWidth, 0, 0),
+            textMask: true,
+            slider: false,
+            mouseWheelScroller: false,
 
-            background: scene.rexUI.add.roundRectangle({ radius: 20, color: this.COLOR_MAIN, strokeColor: this.COLOR_LIGHT, strokeWidth: 2 }),
+            header: scene.add.text(0, 0, titleText, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '36px',
+                fontStyle: 'bold',
+                color: '#f5e8db'
+            }),
 
-            /*icon: scene.rexUI.add.transitionImagePack({
-                width: 40, height: 40,
-                key: 'portraits', frame: 'A-smile'
-            }),*/
-
-            // text: getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight),
-            text: this.getBBcodeText(scene, wrapWidth, fixedWidth, fixedHeight, maxLines),
-            expandTextWidth: (width > 0),
-            expandTextHeight: (height > 0),
-
-            action: scene.add.text(0, 0, 'Click to continue', {
+            footer: scene.add.text(0, 0, 'Click to continue...', {
                 fontFamily: 'Arial, sans-serif',
                 fontSize: '18px',
                 fontStyle: 'italic',
                 color: '#d7ccc8'
             }),
 
-            title: (titleText) ? scene.add.text(0, 0, titleText, { fontSize: '36px', }) : undefined,
-
-            separator: (titleText) ? scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }) : undefined,
-
             space: {
-                left: 20, right: 20, top: 20, bottom: 20,
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: 20,
+                text: 14,
+                header: 28,
+                footer: 8
+            },
 
-                icon: 10, text: 10,
-
-                separator: 6,
+            expand: {
+                header: false,
+                footer: false
             },
 
             align: {
-                title: 'center',
-                action: 'bottom'
+                header: 'center',
+                footer: 'right'
             }
         })
             .setOrigin(0)
             .layout();
 
-        textBox
-            .setInteractive()
-            .on('pointerdown', function () {
-                if (typingMode === 'page') {
-                    if (this.isTyping) {
-                        this.stop(true);
-                    } else {
-                        this.typeNextPage();
-                    }
-                }
-            }, textBox)
-            .on('complete', function () {
-                console.log('all pages typing complete')
-            })
-
-        return textBox;
+        return textArea;
     }
 
     getBuiltInText(scene, wrapWidth, fixedWidth, fixedHeight) {
