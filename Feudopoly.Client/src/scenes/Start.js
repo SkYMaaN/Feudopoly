@@ -7,8 +7,8 @@ export class Start extends Phaser.Scene {
     constructor() {
         super('Start');
         this.nickname = '';
-        this.gender = 'Other';
-        this.religion = 'Islam';
+        this.gender = 'Male';
+        this.religion = 'Other';
     }
 
     preload() {
@@ -66,7 +66,7 @@ export class Start extends Phaser.Scene {
 
         this.genderDropdown = this.createDropdown(width / 2, height / 2 - 40, [
             { label: 'Female', value: 'Female' },
-            { label: 'Other', value: 'Other' }
+            { label: 'Male', value: 'Male' }
         ], this.gender, (value) => {
             this.gender = value;
         });
@@ -84,11 +84,11 @@ export class Start extends Phaser.Scene {
             this.religion = value;
         });
 
-        this.joinLobbyButton = this.createButton(width / 2, height / 2 + 200, 410, 96, 'Join', () => {
+        this.joinLobbyButton = this.createButton(width / 2, height / 2 + 200, 420, 96, 'Join lobby', () => {
             this.openLobbyList();
         });
 
-        this.openNewButton = this.createButton(width / 2, height / 2 + 340, 410, 96, 'Open new', () => {
+        this.openNewButton = this.createButton(width / 2, height / 2 + 340, 420, 96, 'Open new lobby', () => {
             this.openLobbyList({ openCreateLobbyModal: true });
         });
 
