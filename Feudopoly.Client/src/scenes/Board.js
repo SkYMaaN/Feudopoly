@@ -791,7 +791,6 @@ export class Board extends Phaser.Scene {
         this.turnTitleText.setText(this.isEventRollPhase
             ? (this.pendingEventRollPlayerIds.length === 1 ? 'Roll phase' : 'Event roll phase')
             : `${current?.displayName ?? 'Player'} turn`);
-        this.turnTitleText.setColor(current ? `#${this.getPlayerColor(current.playerId).toString(16).padStart(6, '0')}` : '#ffe066');
 
         if (mustRollForEvent) {
             this.hideNotification();
