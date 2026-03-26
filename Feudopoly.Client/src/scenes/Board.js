@@ -2665,8 +2665,8 @@ export class Board extends Phaser.Scene {
         var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', width - horizontalSpace);
         var titleText = Phaser.Utils.Objects.GetValue(config, 'title', '');
 
-        const { headerLabel, headerText } = this.createNotificationHeader(scene, titleText);
-        const { footerLabel, footerText } = this.createNotificationFooter(scene);
+        const { header, headerText } = this.createNotificationHeader(scene, titleText, width - 40);
+        const { footer, footerText } = this.createNotificationFooter(scene, width - 40);
 
         var textArea = scene.rexUI.add.textArea({
             x: x,
@@ -2685,10 +2685,10 @@ export class Board extends Phaser.Scene {
             slider: false,
             mouseWheelScroller: false,
 
-            header: headerLabel,
+            header: header,
             headerSeparator: scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }),
             footerSeparator: scene.rexUI.add.roundRectangle({ height: 2, color: this.COLOR_DARK }),
-            footer: footerLabel,
+            footer: footer,
 
             space: {
                 left: 20,
@@ -2716,15 +2716,16 @@ export class Board extends Phaser.Scene {
         return textArea;
     }
 
-    createNotificationHeader(scene, titleText) {
+    createNotificationHeader(scene, titleText, contentWidth) {
         const text = scene.add.text(0, 0, titleText, {
             fontFamily: 'Arial, sans-serif',
             fontSize: '36px',
             fontStyle: 'bold',
             color: '#f5e8db'
-        });
+        }).setOrigin(0.5);
 
-        const label = scene.rexUI.add.label({
+        const header = scene.rexUI.add.label({
+            width: Math.max(0, contentWidth),
             height: 56,
             orientation: 0,
             background: scene.rexUI.add.roundRectangle(0, 0, 10, 10, 14, this.COLOR_DARK, 0.95),
@@ -2739,20 +2740,21 @@ export class Board extends Phaser.Scene {
         });
 
         return {
-            headerLabel: label,
+            header,
             headerText: text
         };
     }
 
-    createNotificationFooter(scene) {
+    createNotificationFooter(scene, contentWidth) {
         const text = scene.add.text(0, 0, 'Click to continue', {
             fontFamily: 'Arial, sans-serif',
             fontSize: '18px',
             fontStyle: 'italic',
             color: '#d7ccc8'
-        });
+        }).setOrigin(0.5);
 
-        const label = scene.rexUI.add.label({
+        const footer = scene.rexUI.add.label({
+            width: Math.max(0, contentWidth),
             height: 48,
             orientation: 0,
             background: scene.rexUI.add.roundRectangle(0, 0, 10, 10, 12, this.COLOR_DARK, 0.8),
@@ -2767,7 +2769,7 @@ export class Board extends Phaser.Scene {
         });
 
         return {
-            footerLabel: label,
+            footer,
             footerText: text
         };
     }
