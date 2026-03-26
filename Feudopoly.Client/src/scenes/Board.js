@@ -1143,11 +1143,9 @@ export class Board extends Phaser.Scene {
 
         this.input.once('pointerdown', this.notificationDismissHandler);
 
-        this.notificationTextBox
-            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
-            .setVisible(true);
-        this.notificationHeaderText?.setText(title);
-        this.notificationTextBox.setText('');
+        this.notificationTextBox.setPosition(width / 2, hasVideo ? height - 260 : height / 2).setVisible(true);
+
+        this.notificationTextBox.getElement('header')?.setText(title);
         this.notificationTextBox.layout();
         this.startNotificationTyping(text, typingSpeed);
 
@@ -2665,20 +2663,6 @@ export class Board extends Phaser.Scene {
         var fixedWidth = Phaser.Utils.Objects.GetValue(config, 'fixedWidth', width - horizontalSpace);
         var titleText = Phaser.Utils.Objects.GetValue(config, 'title', '');
 
-        var title = scene.add.text(0, 0, titleText, {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '36px',
-            fontStyle: 'bold',
-            color: '#f5e8db'
-        });
-
-        var action = scene.add.text(0, 0, 'Click to continue', {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '18px',
-            fontStyle: 'italic',
-            color: '#d7ccc8'
-        });
-
         var textArea = scene.rexUI.add.textArea({
             x: x,
             y: y,
@@ -2696,10 +2680,19 @@ export class Board extends Phaser.Scene {
             slider: false,
             mouseWheelScroller: false,
 
-            header: title,
-            headerSeparator: scene.rexUI.add.roundRectangle({ height: 3, color: this.COLOR_DARK }),
-            footerSeparator: scene.rexUI.add.roundRectangle({ height: 2, color: this.COLOR_DARK }),
-            footer: action,
+            header: scene.add.text(0, 0, titleText, {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '36px',
+                fontStyle: 'bold',
+                color: '#f5e8db'
+            }),
+
+            footer: scene.add.text(0, 0, 'Click to continue...', {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '18px',
+                fontStyle: 'italic',
+                color: '#d7ccc8'
+            }),
 
             space: {
                 left: 20,
@@ -2707,22 +2700,22 @@ export class Board extends Phaser.Scene {
                 top: 20,
                 bottom: 20,
                 text: 14,
-                header: 8,
-                footer: 8,
-                headerSeparator: 10,
-                footerSeparator: 10
+                header: 28,
+                footer: 8
+            },
+
+            expand: {
+                header: false,
+                footer: false
             },
 
             align: {
                 header: 'center',
-                footer: 'center'
+                footer: 'right'
             }
         })
             .setOrigin(0)
             .layout();
-
-        this.notificationHeaderText = title;
-        this.notificationFooterText = action;
 
         return textArea;
     }
