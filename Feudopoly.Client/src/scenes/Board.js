@@ -100,6 +100,7 @@ export class Board extends Phaser.Scene {
         this.addBoard();
         this.buildCells();
         this.setCellBackgrounds();
+        this.createDangerCellWarningFX();
         this.createLocalPlayerCellHighlight();
         this.addMedievalAtmosphere();
         this.createDiceUI();
@@ -2513,6 +2514,38 @@ export class Board extends Phaser.Scene {
             const img = this.add.image(cell.x, cell.y, `bg${i}`).setOrigin(0.5);
 
             img.setDisplaySize(145, 120);
+        }
+    }
+
+    createDangerCellWarningFX() {
+        // Клетки с потенциальным исходом Eliminate (смерть) по правилам сервера.
+        const dangerCellIndices = [1, 4, 16, 18, 24, 27];
+        this.dangerCellWarningOverlays = [];
+        this.dangerCellWarningTweens = [];
+
+        for (const cellIndex of dangerCellIndices) {
+            const cell = this.cells[cellIndex];
+            if (!cell) {
+                continue;
+            }
+
+            const overlay = this.add.rectangle(cell.x, cell.y, 145, 120, 0xff2a2a, 1)
+                .setDepth(2)
+                .setAlpha(0.03)
+                .setBlendMode(Phaser.BlendModes.ADD);
+
+            const pulseTween = this.tweens.add({
+                targets: overlay,
+                alpha: 0.09,
+                duration: 950,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.InOut',
+                delay: (cellIndex % 4) * 110
+            });
+
+            this.dangerCellWarningOverlays.push(overlay);
+            this.dangerCellWarningTweens.push(pulseTween);
         }
     }
 
