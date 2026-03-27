@@ -1253,13 +1253,13 @@ export class Board extends Phaser.Scene {
     }
 
     updateTurnStartActionText(secondsLeft = null) {
-        const actionText = this.notificationFooterText;
+        const actionText = this.notificationTextBox?.getElement?.('footer');
         if (!actionText?.setText) {
             return;
         }
 
         const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
-        actionText.setText(`Click to continue${suffix}`);
+        actionText.setText(`Click to continue...${suffix}`);
         this.notificationTextBox.layout();
     }
 
