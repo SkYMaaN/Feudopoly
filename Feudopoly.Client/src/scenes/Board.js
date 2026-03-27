@@ -100,6 +100,7 @@ export class Board extends Phaser.Scene {
         this.addBoard();
         this.buildCells();
         this.setCellBackgrounds();
+        this.createDangerCellWarningFX();
         this.createLocalPlayerCellHighlight();
         this.addMedievalAtmosphere();
         this.createDiceUI();
@@ -1979,6 +1980,7 @@ export class Board extends Phaser.Scene {
         this.diceSpinState.y = this.diceSpinState.y % (Math.PI * 2);
         this.diceSpinState.z = this.diceSpinState.z % (Math.PI * 2);
 
+        this.setDiceShadowSpinning(false);
         this.renderDice3D();
         this.diceValueText.setText(String(rollValue));
         //this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
@@ -2116,8 +2118,12 @@ export class Board extends Phaser.Scene {
 
         this.diceVisualScale = diceScaleMultiplier;
 
-        this.diceShadow = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
-        this.diceShadow.setScale(1.05, 0.8);
+        this.diceShadowEllipse = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
+        this.diceShadowEllipse.setScale(0.5, 0.8);
+
+        this.diceShadowSquare = this.add.rectangle(0, 145, 125, 125, 0x000000, 0.3);
+        this.diceShadowSquare.setAlpha(0.7);
+        this.diceShadowSquare.setVisible(false);
 
         this.diceGraphics = this.add.graphics();
 
@@ -2148,7 +2154,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceContainer.add([this.diceShadow, this.diceGraphics, this.diceValueText, this.diceHintText, this.diceTimerText]);
+        this.diceContainer.add([this.diceShadowEllipse, this.diceShadowSquare, this.diceGraphics, this.diceValueText, this.diceHintText, this.diceTimerText]);
 
         this.diceFaceValues = {
             px: 3,
@@ -2171,6 +2177,7 @@ export class Board extends Phaser.Scene {
 
     startDiceRollingLoop() {
         this.stopDiceRotationTween();
+        this.setDiceShadowSpinning(true);
 
         const state = this.diceSpinState;
         const fullTurn = Math.PI * 2;
@@ -2189,6 +2196,7 @@ export class Board extends Phaser.Scene {
 
     animateDiceToValue(value) {
         this.stopDiceRotationTween();
+        this.setDiceShadowSpinning(true);
 
         const target = this.getTargetDiceRotation(value);
         const state = this.diceSpinState;
@@ -2203,9 +2211,15 @@ export class Board extends Phaser.Scene {
             onUpdate: () => this.renderDice3D(),
             onComplete: () => {
                 this.diceRotationTween = null;
+                this.setDiceShadowSpinning(false);
                 this.renderDice3D();
             }
         });
+    }
+
+    setDiceShadowSpinning(isSpinning) {
+        this.diceShadowEllipse?.setVisible(Boolean(isSpinning));
+        this.diceShadowSquare?.setVisible(!isSpinning);
     }
 
     getTargetDiceRotation(value) {
@@ -2501,6 +2515,38 @@ export class Board extends Phaser.Scene {
             const img = this.add.image(cell.x, cell.y, `bg${i}`).setOrigin(0.5);
 
             img.setDisplaySize(145, 120);
+        }
+    }
+
+    createDangerCellWarningFX() {
+        // Клетки с потенциальным исходом Eliminate (смерть) по правилам сервера.
+        const dangerCellIndices = [1, 4, 16, 18, 24, 27];
+        this.dangerCellWarningOverlays = [];
+        this.dangerCellWarningTweens = [];
+
+        for (const cellIndex of dangerCellIndices) {
+            const cell = this.cells[cellIndex];
+            if (!cell) {
+                continue;
+            }
+
+            const overlay = this.add.rectangle(cell.x, cell.y, 145, 120, 0xff2a2a, 1)
+                .setDepth(2)
+                .setAlpha(0.05)
+                .setBlendMode(Phaser.BlendModes.ADD);
+
+            const pulseTween = this.tweens.add({
+                targets: overlay,
+                alpha: 0.3,
+                duration: 950,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.InOut',
+                delay: (cellIndex % 4) * 110
+            });
+
+            this.dangerCellWarningOverlays.push(overlay);
+            this.dangerCellWarningTweens.push(pulseTween);
         }
     }
 
