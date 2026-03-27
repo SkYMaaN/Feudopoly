@@ -1,5 +1,6 @@
 import { gameHubClient } from '../network/gameHubClient.js';
 import { getOrCreateProfile } from '../network/profileStorage.js';
+import { AUTO_TURN_TIMEOUT_MS } from '../config.js';
 
 export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
@@ -73,7 +74,7 @@ export class Board extends Phaser.Scene {
         this.rollRequestCountdownEvent = null;
         this.rollRequestCountdownKey = null;
         this.rollRequestCountdownSecondsLeft = null;
-        this.rollRequestCountdownDurationMs = 10000;
+        this.rollRequestCountdownDurationMs = AUTO_TURN_TIMEOUT_MS;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.notificationTypingEvent = null;
@@ -995,7 +996,7 @@ export class Board extends Phaser.Scene {
 
         this.input.on('pointerdown', this.turnBeganClickHandler);
 
-        this.startTurnBeganCountdown(10000, finishTurnFromTurnStart);
+        this.startTurnBeganCountdown(AUTO_TURN_TIMEOUT_MS, finishTurnFromTurnStart);
     }
 
     turnEnded(payload) {
@@ -1096,7 +1097,7 @@ export class Board extends Phaser.Scene {
         };
 
         this.input.once('pointerdown', this.turnResultDismissHandler);
-        this.startTurnResultCountdown(10000);
+        this.startTurnResultCountdown(AUTO_TURN_TIMEOUT_MS);
     }
 
     hideTurnResultNotification({ refreshTurnUI = false } = {}) {
@@ -1219,7 +1220,7 @@ export class Board extends Phaser.Scene {
         this.updateTurnStartActionText();
     }
 
-    startTurnResultCountdown(durationMs = 10000) {
+    startTurnResultCountdown(durationMs = AUTO_TURN_TIMEOUT_MS) {
         const durationSeconds = Math.ceil(durationMs / 1000);
         const deadline = Date.now() + durationMs;
 
@@ -1252,13 +1253,13 @@ export class Board extends Phaser.Scene {
     }
 
     updateTurnStartActionText(secondsLeft = null) {
-        const actionText = this.notificationFooterText;
+        const actionText = this.notificationTextBox?.getElement?.('footer');
         if (!actionText?.setText) {
             return;
         }
 
         const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
-        actionText.setText(`Click to continue${suffix}`);
+        actionText.setText(`Click to continue...${suffix}`);
         this.notificationTextBox.layout();
     }
 

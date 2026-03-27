@@ -535,7 +535,7 @@ export class LobbyList extends Phaser.Scene {
 
         const groupWidth = Math.min(config.width, 560);
         const buttonGap = 24;
-        const buttonWidth = Math.floor((groupWidth - buttonGap) / 2);
+        const buttonWidth = Math.floor((groupWidth - buttonGap) / 2) + 50;
         const openButton = this.createModalToggleButton(
             config.x - (buttonWidth + buttonGap) / 2,
             config.controlY,
