@@ -29,6 +29,7 @@ const ACCESS_CLOSED_COLORS = {
 };
 const DISABLED_INPUT_FILL = 0xd7dee6;
 const TEXT_COLOR = '#e8eff8';
+const LOBBY_ROW_TEXT_COLOR = '#FF0000';
 const MODAL_LABEL_COLOR = '#ff3b3b';
 const INPUT_TEXT_COLOR = '#1d3557';
 const PLACEHOLDER_COLOR = '#c4d3e4';
@@ -188,7 +189,7 @@ export class LobbyList extends Phaser.Scene {
             const bg = this.add.rectangle(0, y, 1275, 64, 0x7faed3, 0.95).setOrigin(0, 0);
             const text = this.add.text(20, y + 16,
                 `\'${lobby.name}\' | [${lobby.currentPlayers}/${lobby.maxPlayers}]  ${this.getLobbyStatusText(lobby.status)} | ${lobby.accessType == 1 ? 'Private' : 'Public'}`,
-                { fontSize: '26px', color: TEXT_COLOR });
+                { fontSize: '26px', color: LOBBY_ROW_TEXT_COLOR });
             const detailsBtn = this.createButton(1000, y + 32, 150, 40, 'DETAILS', () => this.openLobby(lobby));
             const joinBtn = this.createButton(1170, y + 32, 150, 40, 'JOIN', async () => this.joinLobby(lobby));
             this.setButtonDisabled(joinBtn, !hasFreeSlots);
