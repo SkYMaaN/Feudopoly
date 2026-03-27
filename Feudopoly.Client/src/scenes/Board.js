@@ -2121,7 +2121,8 @@ export class Board extends Phaser.Scene {
         this.diceShadowEllipse = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
         this.diceShadowEllipse.setScale(0.5, 0.8);
 
-        this.diceShadowSquare = this.add.rectangle(0, 145, 140, 140, 0x000000, 0.3);
+        this.diceShadowSquare = this.add.rectangle(0, 145, 125, 125, 0x000000, 0.3);
+        this.diceShadowSquare.setAlpha(0.7);
         this.diceShadowSquare.setVisible(false);
 
         this.diceGraphics = this.add.graphics();
@@ -2531,12 +2532,12 @@ export class Board extends Phaser.Scene {
 
             const overlay = this.add.rectangle(cell.x, cell.y, 145, 120, 0xff2a2a, 1)
                 .setDepth(2)
-                .setAlpha(0.03)
+                .setAlpha(0.05)
                 .setBlendMode(Phaser.BlendModes.ADD);
 
             const pulseTween = this.tweens.add({
                 targets: overlay,
-                alpha: 0.09,
+                alpha: 0.3,
                 duration: 950,
                 yoyo: true,
                 repeat: -1,
