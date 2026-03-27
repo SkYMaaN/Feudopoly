@@ -1979,6 +1979,7 @@ export class Board extends Phaser.Scene {
         this.diceSpinState.y = this.diceSpinState.y % (Math.PI * 2);
         this.diceSpinState.z = this.diceSpinState.z % (Math.PI * 2);
 
+        this.setDiceShadowSpinning(false);
         this.renderDice3D();
         this.diceValueText.setText(String(rollValue));
         //this.diceHintText.setText(`The bones have spoken: ${rollValue}`);
@@ -2116,8 +2117,11 @@ export class Board extends Phaser.Scene {
 
         this.diceVisualScale = diceScaleMultiplier;
 
-        this.diceShadow = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
-        this.diceShadow.setScale(0.5, 0.8);
+        this.diceShadowEllipse = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
+        this.diceShadowEllipse.setScale(0.5, 0.8);
+
+        this.diceShadowSquare = this.add.rectangle(0, 145, 140, 140, 0x000000, 0.3);
+        this.diceShadowSquare.setVisible(false);
 
         this.diceGraphics = this.add.graphics();
 
@@ -2148,7 +2152,7 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.diceContainer.add([this.diceShadow, this.diceGraphics, this.diceValueText, this.diceHintText, this.diceTimerText]);
+        this.diceContainer.add([this.diceShadowEllipse, this.diceShadowSquare, this.diceGraphics, this.diceValueText, this.diceHintText, this.diceTimerText]);
 
         this.diceFaceValues = {
             px: 3,
@@ -2171,6 +2175,7 @@ export class Board extends Phaser.Scene {
 
     startDiceRollingLoop() {
         this.stopDiceRotationTween();
+        this.setDiceShadowSpinning(true);
 
         const state = this.diceSpinState;
         const fullTurn = Math.PI * 2;
@@ -2189,6 +2194,7 @@ export class Board extends Phaser.Scene {
 
     animateDiceToValue(value) {
         this.stopDiceRotationTween();
+        this.setDiceShadowSpinning(true);
 
         const target = this.getTargetDiceRotation(value);
         const state = this.diceSpinState;
@@ -2203,9 +2209,15 @@ export class Board extends Phaser.Scene {
             onUpdate: () => this.renderDice3D(),
             onComplete: () => {
                 this.diceRotationTween = null;
+                this.setDiceShadowSpinning(false);
                 this.renderDice3D();
             }
         });
+    }
+
+    setDiceShadowSpinning(isSpinning) {
+        this.diceShadowEllipse?.setVisible(Boolean(isSpinning));
+        this.diceShadowSquare?.setVisible(!isSpinning);
     }
 
     getTargetDiceRotation(value) {
