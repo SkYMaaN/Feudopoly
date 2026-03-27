@@ -29,7 +29,7 @@ const ACCESS_CLOSED_COLORS = {
 };
 const DISABLED_INPUT_FILL = 0xd7dee6;
 const TEXT_COLOR = '#e8eff8';
-const LOBBY_ROW_TEXT_COLOR = '#d5e2f0';
+const LOBBY_ROW_TEXT_COLOR = '#FF0000';
 const MODAL_LABEL_COLOR = '#ff3b3b';
 const INPUT_TEXT_COLOR = '#1d3557';
 const PLACEHOLDER_COLOR = '#c4d3e4';
