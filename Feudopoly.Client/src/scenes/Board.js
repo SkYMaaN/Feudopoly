@@ -2117,7 +2117,7 @@ export class Board extends Phaser.Scene {
         this.diceVisualScale = diceScaleMultiplier;
 
         this.diceShadow = this.add.ellipse(0, 145, 315, 105, 0x000000, 0.3);
-        this.diceShadow.setScale(1.05, 0.8);
+        this.diceShadow.setScale(0.5, 0.8);
 
         this.diceGraphics = this.add.graphics();
 
