@@ -27,7 +27,7 @@ export class LobbyHubClient {
             return;
         }
 
-        console.log('SignalR BackendBaseUrl: ' + backendBaseUrl);
+        //console.log('SignalR BackendBaseUrl: ' + backendBaseUrl);
 
         this.connection = new signalR.HubConnectionBuilder()
             .withUrl(`${backendBaseUrl}${HUB_PATH}`)
