@@ -960,11 +960,15 @@ export class Board extends Phaser.Scene {
         this.hideDeathScreen();
         this.hideVictoryScreen();
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
+        const chosenPlayerCandidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
 
         let notificationText = payload.description?.replace(/\s*\n\s*/g, ' ').trim() ?? '';
 
         if (this.turnRequiresChosenPlayer) {
             notificationText += ' Choose player.';
+            if (chosenPlayerCandidates.length === 0) {
+                notificationText += ' There are no other active players.';
+            }
         }
 
         this.showNotification({
@@ -977,11 +981,6 @@ export class Board extends Phaser.Scene {
             const chosenPlayerId = this.turnRequiresChosenPlayer
                 ? this.resolveChosenPlayerId(currentlyOver)
                 : null;
-
-            if (this.turnRequiresChosenPlayer && !chosenPlayerId) {
-                this.setStatus('Choose another alive player token to continue.');
-                return;
-            }
 
             this.stopTurnBeganCountdown();
             this.hideNotification();
@@ -1314,11 +1313,6 @@ export class Board extends Phaser.Scene {
                     return hit.playerId;
                 }
             }
-        }
-
-        const activePlayers = this.players.filter(player => !player.isDead && !player.isSpectator && !player.isWinner);
-        if (activePlayers.length === 1 && String(activePlayers[0].playerId ?? '') === String(this.localPlayerId ?? '')) {
-            return activePlayers[0].playerId;
         }
 
         const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
