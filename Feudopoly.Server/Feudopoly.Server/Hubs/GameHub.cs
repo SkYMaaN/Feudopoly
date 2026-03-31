@@ -734,16 +734,28 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         return target switch
         {
             OutcomeTarget.CurrentPlayer => [currentPlayer],
-            OutcomeTarget.ChosenPlayer => [
-                session.Players.FirstOrDefault(p => p.PlayerId == chosenPlayerId && IsActiveParticipant(p))
-                ?? session.Players.FirstOrDefault(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p))
-                ?? currentPlayer],
+            OutcomeTarget.ChosenPlayer => ResolveChosenPlayerTargets(session, currentPlayer, chosenPlayerId),
             OutcomeTarget.AllPlayers => session.Players.Where(IsActiveParticipant),
             OutcomeTarget.Women => session.Players.Where(p => p.IsWomen && IsActiveParticipant(p)),
             OutcomeTarget.Muslims => session.Players.Where(p => p.IsMuslim && IsActiveParticipant(p)),
             OutcomeTarget.NonMuslims => session.Players.Where(p => !p.IsMuslim && IsActiveParticipant(p)),
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null)
         };
+    }
+
+    private static IEnumerable<PlayerState> ResolveChosenPlayerTargets(GameSession session, PlayerState currentPlayer, Guid? chosenPlayerId)
+    {
+        var chosen = chosenPlayerId.HasValue
+            ? session.Players.FirstOrDefault(p => p.PlayerId == chosenPlayerId.Value && IsActiveParticipant(p))
+            : null;
+
+        if (chosen is not null)
+        {
+            return [chosen];
+        }
+
+        var fallback = session.Players.FirstOrDefault(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p));
+        return fallback is not null ? [fallback] : [];
     }
 
     private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator && !player.IsWinner;
