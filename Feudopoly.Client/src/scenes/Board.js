@@ -965,9 +965,9 @@ export class Board extends Phaser.Scene {
         let notificationText = payload.description?.replace(/\s*\n\s*/g, ' ').trim() ?? '';
 
         if (this.turnRequiresChosenPlayer) {
-            notificationText += ' Choose player.';
+            notificationText += ' You need to choose player. ';
             if (chosenPlayerCandidates.length === 0) {
-                notificationText += ' There are no other active players.';
+                notificationText += 'But there are no other active players. The action is skipped.';
             }
         }
 
