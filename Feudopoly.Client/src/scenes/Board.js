@@ -20,6 +20,27 @@ export class Board extends Phaser.Scene {
         0x42d4ff,
         0xb06cff
     ];
+    NARRATOR_VIDEO_KEYS = new Set([
+        'startgameintrovideo',
+        'v0',
+        'v16',
+        'v17',
+        'v18',
+        'v21',
+        'v26',
+        'v27',
+        'v28',
+        'v29',
+        'v32',
+        'v34',
+        'v35',
+        'v36',
+        'v39',
+        'v40',
+        'v44',
+        'v45',
+        'v46'
+    ]);
 
     maxPlayers = 4;
     startCellIndex = 0;
@@ -78,16 +99,21 @@ export class Board extends Phaser.Scene {
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
         this.notificationVideoSourceKey = 'startGameIntroVideo';
+        this.notificationVideoCompleteHandler = null;
+        this.notificationVideoLayoutHandler = null;
         this.notificationTypingEvent = null;
         this.notificationTypingText = '';
         this.notificationTypingIndex = 0;
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
+        this.hasReceivedLocalPlayerState = false;
         this.localPlayerIsDead = false;
         this.localPlayerIsSpectator = false;
         this.localPlayerIsWinner = false;
         this.localPlayerTurnsToSkip = 0;
+        this.isAwaitingLocalTurnEndResolution = false;
+        this.shouldTransitionDeathScreenAfterNotification = false;
         this.playerListRowTweens = [];
         this.isDeathChoicePending = false;
         this.isProcessingDeathChoice = false;
@@ -335,6 +361,7 @@ export class Board extends Phaser.Scene {
                 this.forceReturnToLobbyList('Lobby was closed. Returning to lobby list.');
             }),
             gameHubClient.on('error', (error) => {
+                this.isAwaitingLocalTurnEndResolution = false;
                 this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
             })
         ];
@@ -344,6 +371,8 @@ export class Board extends Phaser.Scene {
         this.stopRollRequestCountdown();
         this.stopTurnBeganCountdown();
         this.stopTurnResultCountdown();
+        this.clearNotificationVideoCompleteHandler();
+        this.clearNotificationVideoLayoutHandler();
 
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
@@ -456,10 +485,14 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        const hadLocalPlayerState = this.hasReceivedLocalPlayerState;
+        const wasLocalPlayerDead = this.localPlayerIsDead;
+
         this.localPlayerIsDead = Boolean(localState?.isDead);
         this.localPlayerIsSpectator = Boolean(localState?.isSpectator);
         this.localPlayerIsWinner = Boolean(localState?.isWinner);
         this.localPlayerTurnsToSkip = Number(localState?.turnsToSkip ?? 0);
+        this.hasReceivedLocalPlayerState = Boolean(localState);
 
         this.isDeathChoicePending = this.localPlayerIsDead && !this.localPlayerIsSpectator;
         this.isVictoryChoicePending = this.localPlayerIsWinner && !this.localPlayerIsSpectator;
@@ -475,13 +508,22 @@ export class Board extends Phaser.Scene {
         const shouldDelayVictoryScreen = this.isVictoryChoicePending
             && this.isRolling
             && String(this.animatingPlayerId ?? '') === String(this.localPlayerId ?? '');
+        const localPlayerJustDied = hadLocalPlayerState
+            && !wasLocalPlayerDead
+            && this.isDeathChoicePending;
+        const shouldDelayDeathScreen = localPlayerJustDied
+            && this.isAwaitingLocalTurnEndResolution;
 
         if (this.isVictoryChoicePending && !shouldDelayVictoryScreen) {
             this.hideDeathScreen();
             this.showVictoryScreen();
         } else if (this.isDeathChoicePending) {
             this.hideVictoryScreen();
-            this.showDeathScreen();
+            if (shouldDelayDeathScreen || this.shouldTransitionDeathScreenAfterNotification) {
+                this.hideDeathScreen();
+            } else {
+                this.showDeathScreen();
+            }
         } else {
             this.hideDeathScreen();
             this.hideVictoryScreen();
@@ -986,7 +1028,12 @@ export class Board extends Phaser.Scene {
 
             this.stopTurnBeganCountdown();
             this.hideNotification();
-            gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
+            this.isAwaitingLocalTurnEndResolution = true;
+            gameHubClient.finishTurn(this.sessionId, chosenPlayerId).catch(error => {
+                this.isAwaitingLocalTurnEndResolution = false;
+                console.error(error);
+                this.setStatus(error?.message ?? 'Failed to finish turn.');
+            });
 
             if (this.turnBeganClickHandler) {
                 this.input.off('pointerdown', this.turnBeganClickHandler);
@@ -1023,11 +1070,18 @@ export class Board extends Phaser.Scene {
 
         const didLocalPlayerDie = this.didLocalPlayerDie(payload);
         const resultVideoKey = this.getTurnResultVideoKey(payload);
+        this.isAwaitingLocalTurnEndResolution = false;
 
         if (didLocalPlayerDie) {
             this.hideVictoryScreen();
-            this.showDeathScreen();
+            this.shouldTransitionDeathScreenAfterNotification = Boolean(resultVideoKey);
+            if (this.shouldTransitionDeathScreenAfterNotification) {
+                this.hideDeathScreen();
+            } else {
+                this.showDeathScreen();
+            }
         } else if (!this.isVictoryChoicePending) {
+            this.shouldTransitionDeathScreenAfterNotification = false;
             this.hideDeathScreen();
         }
 
@@ -1088,7 +1142,11 @@ export class Board extends Phaser.Scene {
             title: eventTitle,
             text: entriesText,
             videoKey: this.getTurnResultVideoKey(payload),
-            typingSpeed: 30
+            typingSpeed: 30,
+            dismissOnPointerDown: false,
+            onVideoComplete: this.shouldTransitionDeathScreenAfterNotification
+                ? () => this.hideTurnResultNotification({ refreshTurnUI: true })
+                : null
         });
 
         this.isTurnResultNotificationActive = true;
@@ -1113,7 +1171,14 @@ export class Board extends Phaser.Scene {
         this.stopTurnResultCountdown();
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
-        this.hideNotification();
+        const shouldTransitionToDeathScreen = this.shouldTransitionDeathScreenAfterNotification;
+        this.shouldTransitionDeathScreenAfterNotification = false;
+
+        if (shouldTransitionToDeathScreen) {
+            this.transitionNotificationToDeathScreen();
+        } else {
+            this.hideNotification();
+        }
 
         if (this.turnResultDismissHandler) {
             this.input.off('pointerdown', this.turnResultDismissHandler);
@@ -1169,6 +1234,90 @@ export class Board extends Phaser.Scene {
         return `assets/videos/${videoKey}.mp4`;
     }
 
+    isNarratorVideo(videoKey) {
+        return this.NARRATOR_VIDEO_KEYS.has(String(videoKey ?? '').toLowerCase());
+    }
+
+    getNotificationVideoDisplay(videoKey) {
+        const { width, height } = this.scale.gameSize;
+        const isPortrait = this.isNarratorVideo(videoKey);
+        const baseWidth = isPortrait ? 360 : 900;
+        const baseHeight = isPortrait ? 640 : Math.round(baseWidth * 9 / 16);
+        const textBoxTop = height - 260 - 200;
+        const safeTop = 36;
+        const safeBottom = Math.max(safeTop + 260, textBoxTop - 24);
+        const maxWidth = isPortrait
+            ? Math.min(width * 0.32, 400)
+            : Math.min(width * 0.54, 960);
+        const maxHeight = safeBottom - safeTop;
+        const scale = Math.min(maxWidth / baseWidth, maxHeight / baseHeight, 1);
+        const displayWidth = Math.round(baseWidth * scale);
+        const displayHeight = Math.round(baseHeight * scale);
+
+        return {
+            width: displayWidth,
+            height: displayHeight,
+            y: safeTop + displayHeight / 2
+        };
+    }
+
+    applyNotificationVideoDisplay(videoKey) {
+        if (!this.notificationVideo) {
+            return;
+        }
+
+        const { width } = this.scale.gameSize;
+        const display = this.getNotificationVideoDisplay(videoKey);
+        this.notificationVideo
+            .setOrigin(0.5)
+            .setPosition(width / 2, display.y)
+            .setDisplaySize(display.width, display.height);
+    }
+
+    setNotificationVideoCompleteHandler(callback) {
+        this.clearNotificationVideoCompleteHandler();
+
+        if (!this.notificationVideo || typeof callback !== 'function') {
+            return;
+        }
+
+        this.notificationVideoCompleteHandler = () => {
+            this.notificationVideoCompleteHandler = null;
+            callback();
+        };
+        this.notificationVideo.once('complete', this.notificationVideoCompleteHandler);
+    }
+
+    clearNotificationVideoCompleteHandler() {
+        if (this.notificationVideo && this.notificationVideoCompleteHandler) {
+            this.notificationVideo.off('complete', this.notificationVideoCompleteHandler);
+        }
+
+        this.notificationVideoCompleteHandler = null;
+    }
+
+    setNotificationVideoLayoutHandler(videoKey) {
+        this.clearNotificationVideoLayoutHandler();
+
+        if (!this.notificationVideo) {
+            return;
+        }
+
+        this.notificationVideoLayoutHandler = () => {
+            this.notificationVideoLayoutHandler = null;
+            this.applyNotificationVideoDisplay(videoKey);
+        };
+        this.notificationVideo.once('created', this.notificationVideoLayoutHandler);
+    }
+
+    clearNotificationVideoLayoutHandler() {
+        if (this.notificationVideo && this.notificationVideoLayoutHandler) {
+            this.notificationVideo.off('created', this.notificationVideoLayoutHandler);
+        }
+
+        this.notificationVideoLayoutHandler = null;
+    }
+
     playNotificationVideo(videoKey) {
         if (!this.notificationVideo) {
             return;
@@ -1189,22 +1338,38 @@ export class Board extends Phaser.Scene {
         this.notificationVideo.play(false);
     }
 
-    showNotification({ title = '', text = '', videoKey = null, typingSpeed = 30 } = {}) {
+    showNotification({
+        title = '',
+        text = '',
+        videoKey = null,
+        typingSpeed = 30,
+        dismissOnPointerDown = true,
+        onVideoComplete = null
+    } = {}) {
         const { width, height } = this.scale.gameSize;
         const notificationVideoKey = this.normalizeVideoKey(videoKey);
         const hasVideo = Boolean(notificationVideoKey);
 
+        this.clearNotificationVideoCompleteHandler();
+        this.clearNotificationVideoLayoutHandler();
+
         if (this.notificationDismissHandler) {
             this.input.off('pointerdown', this.notificationDismissHandler);
+            this.notificationDismissHandler = null;
         }
 
-        this.notificationDismissHandler = () => {
-            this.hideNotification();
-        };
+        if (dismissOnPointerDown) {
+            this.notificationDismissHandler = () => {
+                this.hideNotification();
+            };
 
-        this.input.once('pointerdown', this.notificationDismissHandler);
+            this.input.once('pointerdown', this.notificationDismissHandler);
+        }
 
-        this.notificationTextBox.setPosition(width / 2, hasVideo ? height - 260 : height / 2).setVisible(true);
+        this.notificationTextBox
+            .setAlpha(1)
+            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
+            .setVisible(true);
 
         this.notificationTextBox.getElement('header')?.setText(title);
         this.notificationTextBox.layout();
@@ -1215,10 +1380,14 @@ export class Board extends Phaser.Scene {
         }
 
         if (hasVideo) {
+            this.applyNotificationVideoDisplay(notificationVideoKey);
+            this.setNotificationVideoLayoutHandler(notificationVideoKey);
+            this.setNotificationVideoCompleteHandler(onVideoComplete);
+
             this.notificationVideo
-                .setPosition(width / 2, height / 2 - 245)
                 .setVisible(true)
                 .setDepth(2090)
+                .setAlpha(1)
                 .stop();
 
             this.playNotificationVideo(notificationVideoKey);
@@ -1226,12 +1395,14 @@ export class Board extends Phaser.Scene {
         }
 
         this.notificationVideo.stop();
-        this.notificationVideo.setVisible(false);
+        this.notificationVideo.setVisible(false).setAlpha(1);
     }
 
     hideNotification() {
+        this.clearNotificationVideoCompleteHandler();
+        this.clearNotificationVideoLayoutHandler();
         this.stopNotificationTyping();
-        this.notificationTextBox?.setVisible(false);
+        this.notificationTextBox?.setVisible(false).setAlpha(1);
         this.updateTurnStartActionText();
 
         if (this.notificationDismissHandler) {
@@ -1241,8 +1412,47 @@ export class Board extends Phaser.Scene {
 
         if (this.notificationVideo) {
             this.notificationVideo.stop();
-            this.notificationVideo.setVisible(false);
+            this.notificationVideo.setVisible(false).setAlpha(1);
         }
+    }
+
+    transitionNotificationToDeathScreen() {
+        this.clearNotificationVideoCompleteHandler();
+        this.clearNotificationVideoLayoutHandler();
+        this.stopNotificationTyping();
+        this.updateTurnStartActionText();
+
+        if (this.notificationDismissHandler) {
+            this.input.off('pointerdown', this.notificationDismissHandler);
+            this.notificationDismissHandler = null;
+        }
+
+        this.showDeathScreen();
+
+        const transitionTargets = [
+            this.notificationTextBox?.visible ? this.notificationTextBox : null,
+            this.notificationVideo?.visible ? this.notificationVideo : null
+        ].filter(Boolean);
+
+        if (transitionTargets.length === 0) {
+            return;
+        }
+
+        this.tweens.killTweensOf(transitionTargets);
+        this.tweens.add({
+            targets: transitionTargets,
+            alpha: 0,
+            duration: 420,
+            ease: 'Sine.easeInOut',
+            onComplete: () => {
+                this.notificationTextBox?.setVisible(false).setAlpha(1);
+
+                if (this.notificationVideo) {
+                    this.notificationVideo.stop();
+                    this.notificationVideo.setVisible(false).setAlpha(1);
+                }
+            }
+        });
     }
 
     startTurnBeganCountdown(durationMs, finishTurnFromTurnStart) {
