@@ -1,7 +1,7 @@
 import { backendBaseUrl } from '../config.js';
 
 async function request(path, method = 'GET', body = null) {
-    console.log('BackendBaseUrl: ' + backendBaseUrl);
+    //console.log('BackendBaseUrl: ' + backendBaseUrl);
 
     const response = await fetch(`${backendBaseUrl}${path}`, {
         method,

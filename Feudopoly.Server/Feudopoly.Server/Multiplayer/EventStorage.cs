@@ -4,9 +4,11 @@ namespace Feudopoly.Server.Multiplayer
 {
     public sealed class EventStorage
     {
-        public FrozenDictionary<int, GameCellEvent> Events;
+        public FrozenDictionary<int, GameCellEvent> Events = null!;
 
         private static IntRange R(int from, int to) => new(from, to);
+
+        private static string V(int number) => $"v{number}";
 
         private static EventOutcome O(
             OutcomeKind kind,
@@ -161,7 +163,62 @@ namespace Feudopoly.Server.Multiplayer
                     "Rejoice.")
             };
 
+            ApplyVideoMapping(dictionary);
             Events = dictionary.ToFrozenDictionary();
+        }
+
+        private static void ApplyVideoMapping(Dictionary<int, GameCellEvent> events)
+        {
+            // Video keys come from MonopolyVideos.pdf; outcome mappings intentionally use exact dice ranges.
+            SetRollOutcomeVideos(events, 1, ((1, 1), V(1)), ((2, 4), V(2)), ((5, 6), V(3)));
+            SetEventVideo(events, 2, V(4));
+            SetEventVideo(events, 3, V(5));
+            SetRollOutcomeVideos(events, 4, ((1, 2), V(6)), ((3, 6), V(7)));
+            SetEventVideo(events, 5, V(8));
+            SetEventVideo(events, 6, V(9));
+            SetEventVideo(events, 7, V(10));
+            SetEventVideo(events, 8, V(11));
+            SetRollOutcomeVideos(events, 9, ((1, 3), V(12)), ((4, 6), V(13)));
+            SetRollOutcomeVideos(events, 10, ((1, 3), V(14)), ((4, 6), V(15)));
+            SetEventVideo(events, 11, V(16));
+            SetEventVideo(events, 12, V(17));
+            SetEventVideo(events, 13, V(18));
+            SetRollOutcomeVideos(events, 14, ((1, 3), V(19)), ((4, 6), V(20)));
+            SetEventVideo(events, 15, V(21));
+            SetRollOutcomeVideos(events, 16, ((1, 3), V(22)), ((4, 6), V(23)));
+            SetEventVideo(events, 17, V(24));
+            SetRollOutcomeVideos(events, 18, ((6, 6), V(25)));
+            SetEventVideo(events, 19, V(26));
+            SetRollOutcomeVideos(events, 20, ((1, 2), V(27)), ((3, 4), V(28)), ((5, 6), V(29)));
+            SetRollOutcomeVideos(events, 21, ((1, 2), V(30)), ((3, 4), V(31)), ((5, 6), V(32)));
+            SetRollOutcomeVideos(events, 22, ((1, 2), V(33)), ((3, 4), V(34)), ((5, 6), V(35)));
+            SetEventVideo(events, 23, V(36));
+            SetRollOutcomeVideos(events, 24, ((1, 1), V(37)), ((2, 2), V(38)), ((3, 6), V(39)));
+            SetEventVideo(events, 25, V(40));
+            SetEventVideo(events, 26, V(41));
+            SetRollOutcomeVideos(events, 27, ((1, 2), V(42)), ((3, 4), V(43)), ((5, 6), V(44)));
+            SetEventVideo(events, 28, V(45));
+            SetRollOutcomeVideos(events, 29, ((1, 3), V(46)), ((4, 6), V(47)));
+        }
+
+        private static void SetEventVideo(Dictionary<int, GameCellEvent> events, int eventNumber, string videoKey)
+        {
+            events[eventNumber].VideoKey = videoKey;
+        }
+
+        private static void SetRollOutcomeVideos(
+            Dictionary<int, GameCellEvent> events,
+            int eventNumber,
+            params ((int From, int To) Range, string VideoKey)[] mappings)
+        {
+            var gameEvent = events[eventNumber];
+            foreach (var mapping in mappings)
+            {
+                var rollOutcome = gameEvent.RollOutcomes.Single(outcome =>
+                    outcome.Range.From == mapping.Range.From && outcome.Range.To == mapping.Range.To);
+
+                rollOutcome.Outcome.VideoKey = mapping.VideoKey;
+            }
         }
 
         private static GameCellEvent Fixed(string title, string description, params EventOutcome[] outcomes) =>
