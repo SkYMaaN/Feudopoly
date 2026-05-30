@@ -77,6 +77,7 @@ export class Board extends Phaser.Scene {
         this.rollRequestCountdownDurationMs = AUTO_TURN_TIMEOUT_MS;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
+        this.notificationVideoSourceKey = 'startGameIntroVideo';
         this.notificationTypingEvent = null;
         this.notificationTypingText = '';
         this.notificationTypingIndex = 0;
@@ -974,6 +975,7 @@ export class Board extends Phaser.Scene {
         this.showNotification({
             title: payload.title ?? '',
             text: notificationText,
+            videoKey: this.getEventVideoKey(payload),
             typingSpeed: 30
         });
 
@@ -1020,6 +1022,7 @@ export class Board extends Phaser.Scene {
         this.turnRequiresChosenPlayer = false;
 
         const didLocalPlayerDie = this.didLocalPlayerDie(payload);
+        const resultVideoKey = this.getTurnResultVideoKey(payload);
 
         if (didLocalPlayerDie) {
             this.hideVictoryScreen();
@@ -1035,7 +1038,9 @@ export class Board extends Phaser.Scene {
 
         this.stopTurnBeganCountdown();
 
-        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries) || didLocalPlayerDie || this.isVictoryChoicePending;
+        const shouldSuppressTurnResult = (payload?.isEventRollPhase && !payload?.eventRollCompleted && !hasResultEntries)
+            || (didLocalPlayerDie && !resultVideoKey)
+            || this.isVictoryChoicePending;
 
         if (!shouldSuppressTurnResult) {
             this.showTurnResultNotification(payload);
@@ -1082,6 +1087,7 @@ export class Board extends Phaser.Scene {
         this.showNotification({
             title: eventTitle,
             text: entriesText,
+            videoKey: this.getTurnResultVideoKey(payload),
             typingSpeed: 30
         });
 
@@ -1131,9 +1137,62 @@ export class Board extends Phaser.Scene {
         return fixedRequiresChoice || rollRequiresChoice;
     }
 
+    getEventVideoKey(payload) {
+        return this.normalizeVideoKey(payload?.videoKey);
+    }
+
+    getTurnResultVideoKey(payload) {
+        if (!Array.isArray(payload?.entries)) {
+            return null;
+        }
+
+        const localEntry = payload.entries.find(entry =>
+            String(entry?.playerId ?? '') === String(this.localPlayerId ?? '')
+            && this.normalizeVideoKey(entry?.outcome?.videoKey));
+
+        const fallbackEntry = localEntry ?? payload.entries.find(entry =>
+            this.normalizeVideoKey(entry?.outcome?.videoKey));
+
+        return this.normalizeVideoKey(fallbackEntry?.outcome?.videoKey);
+    }
+
+    normalizeVideoKey(videoKey) {
+        if (typeof videoKey !== 'string') {
+            return null;
+        }
+
+        const trimmed = videoKey.trim();
+        return /^[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+    }
+
+    getVideoUrl(videoKey) {
+        return `assets/videos/${videoKey}.mp4`;
+    }
+
+    playNotificationVideo(videoKey) {
+        if (!this.notificationVideo) {
+            return;
+        }
+
+        if (this.notificationVideoSourceKey !== videoKey) {
+            if (this.cache.video.exists(videoKey)) {
+                this.notificationVideo.changeSource(videoKey, false, false);
+            } else {
+                this.notificationVideo.loadURL(this.getVideoUrl(videoKey));
+            }
+
+            this.notificationVideoSourceKey = videoKey;
+        } else {
+            this.notificationVideo.stop();
+        }
+
+        this.notificationVideo.play(false);
+    }
+
     showNotification({ title = '', text = '', videoKey = null, typingSpeed = 30 } = {}) {
         const { width, height } = this.scale.gameSize;
-        const hasVideo = Boolean(videoKey);
+        const notificationVideoKey = this.normalizeVideoKey(videoKey);
+        const hasVideo = Boolean(notificationVideoKey);
 
         if (this.notificationDismissHandler) {
             this.input.off('pointerdown', this.notificationDismissHandler);
@@ -1162,7 +1221,7 @@ export class Board extends Phaser.Scene {
                 .setDepth(2090)
                 .stop();
 
-            this.notificationVideo.play(false);
+            this.playNotificationVideo(notificationVideoKey);
             return;
         }
 

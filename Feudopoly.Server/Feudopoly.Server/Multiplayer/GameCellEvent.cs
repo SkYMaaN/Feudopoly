@@ -10,6 +10,8 @@ namespace Feudopoly.Server.Multiplayer
 
         public string DictorSpeech { get; init; } = string.Empty;
 
+        public string VideoKey { get; set; } = string.Empty;
+
         public required EventResolutionMode ResolutionMode { get; init; }
 
         public IReadOnlyList<EventOutcome> FixedOutcomes { get; init; } = [];
@@ -59,6 +61,8 @@ namespace Feudopoly.Server.Multiplayer
         public required OutcomeTarget Target { get; init; }
 
         public string Text { get; init; } = string.Empty;
+
+        public string VideoKey { get; set; } = string.Empty;
 
         public int MoveOffset { get; init; }
 
