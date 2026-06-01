@@ -1,6 +1,6 @@
 import { gameHubClient } from '../network/gameHubClient.js';
 import { getOrCreateProfile } from '../network/profileStorage.js';
-import { AUTO_TURN_TIMEOUT_MS } from '../config.js';
+import { AUTO_TURN_TIMEOUT_MS, videoBaseUrl } from '../config.js';
 
 export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
@@ -56,7 +56,6 @@ export class Board extends Phaser.Scene {
 
         this.load.image('deathScreen', 'assets/backgrounds/death_screen.png');
         this.load.image('victoryScreen', 'assets/backgrounds/victory_screen.png');
-        this.load.video('startGameIntroVideo', 'assets/videos/StartGameIntro.mp4');
 
         for (let i = 0; i < 30; i++) {
             this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
@@ -98,7 +97,7 @@ export class Board extends Phaser.Scene {
         this.rollRequestCountdownDurationMs = AUTO_TURN_TIMEOUT_MS;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
-        this.notificationVideoSourceKey = 'startGameIntroVideo';
+        this.notificationVideoSourceKey = null;
         this.notificationVideoCompleteHandler = null;
         this.notificationVideoLayoutHandler = null;
         this.notificationTypingEvent = null;
@@ -153,7 +152,7 @@ export class Board extends Phaser.Scene {
             .setDepth(2100)
             .setVisible(false);
 
-        this.notificationVideo = this.add.video(width / 2, height / 2 - 160, 'startGameIntroVideo')
+        this.notificationVideo = this.add.video(width / 2, height / 2 - 160)
             .setDepth(2090)
             .setVisible(false)
             .setMute(false)
@@ -324,7 +323,7 @@ export class Board extends Phaser.Scene {
         this.showNotification({
             title: 'Introduction',
             text: 'Listen to the narrator before your first move.',
-            videoKey: 'startGameIntroVideo',
+            videoKey: 'v0',
             typingSpeed: 25
         });
     }
@@ -373,6 +372,7 @@ export class Board extends Phaser.Scene {
         this.stopTurnResultCountdown();
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+        this.clearNotificationVideoElement();
 
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
@@ -996,7 +996,7 @@ export class Board extends Phaser.Scene {
     }
 
     turnBegan(payload) {
-        console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
+        //console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
 
         this.stopTurnBeganCountdown();
         this.hideTurnResultNotification();
@@ -1049,7 +1049,7 @@ export class Board extends Phaser.Scene {
     }
 
     turnEnded(payload) {
-        console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
+        //console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
@@ -1231,7 +1231,7 @@ export class Board extends Phaser.Scene {
     }
 
     getVideoUrl(videoKey) {
-        return `assets/videos/${videoKey}.mp4`;
+        return `${videoBaseUrl}/${encodeURIComponent(videoKey)}.mp4`;
     }
 
     isNarratorVideo(videoKey) {
@@ -1277,13 +1277,15 @@ export class Board extends Phaser.Scene {
     setNotificationVideoCompleteHandler(callback) {
         this.clearNotificationVideoCompleteHandler();
 
-        if (!this.notificationVideo || typeof callback !== 'function') {
+        if (!this.notificationVideo) {
             return;
         }
 
+        const completeCallback = typeof callback === 'function' ? callback : null;
         this.notificationVideoCompleteHandler = () => {
             this.notificationVideoCompleteHandler = null;
-            callback();
+            this.clearNotificationVideoElement();
+            completeCallback?.();
         };
         this.notificationVideo.once('complete', this.notificationVideoCompleteHandler);
     }
@@ -1306,6 +1308,7 @@ export class Board extends Phaser.Scene {
         this.notificationVideoLayoutHandler = () => {
             this.notificationVideoLayoutHandler = null;
             this.applyNotificationVideoDisplay(videoKey);
+            this.notificationVideo.setVisible(true).setAlpha(1);
         };
         this.notificationVideo.once('created', this.notificationVideoLayoutHandler);
     }
@@ -1318,6 +1321,39 @@ export class Board extends Phaser.Scene {
         this.notificationVideoLayoutHandler = null;
     }
 
+    clearNotificationVideoElement() {
+        const notificationVideo = this.notificationVideo;
+
+        if (!notificationVideo) {
+            return;
+        }
+
+        const videoTexture = notificationVideo.videoTexture;
+        const textureManager = notificationVideo.scene?.sys?.textures ?? videoTexture?.manager ?? null;
+
+        notificationVideo.stop(false);
+        notificationVideo.removeLoadEventHandlers?.();
+        notificationVideo.removeVideoElement?.();
+        notificationVideo.setVisible(false).setAlpha(1);
+        // Phaser keeps the last decoded frame in this texture after stop().
+        if (notificationVideo.scene?.sys?.textures) {
+            notificationVideo.setTexture('__DEFAULT');
+        } else {
+            notificationVideo.texture = null;
+            notificationVideo.frame = null;
+        }
+
+        notificationVideo.videoTexture = null;
+        notificationVideo.videoTextureSource = null;
+        notificationVideo.frameReady = false;
+
+        if (videoTexture && textureManager) {
+            textureManager.remove(videoTexture);
+        }
+
+        this.notificationVideoSourceKey = null;
+    }
+
     playNotificationVideo(videoKey) {
         if (!this.notificationVideo) {
             return;
@@ -1327,7 +1363,7 @@ export class Board extends Phaser.Scene {
             if (this.cache.video.exists(videoKey)) {
                 this.notificationVideo.changeSource(videoKey, false, false);
             } else {
-                this.notificationVideo.loadURL(this.getVideoUrl(videoKey));
+                this.notificationVideo.loadURL(this.getVideoUrl(videoKey), false, 'anonymous');
             }
 
             this.notificationVideoSourceKey = videoKey;
@@ -1380,22 +1416,22 @@ export class Board extends Phaser.Scene {
         }
 
         if (hasVideo) {
+            this.clearNotificationVideoElement();
             this.applyNotificationVideoDisplay(notificationVideoKey);
             this.setNotificationVideoLayoutHandler(notificationVideoKey);
             this.setNotificationVideoCompleteHandler(onVideoComplete);
 
             this.notificationVideo
-                .setVisible(true)
+                .setVisible(false)
                 .setDepth(2090)
                 .setAlpha(1)
-                .stop();
+                .stop(false);
 
             this.playNotificationVideo(notificationVideoKey);
             return;
         }
 
-        this.notificationVideo.stop();
-        this.notificationVideo.setVisible(false).setAlpha(1);
+        this.clearNotificationVideoElement();
     }
 
     hideNotification() {
@@ -1411,8 +1447,7 @@ export class Board extends Phaser.Scene {
         }
 
         if (this.notificationVideo) {
-            this.notificationVideo.stop();
-            this.notificationVideo.setVisible(false).setAlpha(1);
+            this.clearNotificationVideoElement();
         }
     }
 
@@ -1448,8 +1483,7 @@ export class Board extends Phaser.Scene {
                 this.notificationTextBox?.setVisible(false).setAlpha(1);
 
                 if (this.notificationVideo) {
-                    this.notificationVideo.stop();
-                    this.notificationVideo.setVisible(false).setAlpha(1);
+                    this.clearNotificationVideoElement();
                 }
             }
         });

@@ -1,4 +1,6 @@
-export const backendBaseUrl = 'https://feudopolyserver.orangesea-b37f54d7.westeurope.azurecontainerapps.io';
+export const backendBaseUrl = 'https://localhost:7049';
+const normalizedBackendBaseUrl = backendBaseUrl.replace(/\/+$/, '');
+export const videoBaseUrl = `${normalizedBackendBaseUrl}/api/videos`;
 export const AUTO_TURN_TIMEOUT_MS = 30000;
 
 // https://localhost:7049
