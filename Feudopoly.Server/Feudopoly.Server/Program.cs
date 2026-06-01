@@ -36,6 +36,8 @@ namespace Feudopoly.Server
                 options.KeepAliveInterval = TimeSpan.FromMinutes(2);
                 options.EnableDetailedErrors = true;
             });
+            builder.Services.Configure<R2Options>(builder.Configuration.GetSection(R2Options.SectionName));
+            builder.Services.AddSingleton<R2ObjectClient>();
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
             builder.Services.AddHostedService<LobbyCleanupService>();

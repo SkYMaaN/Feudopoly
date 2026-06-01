@@ -1,6 +1,6 @@
 import { gameHubClient } from '../network/gameHubClient.js';
 import { getOrCreateProfile } from '../network/profileStorage.js';
-import { AUTO_TURN_TIMEOUT_MS } from '../config.js';
+import { AUTO_TURN_TIMEOUT_MS, videoBaseUrl } from '../config.js';
 
 export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
@@ -56,7 +56,6 @@ export class Board extends Phaser.Scene {
 
         this.load.image('deathScreen', 'assets/backgrounds/death_screen.png');
         this.load.image('victoryScreen', 'assets/backgrounds/victory_screen.png');
-        this.load.video('startGameIntroVideo', 'assets/videos/StartGameIntro.mp4');
 
         for (let i = 0; i < 30; i++) {
             this.load.image(`bg${i}`, `assets/backgrounds/${i}.png`);
@@ -98,7 +97,7 @@ export class Board extends Phaser.Scene {
         this.rollRequestCountdownDurationMs = AUTO_TURN_TIMEOUT_MS;
         this.turnResultDismissHandler = null;
         this.notificationDismissHandler = null;
-        this.notificationVideoSourceKey = 'startGameIntroVideo';
+        this.notificationVideoSourceKey = null;
         this.notificationVideoCompleteHandler = null;
         this.notificationVideoLayoutHandler = null;
         this.notificationTypingEvent = null;
@@ -153,7 +152,7 @@ export class Board extends Phaser.Scene {
             .setDepth(2100)
             .setVisible(false);
 
-        this.notificationVideo = this.add.video(width / 2, height / 2 - 160, 'startGameIntroVideo')
+        this.notificationVideo = this.add.video(width / 2, height / 2 - 160)
             .setDepth(2090)
             .setVisible(false)
             .setMute(false)
@@ -324,7 +323,7 @@ export class Board extends Phaser.Scene {
         this.showNotification({
             title: 'Introduction',
             text: 'Listen to the narrator before your first move.',
-            videoKey: 'startGameIntroVideo',
+            videoKey: 'v0',
             typingSpeed: 25
         });
     }
@@ -996,7 +995,7 @@ export class Board extends Phaser.Scene {
     }
 
     turnBegan(payload) {
-        console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
+        //console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
 
         this.stopTurnBeganCountdown();
         this.hideTurnResultNotification();
@@ -1049,7 +1048,7 @@ export class Board extends Phaser.Scene {
     }
 
     turnEnded(payload) {
-        console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
+        //console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
 
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
@@ -1231,7 +1230,7 @@ export class Board extends Phaser.Scene {
     }
 
     getVideoUrl(videoKey) {
-        return `assets/videos/${videoKey}.mp4`;
+        return `${videoBaseUrl}/${encodeURIComponent(videoKey)}.mp4`;
     }
 
     isNarratorVideo(videoKey) {
@@ -1327,7 +1326,7 @@ export class Board extends Phaser.Scene {
             if (this.cache.video.exists(videoKey)) {
                 this.notificationVideo.changeSource(videoKey, false, false);
             } else {
-                this.notificationVideo.loadURL(this.getVideoUrl(videoKey));
+                this.notificationVideo.loadURL(this.getVideoUrl(videoKey), false, 'anonymous');
             }
 
             this.notificationVideoSourceKey = videoKey;
