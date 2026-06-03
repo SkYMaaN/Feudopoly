@@ -51,7 +51,7 @@ namespace Feudopoly.Server.Multiplayer
                     RO(RollResultKind.Win, R(1, 2), O(OutcomeKind.None, "You survived.")),
                     RO(RollResultKind.Lose, R(3, 6), O(OutcomeKind.Eliminate, "You'll die from the infection. It's not called the \"Dark Ages\" for nothing."))),
 
-                [5] = Fixed("Festival nobleman", "You were bumped into by a man at a festival, and you confronted him about it. It turned out he was a nobleman. You are skipping a turn.",
+                [5] = Fixed("Festival nobleman", "At a feast, you looked at a man in an unfriendly way. It turns out he was a nobleman. You are skipping one turn.",
                     O(OutcomeKind.SkipTurns, "Skip 1 turn.", skipTurns: 1)),
 
                 [6] = Fixed("Farmers starving", "Your farmers are starving and it's your fault. Go back 2 spaces.",
