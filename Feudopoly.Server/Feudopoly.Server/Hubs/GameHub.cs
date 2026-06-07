@@ -539,30 +539,30 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     private static void AdvanceTurn(GameSession session)
     {
-        var alive = session.Players.Where(IsActiveParticipant).ToList();
-        if (alive.Count == 0)
+        var activePlayers = session.Players.Where(IsActiveParticipant).ToList();
+        if (activePlayers.Count == 0)
         {
             session.ActiveTurnPlayerId = Guid.Empty;
             return;
         }
 
-        if (alive.Count == 1)
-        {
-            var solePlayer = alive[0];
-            solePlayer.TurnsToSkip = 0;
-            session.ActiveTurnPlayerId = solePlayer.PlayerId;
-            return;
-        }
-
-        var currentIndex = alive.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
+        var currentIndex = session.Players.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
         if (currentIndex < 0)
         {
-            currentIndex = 0;
+            currentIndex = -1;
         }
 
-        for (int i = 1; i <= alive.Count; i++)
+        var maxSkips = activePlayers.Max(player => player.TurnsToSkip);
+        var maxAttempts = session.Players.Count * (maxSkips + 1);
+
+        for (var offset = 1; offset <= maxAttempts; offset++)
         {
-            var next = alive[(currentIndex + i) % alive.Count];
+            var next = session.Players[(currentIndex + offset) % session.Players.Count];
+            if (!IsActiveParticipant(next))
+            {
+                continue;
+            }
+
             if (next.TurnsToSkip > 0)
             {
                 next.TurnsToSkip--;
@@ -573,7 +573,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             return;
         }
 
-        session.ActiveTurnPlayerId = alive[(currentIndex + 1) % alive.Count].PlayerId;
+        var fallback = activePlayers[0];
+        fallback.TurnsToSkip = 0;
+        session.ActiveTurnPlayerId = fallback.PlayerId;
     }
 
     private static bool TryConsumeSoloSkipPenalty(GameSession session, PlayerState player)
