@@ -6,6 +6,7 @@ export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
     COLOR_LIGHT = 0x7b5e57;
     COLOR_DARK = 0x260e04;
+    BLOOD_RAIN_DEPTH = 1790;
     PLAYER_TOKEN_COLORS = [
         0xff4d4f,
         0xb8ff3b,
@@ -86,10 +87,15 @@ export class Board extends Phaser.Scene {
         this.diceRollDurationMs = 3200;
         this.pendingRepeatRoll = false;
         this.turnRequiresChosenPlayer = false;
+        this.isChosenPlayerChooserActive = false;
+        this.chosenPlayerChooserContainer = null;
+        this.chosenPlayerChooserButtons = [];
+        this.isSubmittingChosenPlayerChoice = false;
         this.isEventRollPhase = false;
         this.pendingEventRollPlayerIds = [];
         this.turnBeganClickHandler = null;
         this.turnBeganCountdownEvent = null;
+        this.notificationActionText = 'Click to continue...';
         this.turnResultCountdownEvent = null;
         this.rollRequestCountdownEvent = null;
         this.rollRequestCountdownKey = null;
@@ -103,6 +109,8 @@ export class Board extends Phaser.Scene {
         this.notificationTypingEvent = null;
         this.notificationTypingText = '';
         this.notificationTypingIndex = 0;
+        this.bloodRainParticles = null;
+        this.bloodRainEffectSize = null;
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
@@ -119,6 +127,9 @@ export class Board extends Phaser.Scene {
         this.isVictoryChoicePending = false;
         this.isProcessingVictoryChoice = false;
         this.hasExitedMatch = false;
+        this.hasGameCompleted = false;
+        this.hasDeferredGameCompletedPresentation = false;
+        this.gameCompletedPayload = null;
         this.isLeavingMatch = false;
         this.isInGameMenuOpen = false;
         this.playerColorAssignments = new Map();
@@ -352,6 +363,9 @@ export class Board extends Phaser.Scene {
             gameHubClient.on('turnEnded', (payload) => {
                 this.turnEnded(payload);
             }),
+            gameHubClient.on('gameCompleted', (payload) => {
+                this.gameCompleted(payload);
+            }),
             gameHubClient.on('lobbyDeleted', (lobbyId) => {
                 if (String(lobbyId) !== String(this.sessionId)) {
                     return;
@@ -370,9 +384,11 @@ export class Board extends Phaser.Scene {
         this.stopRollRequestCountdown();
         this.stopTurnBeganCountdown();
         this.stopTurnResultCountdown();
+        this.hideChosenPlayerChooser();
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
         this.clearNotificationVideoElement();
+        this.destroyBloodRainEffect();
 
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
@@ -539,6 +555,7 @@ export class Board extends Phaser.Scene {
         this.updatePlayersListUI(state.players);
         this.updateActivePlayerHighlights();
         this.updateLocalPlayerCellHighlight();
+        this.refreshChosenPlayerChooserFromState();
     }
 
     syncPlayerColors(playersState) {
@@ -816,6 +833,11 @@ export class Board extends Phaser.Scene {
 
         this.hasDeferredTurnUIRefresh = false;
 
+        if (this.hasGameCompleted) {
+            this.turnOverlay.setVisible(false);
+            return;
+        }
+
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
             return;
@@ -918,6 +940,7 @@ export class Board extends Phaser.Scene {
         const canRoll = !this.localPlayerIsDead
             && !this.localPlayerIsSpectator
             && !this.localPlayerIsWinner
+            && !this.hasGameCompleted
             && !this.isTurnInProgress
             && !isSkippingTurn
             && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
@@ -998,48 +1021,53 @@ export class Board extends Phaser.Scene {
     turnBegan(payload) {
         //console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
 
+        if (this.hasGameCompleted) {
+            return;
+        }
+
         this.stopTurnBeganCountdown();
         this.hideTurnResultNotification();
         this.hideDeathScreen();
         this.hideVictoryScreen();
+        this.hideChosenPlayerChooser();
+        this.isSubmittingChosenPlayerChoice = false;
         this.turnRequiresChosenPlayer = this.eventRequiresChosenPlayer(payload);
-        const chosenPlayerCandidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
+        const chosenPlayerCandidates = this.getChosenPlayerCandidates();
+        const shouldShowChooser = this.turnRequiresChosenPlayer && chosenPlayerCandidates.length > 1;
 
         let notificationText = payload.description?.replace(/\s*\n\s*/g, ' ').trim() ?? '';
 
         if (this.turnRequiresChosenPlayer) {
-            notificationText += ' You need to choose player. ';
+            notificationText += ' Choose the player who moves back 5 spaces.';
             if (chosenPlayerCandidates.length === 0) {
-                notificationText += 'But there are no other active players. The action is skipped.';
+                notificationText += ' No active targets remain. The action is skipped.';
+            } else if (chosenPlayerCandidates.length === 1) {
+                notificationText += ` ${chosenPlayerCandidates[0].displayName} is the only valid target.`;
             }
         }
 
+        this.notificationActionText = shouldShowChooser ? 'Auto-pick target...' : 'Click to continue...';
         this.showNotification({
             title: payload.title ?? '',
             text: notificationText,
             videoKey: this.getEventVideoKey(payload),
-            typingSpeed: 30
+            typingSpeed: 30,
+            dismissOnPointerDown: !shouldShowChooser
         });
 
-        const finishTurnFromTurnStart = (_pointer, currentlyOver) => {
-            const chosenPlayerId = this.turnRequiresChosenPlayer
-                ? this.resolveChosenPlayerId(currentlyOver)
-                : null;
+        if (shouldShowChooser) {
+            const finishTurnFromTurnStart = () => this.autoPickChosenPlayerTarget();
+            this.turnBeganClickHandler = finishTurnFromTurnStart;
+            this.showChosenPlayerChooser(chosenPlayerCandidates);
+            this.startTurnBeganCountdown(AUTO_TURN_TIMEOUT_MS, finishTurnFromTurnStart);
+            return;
+        }
 
-            this.stopTurnBeganCountdown();
-            this.hideNotification();
-            this.isAwaitingLocalTurnEndResolution = true;
-            gameHubClient.finishTurn(this.sessionId, chosenPlayerId).catch(error => {
-                this.isAwaitingLocalTurnEndResolution = false;
-                console.error(error);
-                this.setStatus(error?.message ?? 'Failed to finish turn.');
-            });
+        const chosenPlayerId = this.turnRequiresChosenPlayer
+            ? chosenPlayerCandidates[0]?.playerId ?? null
+            : null;
 
-            if (this.turnBeganClickHandler) {
-                this.input.off('pointerdown', this.turnBeganClickHandler);
-                this.turnBeganClickHandler = null;
-            }
-        };
+        const finishTurnFromTurnStart = () => this.submitTurnResolution(chosenPlayerId);
 
         this.turnBeganClickHandler = finishTurnFromTurnStart;
 
@@ -1048,9 +1076,239 @@ export class Board extends Phaser.Scene {
         this.startTurnBeganCountdown(AUTO_TURN_TIMEOUT_MS, finishTurnFromTurnStart);
     }
 
+    getChosenPlayerCandidates() {
+        return this.players.filter(player =>
+            player.playerId !== this.localPlayerId
+            && !player.isDead
+            && !player.isSpectator
+            && !player.isWinner);
+    }
+
+    showChosenPlayerChooser(candidates = this.getChosenPlayerCandidates()) {
+        this.hideChosenPlayerChooser();
+
+        if (!Array.isArray(candidates) || candidates.length === 0) {
+            return;
+        }
+
+        const { width, height } = this.scale.gameSize;
+        const panelWidth = Math.min(width - 80, 780);
+        const panelHeight = 116;
+        const panelY = height - 74;
+        const titleY = -34;
+        const buttonY = 22;
+        const gap = 12;
+        const buttonWidth = Math.min(218, (panelWidth - 56 - gap * (candidates.length - 1)) / candidates.length);
+        const buttonHeight = 54;
+        const startX = -((buttonWidth * candidates.length) + (gap * (candidates.length - 1))) / 2 + buttonWidth / 2;
+
+        const background = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x2d2018, 0.96)
+            .setStrokeStyle(4, 0xc89b58, 0.95)
+            .setOrigin(0.5);
+
+        const title = this.add.text(0, titleY, 'Choose target', {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '24px',
+            color: '#ffe066',
+            stroke: '#000000',
+            strokeThickness: 6,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.chosenPlayerChooserContainer = this.add.container(width / 2, panelY, [background, title])
+            .setDepth(2210)
+            .setAlpha(0);
+        this.chosenPlayerChooserButtons = [];
+
+        candidates.forEach((candidate, index) => {
+            const x = startX + index * (buttonWidth + gap);
+            const button = this.createChosenPlayerButton(candidate, buttonWidth, buttonHeight, () => {
+                this.submitTurnResolution(candidate.playerId);
+            });
+            button.setPosition(x, buttonY);
+            this.chosenPlayerChooserContainer.add(button);
+            this.chosenPlayerChooserButtons.push(button);
+        });
+
+        this.isChosenPlayerChooserActive = true;
+        this.tweens.add({
+            targets: this.chosenPlayerChooserContainer,
+            alpha: 1,
+            y: panelY - 6,
+            duration: 220,
+            ease: 'Quad.Out'
+        });
+    }
+
+    createChosenPlayerButton(candidate, width, height, onClick) {
+        const playerColor = this.getPlayerColor(candidate.playerId);
+        const baseColor = 0x6f4b23;
+        const hoverColor = 0x83592b;
+        const selectedColor = 0x3E5A2E;
+
+        const glow = this.add.rectangle(0, 0, width + 10, height + 10, playerColor, 0.18)
+            .setOrigin(0.5);
+        const rect = this.rexUI.add.roundRectangle(0, 0, width, height, 12, baseColor, 1)
+            .setStrokeStyle(3, playerColor, 0.95);
+        const text = this.add.text(0, 0, this.truncateDisplayName(candidate.displayName), {
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '22px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 5,
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerover', () => rect.setFillStyle(hoverColor, 1));
+        rect.on('pointerout', () => rect.setFillStyle(baseColor, 1));
+        rect.on('pointerdown', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+            rect.setFillStyle(selectedColor, 1);
+        });
+        rect.on('pointerup', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+            onClick();
+        });
+
+        text.setInteractive({ useHandCursor: true });
+        text.on('pointerdown', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+            rect.setFillStyle(selectedColor, 1);
+        });
+        text.on('pointerup', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+            onClick();
+        });
+
+        return this.add.container(0, 0, [glow, rect, text]).setSize(width, height);
+    }
+
+    truncateDisplayName(displayName, maxLength = 16) {
+        const text = String(displayName ?? 'Player').trim() || 'Player';
+        return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text;
+    }
+
+    hideChosenPlayerChooser() {
+        this.isChosenPlayerChooserActive = false;
+        this.chosenPlayerChooserButtons = [];
+
+        if (!this.chosenPlayerChooserContainer) {
+            return;
+        }
+
+        this.tweens.killTweensOf(this.chosenPlayerChooserContainer);
+        this.chosenPlayerChooserContainer.destroy(true);
+        this.chosenPlayerChooserContainer = null;
+    }
+
+    refreshChosenPlayerChooserFromState() {
+        if (!this.isChosenPlayerChooserActive
+            || this.isSubmittingChosenPlayerChoice
+            || this.hasGameCompleted
+            || !this.turnRequiresChosenPlayer) {
+            return;
+        }
+
+        const isLocalTurn = String(this.activeTurnPlayerId ?? '') === String(this.localPlayerId ?? '');
+        if (!isLocalTurn || !this.isTurnInProgress || this.localPlayerIsDead || this.localPlayerIsSpectator || this.localPlayerIsWinner) {
+            this.hideChosenPlayerChooser();
+            return;
+        }
+
+        const candidates = this.getChosenPlayerCandidates();
+        if (candidates.length === 0) {
+            this.setStatus('No valid targets remain. The action is skipped.');
+            this.submitTurnResolution(null);
+            return;
+        }
+
+        if (candidates.length === 1) {
+            this.setStatus(`${candidates[0].displayName} is now the only valid target.`);
+            this.submitTurnResolution(candidates[0].playerId);
+            return;
+        }
+
+        this.showChosenPlayerChooser(candidates);
+    }
+
+    autoPickChosenPlayerTarget() {
+        if (this.isSubmittingChosenPlayerChoice) {
+            return;
+        }
+
+        const candidates = this.getChosenPlayerCandidates();
+        if (candidates.length === 0) {
+            this.setStatus('No valid targets remain. The action is skipped.');
+            this.submitTurnResolution(null);
+            return;
+        }
+
+        const selected = candidates[Math.floor(Math.random() * candidates.length)];
+        this.setStatus(`Auto-picked ${selected.displayName}.`);
+        this.submitTurnResolution(selected.playerId);
+    }
+
+    async submitTurnResolution(chosenPlayerId = null) {
+        if (this.isAwaitingLocalTurnEndResolution || this.isSubmittingChosenPlayerChoice || this.hasGameCompleted) {
+            return;
+        }
+
+        this.isSubmittingChosenPlayerChoice = this.turnRequiresChosenPlayer;
+        this.stopTurnBeganCountdown();
+        this.hideChosenPlayerChooser();
+        this.hideNotification();
+        this.isAwaitingLocalTurnEndResolution = true;
+
+        if (this.turnBeganClickHandler) {
+            this.input.off('pointerdown', this.turnBeganClickHandler);
+            this.turnBeganClickHandler = null;
+        }
+
+        try {
+            await gameHubClient.finishTurn(this.sessionId, chosenPlayerId);
+        } catch (error) {
+            this.isAwaitingLocalTurnEndResolution = false;
+            this.isSubmittingChosenPlayerChoice = false;
+            console.error(error);
+            this.setStatus(error?.message ?? 'Failed to finish turn.');
+
+            if (this.turnRequiresChosenPlayer && !this.hasGameCompleted) {
+                const candidates = this.getChosenPlayerCandidates();
+                if (candidates.length === 0) {
+                    this.setStatus('No valid targets remain. The action is skipped.');
+                    this.submitTurnResolution(null);
+                    return;
+                }
+
+                if (candidates.length === 1 && candidates[0].playerId !== chosenPlayerId) {
+                    this.setStatus(`${candidates[0].displayName} is now the only valid target.`);
+                    this.submitTurnResolution(candidates[0].playerId);
+                    return;
+                }
+
+                this.notificationActionText = 'Auto-pick target...';
+                this.showNotification({
+                    title: 'Choose target',
+                    text: 'Choose a valid player to move back 5 spaces.',
+                    typingSpeed: 20,
+                    dismissOnPointerDown: false
+                });
+
+                const finishTurnFromTurnStart = () => this.autoPickChosenPlayerTarget();
+                this.turnBeganClickHandler = finishTurnFromTurnStart;
+                this.showChosenPlayerChooser(candidates);
+                this.startTurnBeganCountdown(AUTO_TURN_TIMEOUT_MS, finishTurnFromTurnStart);
+            }
+        }
+    }
+
     turnEnded(payload) {
         //console.log('Turn Ended:\n' + JSON.stringify(payload, null, 2));
 
+        this.hideChosenPlayerChooser();
+        this.isSubmittingChosenPlayerChoice = false;
+        this.notificationActionText = 'Click to continue...';
         this.pendingRepeatRoll = Boolean(payload?.repeatTurn);
         const hasResultEntries = Array.isArray(payload?.entries) && payload.entries.length > 0;
 
@@ -1106,6 +1364,75 @@ export class Board extends Phaser.Scene {
         //this.refreshTurnUI();
     }
 
+    gameCompleted(payload) {
+        this.hasGameCompleted = true;
+        this.gameCompletedPayload = payload ?? {};
+
+        if (payload?.state) {
+            this.applyState(payload.state);
+        }
+
+        this.stopRollRequestCountdown();
+        this.stopTurnBeganCountdown();
+        this.hideChosenPlayerChooser();
+        this.turnRequiresChosenPlayer = false;
+        this.isSubmittingChosenPlayerChoice = false;
+        this.notificationActionText = 'Click to continue...';
+        this.pendingRepeatRoll = false;
+        this.isEventRollPhase = false;
+        this.pendingEventRollPlayerIds = [];
+        this.isAwaitingLocalTurnEndResolution = false;
+
+        if (this.turnBeganClickHandler) {
+            this.input.off('pointerdown', this.turnBeganClickHandler);
+            this.turnBeganClickHandler = null;
+        }
+
+        if (this.isRolling || this.animatingPlayerId) {
+            this.hasDeferredGameCompletedPresentation = true;
+            return;
+        }
+
+        this.presentGameCompleted();
+    }
+
+    presentGameCompleted() {
+        this.hasDeferredGameCompletedPresentation = false;
+        this.turnOverlay.setVisible(false);
+        this.stopRollRequestCountdown();
+        this.stopTurnBeganCountdown();
+
+        if (this.turnResultDismissHandler) {
+            this.input.off('pointerdown', this.turnResultDismissHandler);
+            this.turnResultDismissHandler = null;
+        }
+
+        this.hideNotification();
+        this.hideTurnResultNotification();
+
+        if (this.localPlayerIsWinner) {
+            this.hideDeathScreen();
+            this.showVictoryScreen();
+            this.updateVictoryChoiceButtons();
+            return;
+        }
+
+        if (this.localPlayerIsDead) {
+            this.hideVictoryScreen();
+            this.showDeathScreen();
+            this.updateDeathChoiceButtons();
+            return;
+        }
+
+        this.hideDeathScreen();
+        this.hideVictoryScreen();
+        this.showNotification({
+            title: 'Game over',
+            text: this.gameCompletedPayload?.message ?? 'The game has ended.',
+            typingSpeed: 30
+        });
+    }
+
     showTurnResultNotification(payload) {
         const eventTitle = payload?.event?.title ?? 'Turn result';
         const eventDescription = payload?.event?.description ?? '';
@@ -1138,12 +1465,16 @@ export class Board extends Phaser.Scene {
 
         this.stopTurnResultCountdown();
 
+        const resultVideoKey = this.getTurnResultVideoKey(payload);
+        const showBloodRain = this.didLocalPlayerDie(payload);
+
         this.showNotification({
             title: eventTitle,
             text: entriesText,
-            videoKey: this.getTurnResultVideoKey(payload),
+            videoKey: resultVideoKey,
             typingSpeed: 30,
             dismissOnPointerDown: false,
+            showBloodRain,
             onVideoComplete: this.shouldTransitionDeathScreenAfterNotification
                 ? () => this.hideTurnResultNotification({ refreshTurnUI: true })
                 : null
@@ -1374,13 +1705,120 @@ export class Board extends Phaser.Scene {
         this.notificationVideo.play(false);
     }
 
+    ensureBloodRainTexture() {
+        const key = 'deathBloodRainDropLarge';
+        if (this.textures.exists(key)) {
+            return key;
+        }
+
+        const texture = this.textures.createCanvas(key, 22, 92);
+        const ctx = texture.context;
+        const gradient = ctx.createLinearGradient(11, 0, 11, 92);
+
+        gradient.addColorStop(0, 'rgba(120, 0, 0, 0)');
+        gradient.addColorStop(0.28, 'rgba(180, 0, 0, 0.42)');
+        gradient.addColorStop(1, 'rgba(88, 0, 0, 0.96)');
+
+        ctx.clearRect(0, 0, 22, 92);
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(11, 4);
+        ctx.lineTo(11, 70);
+        ctx.stroke();
+
+        ctx.fillStyle = '#850000';
+        ctx.beginPath();
+        ctx.arc(11, 77, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 76, 76, 0.42)';
+        ctx.beginPath();
+        ctx.arc(8, 73, 2.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        texture.refresh();
+        return key;
+    }
+
+    createBloodRainEffect() {
+        const { width, height } = this.scale.gameSize;
+        const textureKey = this.ensureBloodRainTexture();
+
+        this.bloodRainParticles = this.add.particles(0, 0, textureKey, {
+            x: { min: 0, max: width },
+            y: { min: -132, max: -24 },
+            lifespan: { min: 1900, max: 3200 },
+            speedX: { min: -28, max: 30 },
+            speedY: { min: 430, max: 780 },
+            gravityY: 170,
+            scaleX: { min: 0.7, max: 1.35 },
+            scaleY: { min: 1.1, max: 2.45 },
+            alpha: { start: 0.72, end: 0.08 },
+            rotate: { min: -4, max: 4 },
+            frequency: 16,
+            quantity: 6,
+            maxAliveParticles: 900,
+            blendMode: Phaser.BlendModes.NORMAL,
+            emitting: false
+        })
+            .setDepth(this.BLOOD_RAIN_DEPTH)
+            .setVisible(false);
+
+        this.bloodRainEffectSize = { width, height };
+        return this.bloodRainParticles;
+    }
+
+    showBloodRainEffect() {
+        const { width, height } = this.scale.gameSize;
+
+        if (this.bloodRainParticles
+            && (this.bloodRainEffectSize?.width !== width || this.bloodRainEffectSize?.height !== height)) {
+            this.destroyBloodRainEffect();
+        }
+
+        const particles = this.bloodRainParticles ?? this.createBloodRainEffect();
+
+        this.tweens.killTweensOf(particles);
+        particles
+            .setDepth(this.BLOOD_RAIN_DEPTH)
+            .setVisible(true)
+            .setAlpha(1)
+            .start();
+    }
+
+    hideBloodRainEffect() {
+        const particles = this.bloodRainParticles;
+        if (!particles) {
+            return;
+        }
+
+        particles.stop();
+        this.tweens.killTweensOf(particles);
+        particles.setVisible(false).setAlpha(1);
+    }
+
+    destroyBloodRainEffect() {
+        if (!this.bloodRainParticles) {
+            this.bloodRainEffectSize = null;
+            return;
+        }
+
+        this.tweens.killTweensOf(this.bloodRainParticles);
+        this.bloodRainParticles.destroy();
+        this.bloodRainParticles = null;
+        this.bloodRainEffectSize = null;
+    }
+
     showNotification({
         title = '',
         text = '',
         videoKey = null,
         typingSpeed = 30,
         dismissOnPointerDown = true,
-        onVideoComplete = null
+        onVideoComplete = null,
+        showBloodRain = false
     } = {}) {
         const { width, height } = this.scale.gameSize;
         const notificationVideoKey = this.normalizeVideoKey(videoKey);
@@ -1388,6 +1826,12 @@ export class Board extends Phaser.Scene {
 
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+
+        if (showBloodRain) {
+            this.showBloodRainEffect();
+        } else {
+            this.hideBloodRainEffect();
+        }
 
         if (this.notificationDismissHandler) {
             this.input.off('pointerdown', this.notificationDismissHandler);
@@ -1437,6 +1881,7 @@ export class Board extends Phaser.Scene {
     hideNotification() {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+        this.hideBloodRainEffect();
         this.stopNotificationTyping();
         this.notificationTextBox?.setVisible(false).setAlpha(1);
         this.updateTurnStartActionText();
@@ -1454,6 +1899,7 @@ export class Board extends Phaser.Scene {
     transitionNotificationToDeathScreen() {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+        this.hideBloodRainEffect();
         this.stopNotificationTyping();
         this.updateTurnStartActionText();
 
@@ -1527,6 +1973,7 @@ export class Board extends Phaser.Scene {
         const durationSeconds = Math.ceil(durationMs / 1000);
         const deadline = Date.now() + durationMs;
 
+        this.notificationActionText = 'Click to continue...';
         this.updateTurnStartActionText(durationSeconds);
 
         this.turnResultCountdownEvent = this.time.addEvent({
@@ -1562,7 +2009,7 @@ export class Board extends Phaser.Scene {
         }
 
         const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
-        actionText.setText(`Click to continue...${suffix}`);
+        actionText.setText(`${this.notificationActionText ?? 'Click to continue...'}${suffix}`);
         this.notificationTextBox.layout();
     }
 
@@ -1605,25 +2052,6 @@ export class Board extends Phaser.Scene {
             this.notificationTypingEvent.remove(false);
             this.notificationTypingEvent = null;
         }
-    }
-
-    resolveChosenPlayerId(currentlyOver) {
-        if (Array.isArray(currentlyOver)) {
-            for (const gameObject of currentlyOver) {
-                const hit = this.players.find(player => player.tokenBody === gameObject || player.hitArea === gameObject);
-                if (hit && hit.playerId !== this.localPlayerId && !hit.isDead && !hit.isSpectator && !hit.isWinner) {
-                    console.log('Selected playerId: ' + hit.playerId);
-                    return hit.playerId;
-                }
-            }
-        }
-
-        const candidates = this.players.filter(player => player.playerId !== this.localPlayerId && !player.isDead && !player.isSpectator && !player.isWinner);
-        if (candidates.length === 1) {
-            return candidates[0].playerId;
-        }
-
-        return null;
     }
 
     didLocalPlayerDie(payload) {
@@ -2230,7 +2658,7 @@ export class Board extends Phaser.Scene {
             this.hideDice();
 
             try {
-                if (!payload?.isEventPhaseRoll && !payload?.completedWinningLap) {
+                if (!this.hasGameCompleted && !payload?.isEventPhaseRoll && !payload?.completedWinningLap) {
                     await gameHubClient.beginTurn(this.sessionId);
                 }
             } catch (error) {
@@ -2246,7 +2674,11 @@ export class Board extends Phaser.Scene {
                     this.updateVictoryChoiceButtons();
                 }
 
-                this.refreshTurnUI();
+                if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
+                    this.presentGameCompleted();
+                } else {
+                    this.refreshTurnUI();
+                }
             }
         });
     }

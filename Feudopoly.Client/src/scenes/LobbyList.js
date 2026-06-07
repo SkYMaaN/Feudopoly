@@ -138,14 +138,6 @@ export class LobbyList extends Phaser.Scene {
                 this.removeLobby(lobbyId);
                 this.renderRows();
             }),
-            lobbyHubClient.on('reconnecting', () => {
-                this.showMessage('Realtime reconnecting...');
-            }),
-            lobbyHubClient.on('reconnected', async () => {
-                await lobbyHubClient.subscribeLobbyList();
-                await this.syncLobbies();
-                this.showMessage('');
-            }),
             lobbyHubClient.on('error', () => {
                 this.showMessage('Realtime connection closed. Press Refresh to sync.');
             })

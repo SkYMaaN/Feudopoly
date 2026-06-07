@@ -1,6 +1,8 @@
 import { backendBaseUrl } from '../config.js';
 
 const HUB_PATH = '/hubs/game';
+const ServerTimeoutInMilliseconds = 45 * 1000;
+const KeepAliveIntervalInMilliseconds = 15 * 1000;
 
 export class GameHubClient {
     constructor() {
@@ -14,6 +16,7 @@ export class GameHubClient {
             eventDiceRolled: [],
             turnBegan: [],
             turnEnded: [],
+            gameCompleted: [],
             lobbyDeleted: [],
             error: []
         };
@@ -35,12 +38,11 @@ export class GameHubClient {
 
         this.connection = new signalR.HubConnectionBuilder()
             .withUrl(hubUrl)
-            .withAutomaticReconnect([0, 2000, 5000, 10000])
             .configureLogging(signalR.LogLevel.Warning)
             .build();
 
-        // FOR DEBUG!
-        this.connection.serverTimeoutInMilliseconds = 1000 * 60 * 30;
+        this.connection.serverTimeoutInMilliseconds = ServerTimeoutInMilliseconds;
+        this.connection.keepAliveIntervalInMilliseconds = KeepAliveIntervalInMilliseconds;
 
         this.connection.on('Joined', (playerId, state) => {
             this.emit('joined', { playerId, state });
@@ -72,6 +74,10 @@ export class GameHubClient {
 
         this.connection.on('TurnEnded', (payload) => {
             this.emit('turnEnded', payload);
+        });
+
+        this.connection.on('GameCompleted', (payload) => {
+            this.emit('gameCompleted', payload);
         });
 
         this.connection.on('LobbyDeleted', (lobbyId) => {

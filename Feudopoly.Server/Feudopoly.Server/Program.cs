@@ -32,8 +32,8 @@ namespace Feudopoly.Server
             });
             builder.Services.AddSignalR(options =>
             {
-                options.ClientTimeoutInterval = TimeSpan.FromMinutes(20);
-                options.KeepAliveInterval = TimeSpan.FromMinutes(2);
+                options.ClientTimeoutInterval = TimeSpan.FromSeconds(45);
+                options.KeepAliveInterval = TimeSpan.FromSeconds(15);
                 options.EnableDetailedErrors = true;
             });
             builder.Services.Configure<R2Options>(builder.Configuration.GetSection(R2Options.SectionName));

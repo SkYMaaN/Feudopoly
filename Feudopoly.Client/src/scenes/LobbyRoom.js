@@ -129,13 +129,6 @@ export class LobbyRoom extends Phaser.Scene {
                     this.goBack();
                 }
             }),
-            lobbyHubClient.on('reconnecting', () => {
-                this.showMessage('Connection lost. Reconnecting...');
-            }),
-            lobbyHubClient.on('reconnected', async () => {
-                this.showMessage('Connection restored.');
-                await lobbyHubClient.subscribeLobby(this.lobbyId);
-            }),
             lobbyHubClient.on('error', () => {
                 this.showMessage('Realtime connection closed. Refreshing failed.');
             })
