@@ -112,7 +112,8 @@ namespace Feudopoly.Server.Multiplayer
                     [
                         RO(RollResultKind.Lose, R(1, 2), O(OutcomeKind.SkipTurns, "You think it's the devil's work -> suspend a turn. If you don't want progress, don't stop others from making it.", skipTurns: 1)),
                         RO(RollResultKind.Tie, R(3, 4), O(OutcomeKind.None, "You don't care. Smile and be happy. You are not capable of more than that.")),
-                        RO(RollResultKind.Win, R(5, 6), O(OutcomeKind.RepeatRoll, "You have difficulty forming your own opinion. Pass the cube on."))
+                        // "Pass the cube on" ends the current player's turn; RepeatRoll would keep it with them.
+                        RO(RollResultKind.Win, R(5, 6), O(OutcomeKind.None, "You have difficulty forming your own opinion. Pass the cube on."))
                     ],
                     "If you don't want progress, don't stop others from making it."),
 
