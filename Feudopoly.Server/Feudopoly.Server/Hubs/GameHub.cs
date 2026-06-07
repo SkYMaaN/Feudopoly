@@ -208,15 +208,12 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                     throw new HubException($"You must skip {caller.TurnsToSkip} more turn(s).");
                 }
 
-                var startPosition = caller.Position;
-                caller.Position = NormalizePosition(caller.Position + rolled);
-                completedWinningLap = HasCompletedWinningLap(startPosition, rolled);
+                completedWinningLap = MovePlayerByOffset(caller, rolled);
 
                 if (completedWinningLap)
                 {
-                    MarkPlayerAsWinner(caller);
                     AdvanceTurn(session);
-                    newPosition = 0;
+                    newPosition = caller.Position;
                 }
                 else
                 {
@@ -531,8 +528,21 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
     private static bool HasCompletedWinningLap(int startPosition, int rolled)
         => rolled > 0 && startPosition + rolled >= BoardCellsCount;
 
+    private static bool MovePlayerByOffset(PlayerState player, int moveOffset)
+    {
+        if (HasCompletedWinningLap(player.Position, moveOffset))
+        {
+            MarkPlayerAsWinner(player);
+            return true;
+        }
+
+        player.Position = NormalizePosition(player.Position + moveOffset);
+        return false;
+    }
+
     private static void MarkPlayerAsWinner(PlayerState player)
     {
+        player.Position = 0;
         player.IsWinner = true;
         player.TurnsToSkip = 0;
     }
@@ -708,7 +718,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             case OutcomeKind.None:
                 return;
             case OutcomeKind.MoveByOffset:
-                player.Position = NormalizePosition(player.Position + outcome.MoveOffset);
+                MovePlayerByOffset(player, outcome.MoveOffset);
                 return;
             case OutcomeKind.MoveToCell:
                 if (outcome.MoveToCell is int cell)
