@@ -6,6 +6,7 @@ export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
     COLOR_LIGHT = 0x7b5e57;
     COLOR_DARK = 0x260e04;
+    BLOOD_RAIN_DEPTH = 1790;
     PLAYER_TOKEN_COLORS = [
         0xff4d4f,
         0xb8ff3b,
@@ -103,6 +104,8 @@ export class Board extends Phaser.Scene {
         this.notificationTypingEvent = null;
         this.notificationTypingText = '';
         this.notificationTypingIndex = 0;
+        this.bloodRainParticles = null;
+        this.bloodRainEffectSize = null;
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
@@ -373,6 +376,7 @@ export class Board extends Phaser.Scene {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
         this.clearNotificationVideoElement();
+        this.destroyBloodRainEffect();
 
         this.unsubscribeHandlers?.forEach(unsubscribe => unsubscribe());
         this.unsubscribeHandlers = [];
@@ -1138,12 +1142,16 @@ export class Board extends Phaser.Scene {
 
         this.stopTurnResultCountdown();
 
+        const resultVideoKey = this.getTurnResultVideoKey(payload);
+        const showBloodRain = this.didLocalPlayerDie(payload);
+
         this.showNotification({
             title: eventTitle,
             text: entriesText,
-            videoKey: this.getTurnResultVideoKey(payload),
+            videoKey: resultVideoKey,
             typingSpeed: 30,
             dismissOnPointerDown: false,
+            showBloodRain,
             onVideoComplete: this.shouldTransitionDeathScreenAfterNotification
                 ? () => this.hideTurnResultNotification({ refreshTurnUI: true })
                 : null
@@ -1374,13 +1382,120 @@ export class Board extends Phaser.Scene {
         this.notificationVideo.play(false);
     }
 
+    ensureBloodRainTexture() {
+        const key = 'deathBloodRainDropLarge';
+        if (this.textures.exists(key)) {
+            return key;
+        }
+
+        const texture = this.textures.createCanvas(key, 22, 92);
+        const ctx = texture.context;
+        const gradient = ctx.createLinearGradient(11, 0, 11, 92);
+
+        gradient.addColorStop(0, 'rgba(120, 0, 0, 0)');
+        gradient.addColorStop(0.28, 'rgba(180, 0, 0, 0.42)');
+        gradient.addColorStop(1, 'rgba(88, 0, 0, 0.96)');
+
+        ctx.clearRect(0, 0, 22, 92);
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(11, 4);
+        ctx.lineTo(11, 70);
+        ctx.stroke();
+
+        ctx.fillStyle = '#850000';
+        ctx.beginPath();
+        ctx.arc(11, 77, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 76, 76, 0.42)';
+        ctx.beginPath();
+        ctx.arc(8, 73, 2.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        texture.refresh();
+        return key;
+    }
+
+    createBloodRainEffect() {
+        const { width, height } = this.scale.gameSize;
+        const textureKey = this.ensureBloodRainTexture();
+
+        this.bloodRainParticles = this.add.particles(0, 0, textureKey, {
+            x: { min: 0, max: width },
+            y: { min: -132, max: -24 },
+            lifespan: { min: 1900, max: 3200 },
+            speedX: { min: -28, max: 30 },
+            speedY: { min: 430, max: 780 },
+            gravityY: 170,
+            scaleX: { min: 0.7, max: 1.35 },
+            scaleY: { min: 1.1, max: 2.45 },
+            alpha: { start: 0.72, end: 0.08 },
+            rotate: { min: -4, max: 4 },
+            frequency: 16,
+            quantity: 6,
+            maxAliveParticles: 900,
+            blendMode: Phaser.BlendModes.NORMAL,
+            emitting: false
+        })
+            .setDepth(this.BLOOD_RAIN_DEPTH)
+            .setVisible(false);
+
+        this.bloodRainEffectSize = { width, height };
+        return this.bloodRainParticles;
+    }
+
+    showBloodRainEffect() {
+        const { width, height } = this.scale.gameSize;
+
+        if (this.bloodRainParticles
+            && (this.bloodRainEffectSize?.width !== width || this.bloodRainEffectSize?.height !== height)) {
+            this.destroyBloodRainEffect();
+        }
+
+        const particles = this.bloodRainParticles ?? this.createBloodRainEffect();
+
+        this.tweens.killTweensOf(particles);
+        particles
+            .setDepth(this.BLOOD_RAIN_DEPTH)
+            .setVisible(true)
+            .setAlpha(1)
+            .start();
+    }
+
+    hideBloodRainEffect() {
+        const particles = this.bloodRainParticles;
+        if (!particles) {
+            return;
+        }
+
+        particles.stop();
+        this.tweens.killTweensOf(particles);
+        particles.setVisible(false).setAlpha(1);
+    }
+
+    destroyBloodRainEffect() {
+        if (!this.bloodRainParticles) {
+            this.bloodRainEffectSize = null;
+            return;
+        }
+
+        this.tweens.killTweensOf(this.bloodRainParticles);
+        this.bloodRainParticles.destroy();
+        this.bloodRainParticles = null;
+        this.bloodRainEffectSize = null;
+    }
+
     showNotification({
         title = '',
         text = '',
         videoKey = null,
         typingSpeed = 30,
         dismissOnPointerDown = true,
-        onVideoComplete = null
+        onVideoComplete = null,
+        showBloodRain = false
     } = {}) {
         const { width, height } = this.scale.gameSize;
         const notificationVideoKey = this.normalizeVideoKey(videoKey);
@@ -1388,6 +1503,12 @@ export class Board extends Phaser.Scene {
 
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+
+        if (showBloodRain) {
+            this.showBloodRainEffect();
+        } else {
+            this.hideBloodRainEffect();
+        }
 
         if (this.notificationDismissHandler) {
             this.input.off('pointerdown', this.notificationDismissHandler);
@@ -1437,6 +1558,7 @@ export class Board extends Phaser.Scene {
     hideNotification() {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+        this.hideBloodRainEffect();
         this.stopNotificationTyping();
         this.notificationTextBox?.setVisible(false).setAlpha(1);
         this.updateTurnStartActionText();
@@ -1454,6 +1576,7 @@ export class Board extends Phaser.Scene {
     transitionNotificationToDeathScreen() {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
+        this.hideBloodRainEffect();
         this.stopNotificationTyping();
         this.updateTurnStartActionText();
 
