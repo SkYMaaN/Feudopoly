@@ -1,8 +1,8 @@
 import { backendBaseUrl } from '../config.js';
 
 const HUB_PATH = '/hubs/lobby';
-const ServerTimeoutInMilliseconds = 5 * 60 * 1000;
-const KeepAliveIntervalInMilliseconds = 60 * 1000;
+const ServerTimeoutInMilliseconds = 45 * 1000;
+const KeepAliveIntervalInMilliseconds = 15 * 1000;
 
 export class LobbyHubClient {
     constructor() {
@@ -12,8 +12,6 @@ export class LobbyHubClient {
             lobbyDeleted: [],
             lobbyListChanged: [],
             lobbyListDeleted: [],
-            reconnected: [],
-            reconnecting: [],
             error: []
         };
     }
@@ -31,7 +29,6 @@ export class LobbyHubClient {
 
         this.connection = new signalR.HubConnectionBuilder()
             .withUrl(`${backendBaseUrl}${HUB_PATH}`)
-            .withAutomaticReconnect([0, 2000, 5000, 10000])
             .configureLogging(signalR.LogLevel.Warning)
             .build();
 
@@ -42,8 +39,6 @@ export class LobbyHubClient {
         this.connection.on('LobbyDeleted', (lobbyId) => this.emit('lobbyDeleted', lobbyId));
         this.connection.on('LobbyListChanged', (lobby) => this.emit('lobbyListChanged', lobby));
         this.connection.on('LobbyListDeleted', (lobbyId) => this.emit('lobbyListDeleted', lobbyId));
-        this.connection.onreconnected(() => this.emit('reconnected'));
-        this.connection.onreconnecting((error) => this.emit('reconnecting', error));
         this.connection.onclose((error) => this.emit('error', error ?? new Error('Connection closed.')));
 
         await this.connection.start();

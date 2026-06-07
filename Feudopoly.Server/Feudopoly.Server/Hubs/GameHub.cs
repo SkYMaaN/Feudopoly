@@ -33,30 +33,9 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             removedPlayer = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId);
             if (removedPlayer is not null)
             {
-                if (session.Players.Count == 1)
+                removedSession = RemovePlayerFromActiveGame(session, removedPlayer);
+                if (!removedSession)
                 {
-                    removedSession = _sessionStore.RemovePlayerFromSession(session, removedPlayer.PlayerId);
-                }
-                else
-                {
-                    var wasActive = removedPlayer.PlayerId == session.ActiveTurnPlayerId;
-                    removedPlayer.IsConnected = false;
-                    removedPlayer.ConnectionId = string.Empty;
-
-                    if (session.IsEventRollPhase)
-                    {
-                        session.PendingEventRollPlayerIds.Remove(removedPlayer.PlayerId);
-                        if (session.PendingEventRollPlayerIds.Count == 0)
-                        {
-                            EndEventRollPhase(session);
-                            AdvanceTurn(session);
-                        }
-                    }
-                    else if (wasActive)
-                    {
-                        AdvanceTurn(session);
-                    }
-
                     SessionStorage.TouchSession(session);
                     state = SessionStorage.ToDto(session);
                 }
@@ -398,7 +377,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
         Guid removedPlayerId;
         bool removedSession;
-        GameStateDto state;
+        GameStateDto? state = null;
 
         lock (session)
         {
@@ -406,20 +385,13 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 ?? throw new HubException("Player is not part of this session.");
 
             removedPlayerId = caller.PlayerId;
-            removedSession = _sessionStore.RemovePlayerFromSession(session, caller.PlayerId);
+            removedSession = RemovePlayerFromActiveGame(session, caller);
 
-            if (session.IsEventRollPhase && session.PendingEventRollPlayerIds.Count == 0)
+            if (!removedSession)
             {
-                EndEventRollPhase(session);
-                AdvanceTurn(session);
+                SessionStorage.TouchSession(session);
+                state = SessionStorage.ToDto(session);
             }
-            else if (session.ActiveTurnPlayerId == Guid.Empty && session.Players.Count > 0)
-            {
-                AdvanceTurn(session);
-            }
-
-            SessionStorage.TouchSession(session);
-            state = SessionStorage.ToDto(session);
         }
 
         var groupName = sessionId.ToString();
@@ -517,6 +489,60 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         session.PendingEventRollEvent = null;
         session.PendingEventRollPlayerIds.Clear();
         session.EventRollOwnerPlayerId = Guid.Empty;
+    }
+
+    private bool RemovePlayerFromActiveGame(GameSession session, PlayerState player)
+    {
+        var removedPlayerIndex = session.Players.FindIndex(item => item.PlayerId == player.PlayerId);
+        var wasActiveTurnPlayer = player.PlayerId == session.ActiveTurnPlayerId;
+        var wasEventRollPhase = session.IsEventRollPhase;
+
+        var removedSession = _sessionStore.RemovePlayerFromSession(session, player.PlayerId);
+        if (removedSession)
+        {
+            return true;
+        }
+
+        if (wasActiveTurnPlayer)
+        {
+            SetTurnCursorBeforeRemovedPlayer(session, removedPlayerIndex);
+        }
+
+        if (wasEventRollPhase)
+        {
+            if (session.PendingEventRollPlayerIds.Count == 0)
+            {
+                EndEventRollPhase(session);
+                AdvanceTurn(session);
+            }
+        }
+        else if (wasActiveTurnPlayer || !HasReadyActiveTurnPlayer(session))
+        {
+            AdvanceTurn(session);
+        }
+
+        return false;
+    }
+
+    private static void SetTurnCursorBeforeRemovedPlayer(GameSession session, int removedPlayerIndex)
+    {
+        if (session.Players.Count == 0)
+        {
+            session.ActiveTurnPlayerId = Guid.Empty;
+            return;
+        }
+
+        var cursorIndex = removedPlayerIndex <= 0
+            ? session.Players.Count - 1
+            : Math.Min(removedPlayerIndex - 1, session.Players.Count - 1);
+
+        session.ActiveTurnPlayerId = session.Players[cursorIndex].PlayerId;
+    }
+
+    private static bool HasReadyActiveTurnPlayer(GameSession session)
+    {
+        var activePlayer = session.Players.FirstOrDefault(player => player.PlayerId == session.ActiveTurnPlayerId);
+        return activePlayer is not null && IsActiveParticipant(activePlayer) && activePlayer.TurnsToSkip == 0;
     }
 
     private static int NormalizePosition(int position)
