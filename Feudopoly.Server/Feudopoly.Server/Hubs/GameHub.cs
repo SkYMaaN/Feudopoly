@@ -814,17 +814,32 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     private static IEnumerable<PlayerState> ResolveChosenPlayerTargets(GameSession session, PlayerState currentPlayer, Guid? chosenPlayerId)
     {
-        var chosen = chosenPlayerId.HasValue
-            ? session.Players.FirstOrDefault(p => p.PlayerId == chosenPlayerId.Value && IsActiveParticipant(p))
-            : null;
+        var candidates = session.Players
+            .Where(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p))
+            .ToList();
 
-        if (chosen is not null)
+        if (candidates.Count == 0)
         {
-            return [chosen];
+            return [];
         }
 
-        var fallback = session.Players.FirstOrDefault(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p));
-        return fallback is not null ? [fallback] : [];
+        if (chosenPlayerId.HasValue)
+        {
+            var chosen = candidates.FirstOrDefault(p => p.PlayerId == chosenPlayerId.Value);
+            if (chosen is not null)
+            {
+                return [chosen];
+            }
+
+            throw new HubException("Chosen player is not a valid target.");
+        }
+
+        if (candidates.Count == 1)
+        {
+            return [candidates[0]];
+        }
+
+        throw new HubException("Choose a player.");
     }
 
     private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator && !player.IsWinner;
