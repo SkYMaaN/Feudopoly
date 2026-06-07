@@ -129,6 +129,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         int newPosition;
         bool isEventPhaseRoll;
         bool completedWinningLap = false;
+        bool gameCompleted = false;
         TurnResolutionPayload? phaseResolution = null;
         GameStateDto state;
 
@@ -158,7 +159,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 if (session.PendingEventRollPlayerIds.Count == 0)
                 {
                     EndEventRollPhase(session);
-                    if (!repeatTurn)
+                    gameCompleted = CompleteGameIfNoActivePlayers(session);
+                    if (!gameCompleted && !repeatTurn)
                     {
                         AdvanceTurn(session);
                     }
@@ -191,7 +193,12 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
                 if (completedWinningLap)
                 {
-                    AdvanceTurn(session);
+                    gameCompleted = CompleteGameIfNoActivePlayers(session);
+                    if (!gameCompleted)
+                    {
+                        AdvanceTurn(session);
+                    }
+
                     newPosition = caller.Position;
                 }
                 else
@@ -224,6 +231,10 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         }
 
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
+        if (gameCompleted)
+        {
+            await Clients.Group(groupName).SendAsync("GameCompleted", CreateGameCompletionPayload(state));
+        }
 
         logger.LogInformation(
             "Player {PlayerId} rolled {RollValue} in session {SessionId}. EventPhase: {IsEventPhase}. NewPosition: {NewPosition}",
@@ -286,6 +297,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         GameStateDto state;
         GameCellEvent cellEvent;
         TurnResolutionPayload resolution;
+        bool gameCompleted = false;
 
         lock (session)
         {
@@ -318,7 +330,8 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
                 resolution = ResolveEvent(session, caller, cellEvent, chosenPlayerId);
                 session.IsTurnInProgress = false;
 
-                if (!resolution.RepeatTurn)
+                gameCompleted = CompleteGameIfNoActivePlayers(session);
+                if (!gameCompleted && !resolution.RepeatTurn)
                 {
                     AdvanceTurn(session);
                 }
@@ -331,6 +344,10 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         string groupName = sessionId.ToString();
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
         await Clients.Caller.SendAsync("TurnEnded", resolution);
+        if (gameCompleted)
+        {
+            await Clients.Group(groupName).SendAsync("GameCompleted", CreateGameCompletionPayload(state));
+        }
 
         logger.LogInformation(
             "Turn finished in session {SessionId}. Event '{EventTitle}', entries: {EntriesCount}, repeat turn: {RepeatTurn}, event roll phase: {IsEventRollPhase}",
@@ -489,6 +506,20 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         session.PendingEventRollEvent = null;
         session.PendingEventRollPlayerIds.Clear();
         session.EventRollOwnerPlayerId = Guid.Empty;
+    }
+
+    private static bool CompleteGameIfNoActivePlayers(GameSession session)
+    {
+        if (session.Players.Any(IsActiveParticipant))
+        {
+            return false;
+        }
+
+        session.Status = LobbyStatus.Completed;
+        session.ActiveTurnPlayerId = Guid.Empty;
+        session.IsTurnInProgress = false;
+        EndEventRollPhase(session);
+        return true;
     }
 
     private bool RemovePlayerFromActiveGame(GameSession session, PlayerState player)
@@ -817,6 +848,32 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         public required bool RepeatTurn { get; init; }
         public required bool IsEventRollPhase { get; init; }
         public required bool EventRollCompleted { get; init; }
+    }
+
+    private static GameCompletionPayload CreateGameCompletionPayload(GameStateDto state)
+    {
+        var winnerPlayerIds = state.Players
+            .Where(player => player.IsWinner)
+            .Select(player => player.PlayerId)
+            .ToArray();
+
+        return new GameCompletionPayload
+        {
+            State = state,
+            Reason = "NoActivePlayers",
+            WinnerPlayerIds = winnerPlayerIds,
+            Message = winnerPlayerIds.Length > 0
+                ? "The game has ended."
+                : "The game has ended. No active players remain."
+        };
+    }
+
+    private sealed record GameCompletionPayload
+    {
+        public required GameStateDto State { get; init; }
+        public required string Reason { get; init; }
+        public required IReadOnlyList<Guid> WinnerPlayerIds { get; init; }
+        public required string Message { get; init; }
     }
 
     private sealed class ResolvedOutcomeEntry

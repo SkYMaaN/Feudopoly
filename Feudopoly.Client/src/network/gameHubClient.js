@@ -16,6 +16,7 @@ export class GameHubClient {
             eventDiceRolled: [],
             turnBegan: [],
             turnEnded: [],
+            gameCompleted: [],
             lobbyDeleted: [],
             error: []
         };
@@ -73,6 +74,10 @@ export class GameHubClient {
 
         this.connection.on('TurnEnded', (payload) => {
             this.emit('turnEnded', payload);
+        });
+
+        this.connection.on('GameCompleted', (payload) => {
+            this.emit('gameCompleted', payload);
         });
 
         this.connection.on('LobbyDeleted', (lobbyId) => {

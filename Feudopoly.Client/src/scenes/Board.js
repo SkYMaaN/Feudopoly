@@ -122,6 +122,9 @@ export class Board extends Phaser.Scene {
         this.isVictoryChoicePending = false;
         this.isProcessingVictoryChoice = false;
         this.hasExitedMatch = false;
+        this.hasGameCompleted = false;
+        this.hasDeferredGameCompletedPresentation = false;
+        this.gameCompletedPayload = null;
         this.isLeavingMatch = false;
         this.isInGameMenuOpen = false;
         this.playerColorAssignments = new Map();
@@ -354,6 +357,9 @@ export class Board extends Phaser.Scene {
             }),
             gameHubClient.on('turnEnded', (payload) => {
                 this.turnEnded(payload);
+            }),
+            gameHubClient.on('gameCompleted', (payload) => {
+                this.gameCompleted(payload);
             }),
             gameHubClient.on('lobbyDeleted', (lobbyId) => {
                 if (String(lobbyId) !== String(this.sessionId)) {
@@ -820,6 +826,11 @@ export class Board extends Phaser.Scene {
 
         this.hasDeferredTurnUIRefresh = false;
 
+        if (this.hasGameCompleted) {
+            this.turnOverlay.setVisible(false);
+            return;
+        }
+
         if (this.players.length === 0) {
             this.turnOverlay.setVisible(false);
             return;
@@ -922,6 +933,7 @@ export class Board extends Phaser.Scene {
         const canRoll = !this.localPlayerIsDead
             && !this.localPlayerIsSpectator
             && !this.localPlayerIsWinner
+            && !this.hasGameCompleted
             && !this.isTurnInProgress
             && !isSkippingTurn
             && (mustRollForEvent || (!this.isEventRollPhase && isLocalTurn));
@@ -1001,6 +1013,10 @@ export class Board extends Phaser.Scene {
 
     turnBegan(payload) {
         //console.log('Turn Began:\n' + JSON.stringify(payload, null, 2));
+
+        if (this.hasGameCompleted) {
+            return;
+        }
 
         this.stopTurnBeganCountdown();
         this.hideTurnResultNotification();
@@ -1108,6 +1124,72 @@ export class Board extends Phaser.Scene {
         }
 
         //this.refreshTurnUI();
+    }
+
+    gameCompleted(payload) {
+        this.hasGameCompleted = true;
+        this.gameCompletedPayload = payload ?? {};
+
+        if (payload?.state) {
+            this.applyState(payload.state);
+        }
+
+        this.stopRollRequestCountdown();
+        this.stopTurnBeganCountdown();
+        this.turnRequiresChosenPlayer = false;
+        this.pendingRepeatRoll = false;
+        this.isEventRollPhase = false;
+        this.pendingEventRollPlayerIds = [];
+        this.isAwaitingLocalTurnEndResolution = false;
+
+        if (this.turnBeganClickHandler) {
+            this.input.off('pointerdown', this.turnBeganClickHandler);
+            this.turnBeganClickHandler = null;
+        }
+
+        if (this.isRolling || this.animatingPlayerId) {
+            this.hasDeferredGameCompletedPresentation = true;
+            return;
+        }
+
+        this.presentGameCompleted();
+    }
+
+    presentGameCompleted() {
+        this.hasDeferredGameCompletedPresentation = false;
+        this.turnOverlay.setVisible(false);
+        this.stopRollRequestCountdown();
+        this.stopTurnBeganCountdown();
+
+        if (this.turnResultDismissHandler) {
+            this.input.off('pointerdown', this.turnResultDismissHandler);
+            this.turnResultDismissHandler = null;
+        }
+
+        this.hideNotification();
+        this.hideTurnResultNotification();
+
+        if (this.localPlayerIsWinner) {
+            this.hideDeathScreen();
+            this.showVictoryScreen();
+            this.updateVictoryChoiceButtons();
+            return;
+        }
+
+        if (this.localPlayerIsDead) {
+            this.hideVictoryScreen();
+            this.showDeathScreen();
+            this.updateDeathChoiceButtons();
+            return;
+        }
+
+        this.hideDeathScreen();
+        this.hideVictoryScreen();
+        this.showNotification({
+            title: 'Game over',
+            text: this.gameCompletedPayload?.message ?? 'The game has ended.',
+            typingSpeed: 30
+        });
     }
 
     showTurnResultNotification(payload) {
@@ -2353,7 +2435,7 @@ export class Board extends Phaser.Scene {
             this.hideDice();
 
             try {
-                if (!payload?.isEventPhaseRoll && !payload?.completedWinningLap) {
+                if (!this.hasGameCompleted && !payload?.isEventPhaseRoll && !payload?.completedWinningLap) {
                     await gameHubClient.beginTurn(this.sessionId);
                 }
             } catch (error) {
@@ -2369,7 +2451,11 @@ export class Board extends Phaser.Scene {
                     this.updateVictoryChoiceButtons();
                 }
 
-                this.refreshTurnUI();
+                if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
+                    this.presentGameCompleted();
+                } else {
+                    this.refreshTurnUI();
+                }
             }
         });
     }

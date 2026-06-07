@@ -264,6 +264,13 @@ public sealed class SessionStorage
                 return LobbyDeletionReason.EmptyLobby;
             }
 
+            if (session.Status == LobbyStatus.Completed)
+            {
+                return utcNow - session.LastActivityAtUtc >= LobbyInactivityTimeout
+                    ? LobbyDeletionReason.Inactive
+                    : null;
+            }
+
             if (!session.Players.Any(IsLobbyParticipant))
             {
                 return LobbyDeletionReason.NoActivePlayers;
@@ -317,6 +324,7 @@ public sealed class SessionStorage
         return new GameStateDto
         {
             SessionId = session.SessionId,
+            Status = session.Status,
             ActiveTurnPlayerId = session.Players.Count > 0
                 ? session.Players.FirstOrDefault(p => p.PlayerId == session.ActiveTurnPlayerId)?.PlayerId
                 : null,
