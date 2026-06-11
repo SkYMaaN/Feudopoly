@@ -333,7 +333,7 @@ export class Board extends Phaser.Scene {
         this.hasShownStartGameIntro = true;
         this.showNotification({
             title: 'Introduction',
-            text: 'Listen to the narrator before your first move.',
+            text: 'Listen carefully, stranger. This is an old story of glory and honor. Of course, the Dark Middle Ages. Not because there was no light. This is life in the Middle Ages: hard and unforgiving. Wars, disease, and brutal rulers decide your path. They show no mercy. The dice decide your fate. I will guide you through the Middle Ages as long as you’re willing. Be careful, it will improve your chances to survive.',
             videoKey: 'v0',
             typingSpeed: 25
         });
