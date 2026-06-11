@@ -154,8 +154,8 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
-                width: 800,
-                height: 400,
+                width: Math.min(width - 80, 800),
+                height: 320,
                 title: ''
             }
         )
@@ -1578,12 +1578,12 @@ export class Board extends Phaser.Scene {
         const isPortrait = this.isNarratorVideo(videoKey);
         const baseWidth = isPortrait ? 360 : 900;
         const baseHeight = isPortrait ? 640 : Math.round(baseWidth * 9 / 16);
-        const textBoxTop = height - 260 - 200;
-        const safeTop = 36;
-        const safeBottom = Math.max(safeTop + 260, textBoxTop - 24);
+        const textBoxTop = this.getNotificationTextBoxY(true) - 160;
+        const safeTop = 24;
+        const safeBottom = Math.max(safeTop + 300, textBoxTop - 20);
         const maxWidth = isPortrait
-            ? Math.min(width * 0.32, 400)
-            : Math.min(width * 0.54, 960);
+            ? Math.min(width * 0.42, 520)
+            : Math.min(width * 0.70, 1180);
         const maxHeight = safeBottom - safeTop;
         const scale = Math.min(maxWidth / baseWidth, maxHeight / baseHeight, 1);
         const displayWidth = Math.round(baseWidth * scale);
@@ -1592,8 +1592,13 @@ export class Board extends Phaser.Scene {
         return {
             width: displayWidth,
             height: displayHeight,
-            y: safeTop + displayHeight / 2
+            y: safeTop + displayHeight / 2 + 60
         };
+    }
+
+    getNotificationTextBoxY(hasVideo) {
+        const { height } = this.scale.gameSize;
+        return hasVideo ? height - 190 : height / 2;
     }
 
     applyNotificationVideoDisplay(videoKey) {
@@ -1856,7 +1861,7 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox
             .setAlpha(1)
-            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
+            .setPosition(width / 2, this.getNotificationTextBoxY(hasVideo))
             .setVisible(true);
 
         this.notificationTextBox.getElement('header')?.setText(title);
@@ -3461,8 +3466,14 @@ export class Board extends Phaser.Scene {
             }),
             text: this.getBBcodeText(scene, wrapWidth, fixedWidth, 0, 0),
             textMask: true,
-            slider: false,
-            mouseWheelScroller: false,
+            slider: {
+                track: scene.rexUI.add.roundRectangle(0, 0, 8, 10, 4, this.COLOR_DARK, 0.45),
+                thumb: scene.rexUI.add.roundRectangle(0, 0, 8, 56, 4, this.COLOR_LIGHT, 0.95),
+                adaptThumbSize: true,
+                minThumbSize: 36
+            },
+            hideUnscrollableSlider: true,
+            mouseWheelScroller: true,
 
             header: scene.add.text(0, 0, titleText, {
                 fontFamily: 'Arial, sans-serif',
@@ -3480,7 +3491,7 @@ export class Board extends Phaser.Scene {
 
             space: {
                 left: 20,
-                right: 20,
+                right: 28,
                 top: 20,
                 bottom: 20,
                 text: 14,
