@@ -1583,16 +1583,18 @@ export class Board extends Phaser.Scene {
         const safeBottom = Math.max(safeTop + 300, textBoxTop - 20);
         const maxWidth = isPortrait
             ? Math.min(width * 0.42, 520)
-            : Math.min(width * 0.70, 1180);
+            : Math.min(width * 0.96, 1800);
         const maxHeight = safeBottom - safeTop;
-        const scale = Math.min(maxWidth / baseWidth, maxHeight / baseHeight, 1);
+        const maxScale = isPortrait ? 1 : 1.8;
+        const scale = Math.min(maxWidth / baseWidth, maxHeight / baseHeight, maxScale);
         const displayWidth = Math.round(baseWidth * scale);
         const displayHeight = Math.round(baseHeight * scale);
+        const videoYOffset = isPortrait ? 60 : 10;
 
         return {
             width: displayWidth,
             height: displayHeight,
-            y: safeTop + displayHeight / 2 + 60
+            y: safeTop + displayHeight / 2 + videoYOffset 
         };
     }
 
