@@ -2085,7 +2085,7 @@ export class Board extends Phaser.Scene {
             key: 'death',
             backgroundKey: 'deathScreen',
             title: 'YOU DIED',
-            subtitle: 'The Middle Ages were harder than you.',
+            subtitle: 'The Middle Ages were harder than you',
             backgroundTint: 0xaa2222,
             shadeColor: 0x000000,
             shadeAlpha: 0.45,
@@ -2576,7 +2576,7 @@ export class Board extends Phaser.Scene {
     showDeathScreen() {
         this.showEndgameScreen(this.deathScreen, {
             title: 'YOU DIED',
-            subtitle: 'The Middle Ages were harder than you.'
+            subtitle: 'The Middle Ages were harder than you'
         });
     }
 
