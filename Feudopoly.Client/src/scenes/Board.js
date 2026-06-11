@@ -862,7 +862,7 @@ export class Board extends Phaser.Scene {
 
         if (mustRollForEvent) {
             this.hideNotification();
-            turnPromptText = 'Throw the dice for event!';
+            turnPromptText = 'Roll the dice to determine your fate in event!';
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
             turnPromptText = 'Throw again!';
@@ -875,7 +875,7 @@ export class Board extends Phaser.Scene {
             turnPromptText = 'Waiting for turn state to sync...';
         } else if (isLocalTurn) {
             this.hideNotification();
-            turnPromptText = 'Throw the dice!';
+            turnPromptText = 'Roll the dice to determine your fate!';
         } else {
             turnPromptText = `${current?.displayName ?? 'Opponent'} turn`;
         }
@@ -1016,9 +1016,9 @@ export class Board extends Phaser.Scene {
     }
 
     updateRollButtonText(mustRollForEvent, secondsLeft = null) {
-        const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!';
-        const suffix = Number.isInteger(secondsLeft) ? `\n${secondsLeft}` : '';
-        this.rollButtonText.setText(`${label}${suffix}`);
+        const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again' : 'Time for turn';
+        const suffix = Number.isInteger(secondsLeft) ? `${secondsLeft}` : '';
+        this.rollButtonText.setText(`${label}: ${suffix}`);
         this.rollButton?.layout?.();
     }
 
@@ -3142,26 +3142,31 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 110, 18, 0x6f4b23, 1)
-            .setStrokeStyle(7, 0xc89b58, 1);
+        this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 78, 14, 0x6f4b23, 1)
+            .setStrokeStyle(5, 0xc89b58, 1);
 
         this.rollButtonText = this.add.text(0, 0, 'Roll!', {
             fontFamily: 'Arial, sans-serif',
-            fontSize: '42px',
+            fontSize: '38px',
             color: '#ffffff',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
+            align: 'center'
         })
             .setOrigin(0.5)
-            .setLineSpacing(8);
+            .setLineSpacing(8)
+            .setFixedSize(420, 54);
 
         this.rollButton = this.rexUI.add.label({
             x: 0,
             y: 120,
             width: 460,
-            height: 110,
+            height: 78,
             background: this.rollButtonBackground,
             text: this.rollButtonText,
-            align: 'center'
+            align: 'center',
+            space: {
+                top: 6
+            }
         }).layout().setInteractive({ useHandCursor: true });
 
         this.rollButton.on('pointerover', () => {
