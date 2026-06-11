@@ -855,29 +855,32 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnTitleText.setColor(current ? `#${this.getPlayerColor(current.playerId).toString(16).padStart(6, '0')}` : '#ffe066');
-        this.turnTitleText.setText(this.isEventRollPhase
+
+        let turnPromptText = this.isEventRollPhase
             ? (this.pendingEventRollPlayerIds.length === 1 ? 'Roll phase' : 'Event roll phase')
-            : `${current?.displayName ?? 'Player'} turn`);
+            : `${current?.displayName ?? 'Player'} turn`;
 
         if (mustRollForEvent) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Throw the dice for event!');
+            turnPromptText = 'Throw the dice for event!';
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
-            this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
+            turnPromptText = 'Throw again!';
         } else if (isSkippingTurn) {
             this.hideNotification();
-            this.turnSubtitleText.setText(`You are skipping this turn (${this.localPlayerTurnsToSkip} remaining).`);
+            turnPromptText = `You are skipping this turn (${this.localPlayerTurnsToSkip} remaining).`;
         } else if (this.isEventRollPhase) {
-            this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
+            turnPromptText = 'Waiting for other players to finish event rolls...';
         } else if (!activeTurnPlayerId) {
-            this.turnSubtitleText.setText('Waiting for turn state to sync...');
+            turnPromptText = 'Waiting for turn state to sync...';
         } else if (isLocalTurn) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Throw the dice!');
+            turnPromptText = 'Throw the dice!';
         } else {
-            this.turnSubtitleText.setText("Waiting for opponent's move...");
+            turnPromptText = `${current?.displayName ?? 'Opponent'} turn`;
         }
+
+        this.turnTitleText.setText(turnPromptText);
 
         if (canRoll) {
             this.ensureRollRequestCountdown(rollState);
@@ -1014,8 +1017,9 @@ export class Board extends Phaser.Scene {
 
     updateRollButtonText(mustRollForEvent, secondsLeft = null) {
         const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!';
-        const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
+        const suffix = Number.isInteger(secondsLeft) ? `\n${secondsLeft}` : '';
         this.rollButtonText.setText(`${label}${suffix}`);
+        this.rollButton?.layout?.();
     }
 
     turnBegan(payload) {
@@ -3138,15 +3142,6 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.turnSubtitleText = this.add.text(0, -15, 'Waiting for players...', {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '38px',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 8,
-            align: 'center'
-        }).setOrigin(0.5);
-
         this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 110, 18, 0x6f4b23, 1)
             .setStrokeStyle(7, 0xc89b58, 1);
 
@@ -3155,7 +3150,9 @@ export class Board extends Phaser.Scene {
             fontSize: '42px',
             color: '#ffffff',
             fontStyle: 'bold'
-        }).setOrigin(0.5);
+        })
+            .setOrigin(0.5)
+            .setLineSpacing(8);
 
         this.rollButton = this.rexUI.add.label({
             x: 0,
@@ -3182,7 +3179,7 @@ export class Board extends Phaser.Scene {
             this.requestRoll();
         });
 
-        this.turnOverlay.add([dim, this.turnTitleText, this.turnSubtitleText, this.rollButton]);
+        this.turnOverlay.add([dim, this.turnTitleText, this.rollButton]);
     }
 
     addBoard() {
