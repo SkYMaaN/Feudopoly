@@ -1257,7 +1257,7 @@ export class Board extends Phaser.Scene {
         this.isSubmittingChosenPlayerChoice = this.turnRequiresChosenPlayer;
         this.stopTurnBeganCountdown();
         this.hideChosenPlayerChooser();
-        this.hideNotification();
+        this.hideNotification({ refreshTurnUI: true });
         this.isAwaitingLocalTurnEndResolution = true;
 
         if (this.turnBeganClickHandler) {
@@ -1824,6 +1824,10 @@ export class Board extends Phaser.Scene {
         const notificationVideoKey = this.normalizeVideoKey(videoKey);
         const hasVideo = Boolean(notificationVideoKey);
 
+        if (hasVideo) {
+            this.turnOverlay?.setVisible(false);
+        }
+
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
 
@@ -1840,7 +1844,7 @@ export class Board extends Phaser.Scene {
 
         if (dismissOnPointerDown) {
             this.notificationDismissHandler = () => {
-                this.hideNotification();
+                this.hideNotification({ refreshTurnUI: hasVideo });
             };
 
             this.input.once('pointerdown', this.notificationDismissHandler);
@@ -1878,7 +1882,7 @@ export class Board extends Phaser.Scene {
         this.clearNotificationVideoElement();
     }
 
-    hideNotification() {
+    hideNotification({ refreshTurnUI = false } = {}) {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
         this.hideBloodRainEffect();
@@ -1893,6 +1897,10 @@ export class Board extends Phaser.Scene {
 
         if (this.notificationVideo) {
             this.clearNotificationVideoElement();
+        }
+
+        if (refreshTurnUI) {
+            this.refreshTurnUI({ force: true });
         }
     }
 
