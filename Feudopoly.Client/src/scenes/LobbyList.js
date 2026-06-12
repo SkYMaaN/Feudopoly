@@ -1,6 +1,7 @@
 import { lobbyApi } from '../network/lobbyApi.js';
 import { lobbyHubClient } from '../network/lobbyHubClient.js';
 import { getOrCreateProfile, saveProfile } from '../network/profileStorage.js';
+import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
 
 const LOBBY_MODAL_DEPTH = 200;
 const OVERLAY_COLOR = 0x0d1b2a;
@@ -50,6 +51,7 @@ export class LobbyList extends Phaser.Scene {
     }
 
     preload() {
+        preloadButtonClick(this);
         this.load.scenePlugin({
             key: 'rexuiplugin',
             url: 'plugins/rexuiplugin.min.js',
@@ -610,6 +612,7 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
+            playButtonClick(this);
             onClick();
         });
 
@@ -735,6 +738,7 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
+            playButtonClick(this);
             onClick();
         });
 
@@ -1174,6 +1178,7 @@ export class LobbyList extends Phaser.Scene {
         });
         rect.on('pointerdown', () => {
             if (rect.input?.enabled) {
+                playButtonClick(this);
                 onClick();
             }
         });

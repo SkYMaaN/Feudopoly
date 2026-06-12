@@ -1,6 +1,7 @@
 import { gameHubClient } from '../network/gameHubClient.js';
 import { getOrCreateProfile } from '../network/profileStorage.js';
 import { AUTO_TURN_TIMEOUT_MS, videoBaseUrl } from '../config.js';
+import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
 
 export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
@@ -52,6 +53,7 @@ export class Board extends Phaser.Scene {
 
     preload() {
         this.load.image('board', 'assets/boards/board1.jpg');
+        preloadButtonClick(this);
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
         this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
@@ -219,6 +221,7 @@ export class Board extends Phaser.Scene {
 
         this.menuToggleButton.on('pointerdown', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             this.toggleInGameMenu();
         });
 
@@ -271,6 +274,7 @@ export class Board extends Phaser.Scene {
 
         this.leaveMatchMenuButton.on('pointerdown', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             this.leaveCurrentMatch();
         });
 
@@ -1172,6 +1176,7 @@ export class Board extends Phaser.Scene {
         });
         rect.on('pointerup', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             onClick();
         });
 
@@ -1182,6 +1187,7 @@ export class Board extends Phaser.Scene {
         });
         text.on('pointerup', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             onClick();
         });
 
@@ -2470,6 +2476,7 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
+            playButtonClick(this);
             applyStyle(hoverStyle);
             onClick();
         });
@@ -3206,6 +3213,7 @@ export class Board extends Phaser.Scene {
         });
 
         this.rollButton.on('pointerdown', () => {
+            playButtonClick(this);
             this.requestRoll();
         });
 
