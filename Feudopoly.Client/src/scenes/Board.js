@@ -1392,12 +1392,28 @@ export class Board extends Phaser.Scene {
             this.turnBeganClickHandler = null;
         }
 
-        if (this.isRolling || this.animatingPlayerId) {
+        this.presentGameCompletedIfReady();
+    }
+
+    shouldDeferGameCompletedPresentation() {
+        return this.isRolling
+            || Boolean(this.animatingPlayerId)
+            || this.isTurnResultNotificationActive
+            || this.shouldTransitionDeathScreenAfterNotification;
+    }
+
+    presentGameCompletedIfReady() {
+        if (!this.hasGameCompleted && !this.hasDeferredGameCompletedPresentation) {
+            return false;
+        }
+
+        if (this.shouldDeferGameCompletedPresentation()) {
             this.hasDeferredGameCompletedPresentation = true;
-            return;
+            return false;
         }
 
         this.presentGameCompleted();
+        return true;
     }
 
     presentGameCompleted() {
@@ -1518,6 +1534,11 @@ export class Board extends Phaser.Scene {
         if (this.turnResultDismissHandler) {
             this.input.off('pointerdown', this.turnResultDismissHandler);
             this.turnResultDismissHandler = null;
+        }
+
+        if (this.hasDeferredGameCompletedPresentation && !this.shouldDeferGameCompletedPresentation()) {
+            this.presentGameCompleted();
+            return;
         }
 
         if (shouldRefreshTurnUI) {
@@ -2694,7 +2715,7 @@ export class Board extends Phaser.Scene {
                 }
 
                 if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
-                    this.presentGameCompleted();
+                    this.presentGameCompletedIfReady();
                 } else {
                     this.refreshTurnUI();
                 }
