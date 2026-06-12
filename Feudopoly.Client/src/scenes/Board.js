@@ -115,6 +115,7 @@ export class Board extends Phaser.Scene {
         this.bloodRainVeil = null;
         this.bloodRainParticles = null;
         this.bloodRainEffectSize = null;
+        this.bloodRainDensityEvents = [];
         this.deathPresentationDelayEvent = null;
         this.isDeathPresentationActive = false;
         this.isTurnResultNotificationActive = false;
@@ -1801,16 +1802,16 @@ export class Board extends Phaser.Scene {
         this.bloodRainParticles = this.add.particles(0, 0, textureKey, {
             x: { min: -32, max: width + 32 },
             y: { min: -height, max: height },
-            lifespan: { min: 1500, max: 2400 },
+            lifespan: { min: 2250, max: 3600 },
             speedX: { min: -45, max: 45 },
-            speedY: { min: 620, max: 1100 },
-            gravityY: 240,
+            speedY: { min: 413, max: 733 },
+            gravityY: 160,
             scaleX: { min: 1.35, max: 2.8 },
             scaleY: { min: 2.2, max: 4.4 },
             alpha: { start: 1, end: 0.45 },
             rotate: { min: -7, max: 7 },
-            frequency: 8,
-            quantity: 28,
+            frequency: 120,
+            quantity: 2,
             maxAliveParticles: 2800,
             blendMode: Phaser.BlendModes.NORMAL,
             emitting: false
@@ -1835,17 +1836,50 @@ export class Board extends Phaser.Scene {
         this.bloodRainVeil
             ?.setDepth(this.BLOOD_RAIN_DEPTH - 1)
             .setVisible(true)
-            .setAlpha(1);
+            .setAlpha(0);
 
+        this.clearBloodRainDensityEvents();
         this.tweens.killTweensOf(particles);
+        if (this.bloodRainVeil) {
+            this.tweens.killTweensOf(this.bloodRainVeil);
+        }
         particles
             .setDepth(this.BLOOD_RAIN_DEPTH)
             .setVisible(true)
             .setAlpha(1)
+            .setFrequency(120, 2)
             .start();
+
+        this.tweens.add({
+            targets: this.bloodRainVeil,
+            alpha: 1,
+            duration: this.BLOOD_RAIN_DURATION_MS,
+            ease: 'Sine.easeIn'
+        });
+
+        [
+            { delay: 500, frequency: 105, quantity: 3 },
+            { delay: 1000, frequency: 88, quantity: 4 },
+            { delay: 1500, frequency: 70, quantity: 6 },
+            { delay: 2000, frequency: 54, quantity: 8 },
+            { delay: 2500, frequency: 40, quantity: 11 },
+            { delay: 3000, frequency: 28, quantity: 15 },
+            { delay: 3500, frequency: 18, quantity: 20 },
+            { delay: 4000, frequency: 11, quantity: 24 },
+            { delay: 4500, frequency: 8, quantity: 28 }
+        ].forEach(stage => {
+            const event = this.time.delayedCall(stage.delay, () => {
+                particles.setFrequency(stage.frequency, stage.quantity);
+            });
+            this.bloodRainDensityEvents.push(event);
+        });
     }
 
     hideBloodRainEffect() {
+        this.clearBloodRainDensityEvents();
+        if (this.bloodRainVeil) {
+            this.tweens.killTweensOf(this.bloodRainVeil);
+        }
         this.bloodRainVeil?.setVisible(false).setAlpha(1);
 
         const particles = this.bloodRainParticles;
@@ -1858,7 +1892,16 @@ export class Board extends Phaser.Scene {
         particles.setVisible(false).setAlpha(1);
     }
 
+    clearBloodRainDensityEvents() {
+        this.bloodRainDensityEvents.forEach(event => event.remove(false));
+        this.bloodRainDensityEvents = [];
+    }
+
     destroyBloodRainEffect() {
+        this.clearBloodRainDensityEvents();
+        if (this.bloodRainVeil) {
+            this.tweens.killTweensOf(this.bloodRainVeil);
+        }
         this.bloodRainVeil?.destroy();
         this.bloodRainVeil = null;
 
