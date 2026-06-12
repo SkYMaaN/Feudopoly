@@ -178,7 +178,6 @@ export class Board extends Phaser.Scene {
 
             await gameHubClient.connect();
             await gameHubClient.joinGame(this.sessionId, playerId);
-            this.setStatus(`Joined session ${this.sessionId}.`);
             this.showStartGameIntro();
         } catch (error) {
             console.error(error);
