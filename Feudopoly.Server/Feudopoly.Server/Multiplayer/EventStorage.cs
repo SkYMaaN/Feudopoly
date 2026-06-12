@@ -121,7 +121,7 @@ namespace Feudopoly.Server.Multiplayer
                     [
                         RO(RollResultKind.Lose, R(1, 2), O(OutcomeKind.SkipTurns, "You're sad because you actually wanted Indian spices -> suspend a turn.", skipTurns: 1)),
                         RO(RollResultKind.Tie, R(3, 4), O(OutcomeKind.None, "You set off but didn't arrive – the sea was simply too rough.")),
-                        RO(RollResultKind.Win, R(5, 6), O(OutcomeKind.None, "You can't read, you know nothing about America -> smile and be glad. You are not capable of more than that."))
+                        RO(RollResultKind.Win, R(5, 6), O(OutcomeKind.None, "You can't read, and you know nothing about America just smile and be happy. That's all you can do."))
                     ],
                     "Smile and be happy. It could be worse."),
 
