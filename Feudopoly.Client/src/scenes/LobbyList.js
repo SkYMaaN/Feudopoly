@@ -94,8 +94,8 @@ export class LobbyList extends Phaser.Scene {
 
         this.messageText = this.add.text(width / 2, height - 40, '', { fontSize: '24px', color: TEXT_COLOR }).setOrigin(0.5);
 
-        this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
-        this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
+        this.backButton = this.createButton(1700, 70, 260, 60, 'BACK', () => this.scene.start('Start'));
+        this.refreshButton = this.createButton(1700, 150, 260, 60, 'REFRESH', () => this.syncLobbies());
         //this.createButton(1700, 150, 260, 60, 'CREATE', () => this.openCreateLobbyModal());
 
         this.listContainer = this.add.container(70, 250);
@@ -222,6 +222,7 @@ export class LobbyList extends Phaser.Scene {
         }
 
         this.modalOpen = true;
+        this.setLobbyNavigationVisible(false);
         this.createLobbyState = this.getDefaultCreateLobbyState();
         this.showMessage('');
 
@@ -1068,6 +1069,18 @@ export class LobbyList extends Phaser.Scene {
         this.createModalButtonControl = null;
         this.createLobbyState = this.getDefaultCreateLobbyState();
         this.modalOpen = false;
+        this.setLobbyNavigationVisible(true);
+    }
+
+    setLobbyNavigationVisible(visible) {
+        [this.backButton, this.refreshButton].forEach(button => {
+            if (!button) {
+                return;
+            }
+
+            button.setVisible(visible);
+            this.setButtonDisabled(button, !visible);
+        });
     }
 
     openLobby(lobby) {
