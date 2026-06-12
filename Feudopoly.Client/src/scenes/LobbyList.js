@@ -1,7 +1,12 @@
 import { lobbyApi } from '../network/lobbyApi.js';
 import { lobbyHubClient } from '../network/lobbyHubClient.js';
 import { getOrCreateProfile, saveProfile } from '../network/profileStorage.js';
-import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
+import {
+    playButtonClick,
+    playButtonClickPrime,
+    preloadButtonClick,
+    preloadButtonClickPrime
+} from '../audio/buttonClick.js';
 
 const LOBBY_MODAL_DEPTH = 200;
 const OVERLAY_COLOR = 0x0d1b2a;
@@ -52,6 +57,7 @@ export class LobbyList extends Phaser.Scene {
 
     preload() {
         preloadButtonClick(this);
+        preloadButtonClickPrime(this);
         this.load.scenePlugin({
             key: 'rexuiplugin',
             url: 'plugins/rexuiplugin.min.js',
@@ -332,7 +338,7 @@ export class LobbyList extends Phaser.Scene {
             '✕',
             () => this.closeCreateLobbyModal()
         );
-        this.createModalButtonControl = this.createModalButton(centerX, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby());
+        this.createModalButtonControl = this.createModalButton(centerX, centerY + panelHeight / 2 - 55, layout.buttonWidth, layout.buttonHeight, 'CREATE', () => this.submitCreateLobby(), playButtonClickPrime);
         this.modalGeometry = {
             centerX,
             panelWidth,
@@ -666,7 +672,7 @@ export class LobbyList extends Phaser.Scene {
         button.buttonText.setAlpha(button.isDisabled ? 0.6 : (button.isActive ? 1 : 0.92));
     }
 
-    createModalButton(x, y, width, height, label, onClick) {
+    createModalButton(x, y, width, height, label, onClick, playSound = playButtonClick) {
         const button = this.createModalIconButton(x, y, width, label, onClick, {
             height,
             radius: 16,
@@ -677,7 +683,8 @@ export class LobbyList extends Phaser.Scene {
             fontStyle: 'bold',
             defaultFill: 0x98bad2,
             hoverFill: 0x85abc8,
-            activeFill: 0x6f98ba
+            activeFill: 0x6f98ba,
+            playSound
         });
 
         button.setSize(width, height);
@@ -739,7 +746,7 @@ export class LobbyList extends Phaser.Scene {
                 return;
             }
 
-            playButtonClick(this);
+            (options.playSound ?? playButtonClick)(this);
             onClick();
         });
 
