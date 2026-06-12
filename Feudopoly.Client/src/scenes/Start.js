@@ -1,4 +1,9 @@
-import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
+import {
+    playButtonClick,
+    playButtonClickPrime,
+    preloadButtonClick,
+    preloadButtonClickPrime
+} from '../audio/buttonClick.js';
 
 const PANEL_STROKE = 0x2b5e8a;
 const TEXT_COLOR = '#FF0000';
@@ -15,6 +20,7 @@ export class Start extends Phaser.Scene {
 
     preload() {
         preloadButtonClick(this);
+        preloadButtonClickPrime(this);
         this.load.scenePlugin({
             key: 'rexuiplugin',
             url: "plugins/rexuiplugin.min.js",
@@ -89,11 +95,11 @@ export class Start extends Phaser.Scene {
 
         this.joinLobbyButton = this.createButton(width / 2, height / 2 + 200, 420, 96, 'Join lobby', () => {
             this.openLobbyList();
-        });
+        }, playButtonClickPrime);
 
         this.openNewButton = this.createButton(width / 2, height / 2 + 340, 420, 96, 'Open new lobby', () => {
             this.openLobbyList({ openCreateLobbyModal: true });
-        });
+        }, playButtonClickPrime);
 
         this.messageText = this.add.text(width / 2, height / 2 + 420, '', {
             fontFamily: 'Georgia, serif',
@@ -173,7 +179,7 @@ export class Start extends Phaser.Scene {
         });
     }
 
-    createButton(x, y, width, height, label, onClick) {
+    createButton(x, y, width, height, label, onClick, playSound = playButtonClick) {
         const background = this.rexUI.add.roundRectangle(0, 0, width, height, 16, 0x9cbfd9, 1)
             .setStrokeStyle(7, 0x2b5e8a, 1);
 
@@ -197,7 +203,7 @@ export class Start extends Phaser.Scene {
         button.on('pointerover', () => background.setFillStyle(0x8FA9BF, 1));
         button.on('pointerout', () => background.setFillStyle(0x9cbfd9, 1));
         button.on('pointerdown', () => {
-            playButtonClick(this);
+            playSound(this);
             onClick();
         });
 
