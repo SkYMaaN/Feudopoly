@@ -9,6 +9,7 @@ export class Board extends Phaser.Scene {
     COLOR_DARK = 0x260e04;
     BLOOD_RAIN_DEPTH = 1790;
     BLOOD_RAIN_DURATION_MS = 5000;
+    DEATH_SCREEN_TRANSITION_MS = 900;
     PLAYER_TOKEN_COLORS = [
         0xff4d4f,
         0xb8ff3b,
@@ -118,6 +119,7 @@ export class Board extends Phaser.Scene {
         this.bloodRainDensityEvents = [];
         this.deathPresentationDelayEvent = null;
         this.isDeathPresentationActive = false;
+        this.isDeathScreenTransitionActive = false;
         this.isTurnResultNotificationActive = false;
         this.hasDeferredTurnUIRefresh = false;
         this.hasShownStartGameIntro = false;
@@ -544,7 +546,9 @@ export class Board extends Phaser.Scene {
             this.showVictoryScreen();
         } else if (this.isDeathChoicePending) {
             this.hideVictoryScreen();
-            if (shouldDelayDeathScreen
+            if (this.isDeathScreenTransitionActive) {
+                // Keep the in-progress blood-rain-to-death-screen crossfade untouched.
+            } else if (shouldDelayDeathScreen
                 || this.shouldTransitionDeathScreenAfterNotification
                 || this.isDeathPresentationActive) {
                 this.hideDeathScreen();
@@ -1923,6 +1927,7 @@ export class Board extends Phaser.Scene {
         }
 
         this.isDeathPresentationActive = false;
+        this.isDeathScreenTransitionActive = false;
         this.hideBloodRainEffect();
     }
 
@@ -2013,7 +2018,6 @@ export class Board extends Phaser.Scene {
 
     transitionNotificationToDeathScreen() {
         this.cancelDeathPresentation();
-        this.hideNotification();
         this.hideDeathScreen();
         this.hideVictoryScreen();
         this.turnOverlay?.setVisible(false);
@@ -2022,13 +2026,44 @@ export class Board extends Phaser.Scene {
         this.showBloodRainEffect();
         this.deathPresentationDelayEvent = this.time.delayedCall(this.BLOOD_RAIN_DURATION_MS, () => {
             this.deathPresentationDelayEvent = null;
-            this.isDeathPresentationActive = false;
-            this.hideBloodRainEffect();
-            this.showDeathScreen();
-            this.updateDeathChoiceButtons();
+            this.transitionBloodRainToDeathScreen();
+        });
+    }
 
-            if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
-                this.presentGameCompletedIfReady();
+    transitionBloodRainToDeathScreen() {
+        const duration = this.DEATH_SCREEN_TRANSITION_MS;
+        const particles = this.bloodRainParticles;
+
+        this.isDeathScreenTransitionActive = true;
+        this.clearBloodRainDensityEvents();
+        particles?.stop();
+        this.clearNotificationVideoCompleteHandler();
+        this.clearNotificationVideoLayoutHandler();
+        this.showDeathScreen({ duration });
+
+        const fadeOutTargets = [
+            this.bloodRainVeil?.visible ? this.bloodRainVeil : null,
+            particles?.visible ? particles : null,
+            this.notificationTextBox?.visible ? this.notificationTextBox : null,
+            this.notificationVideo?.visible ? this.notificationVideo : null
+        ].filter(Boolean);
+
+        this.tweens.killTweensOf(fadeOutTargets);
+        this.tweens.add({
+            targets: fadeOutTargets,
+            alpha: 0,
+            duration,
+            ease: 'Sine.easeInOut',
+            onComplete: () => {
+                this.isDeathScreenTransitionActive = false;
+                this.isDeathPresentationActive = false;
+                this.hideBloodRainEffect();
+                this.hideNotification();
+                this.updateDeathChoiceButtons();
+
+                if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
+                    this.presentGameCompletedIfReady();
+                }
             }
         });
     }
@@ -2660,10 +2695,11 @@ export class Board extends Phaser.Scene {
         }
     }
 
-    showDeathScreen() {
+    showDeathScreen({ duration = 260 } = {}) {
         this.showEndgameScreen(this.deathScreen, {
             title: 'YOU DIED',
-            subtitle: 'The Middle Ages were harder than you'
+            subtitle: 'The Middle Ages were harder than you',
+            duration
         });
     }
 
@@ -2684,25 +2720,28 @@ export class Board extends Phaser.Scene {
         this.hideEndgameScreen(this.victoryScreen);
     }
 
-    showEndgameScreen(screen, { title, subtitle }) {
+    showEndgameScreen(screen, { title, subtitle, duration = 260 }) {
         if (!screen?.container) {
             return;
         }
 
         screen.title.setText(title);
         screen.subtitle.setText(subtitle);
+        const isAlreadyVisible = screen.container.visible && screen.container.alpha >= 0.99;
         screen.container.setVisible(true);
         screen.container.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
 
-        this.tweens.killTweensOf(screen.container);
-        screen.container.setAlpha(0);
+        if (!isAlreadyVisible) {
+            this.tweens.killTweensOf(screen.container);
+            screen.container.setAlpha(0);
 
-        this.tweens.add({
-            targets: screen.container,
-            alpha: 1,
-            duration: 260,
-            ease: 'Quad.Out'
-        });
+            this.tweens.add({
+                targets: screen.container,
+                alpha: 1,
+                duration,
+                ease: 'Quad.Out'
+            });
+        }
 
         screen.pulseTween?.resume();
         screen.flickerTween?.resume();
