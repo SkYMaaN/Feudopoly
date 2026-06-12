@@ -78,7 +78,7 @@ namespace Feudopoly.Server.Multiplayer
                 [12] = Fixed("Spy for the Inquisition", "You are a spy for the Inquisition. A player of your choice moves back 5 spaces. The Vatican is proud of you.",
                     O(OutcomeKind.MoveByOffset, "A chosen player moves back 5 spaces.", OutcomeTarget.ChosenPlayer, moveOffset: -5)),
 
-                [13] = Fixed("Sell indulgences", "You managed to sell 12 indulgences for the same sin to an illiterate person. God will forgive you, if you truly believe. Move forward 1 space.",
+                [13] = Fixed("Sell indulgences", "You managed to sell to an illiterate man 12 indulgences for the same sin. God will forgive you, if you truly believe it. Move forward 1 space.",
                     O(OutcomeKind.MoveByOffset, "Move forward 1 space.", moveOffset: 1)),
 
                 [14] = Roll("Children to monastery", "All your children go to a monastery. Roll again.",
