@@ -1653,7 +1653,6 @@ export class Board extends Phaser.Scene {
         const completeCallback = typeof callback === 'function' ? callback : null;
         this.notificationVideoCompleteHandler = () => {
             this.notificationVideoCompleteHandler = null;
-            this.clearNotificationVideoElement();
             completeCallback?.();
         };
         this.notificationVideo.once('complete', this.notificationVideoCompleteHandler);
