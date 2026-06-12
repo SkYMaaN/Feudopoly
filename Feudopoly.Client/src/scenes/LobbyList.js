@@ -222,7 +222,7 @@ export class LobbyList extends Phaser.Scene {
         }
 
         this.modalOpen = true;
-        this.setLobbyListActionsVisible(false);
+        this.setLobbyNavigationVisible(false);
         this.createLobbyState = this.getDefaultCreateLobbyState();
         this.showMessage('');
 
@@ -1069,7 +1069,18 @@ export class LobbyList extends Phaser.Scene {
         this.createModalButtonControl = null;
         this.createLobbyState = this.getDefaultCreateLobbyState();
         this.modalOpen = false;
-        this.setLobbyListActionsVisible(true);
+        this.setLobbyNavigationVisible(true);
+    }
+
+    setLobbyNavigationVisible(visible) {
+        [this.backButton, this.refreshButton].forEach(button => {
+            if (!button) {
+                return;
+            }
+
+            button.setVisible(visible);
+            this.setButtonDisabled(button, !visible);
+        });
     }
 
     openLobby(lobby) {
@@ -1190,21 +1201,6 @@ export class LobbyList extends Phaser.Scene {
         container.buttonText = text;
 
         return container;
-    }
-
-    setLobbyListActionsVisible(visible) {
-        [this.backButton, this.refreshButton].forEach((button) => {
-            if (!button) {
-                return;
-            }
-
-            button.setVisible(visible);
-            if (visible) {
-                button.buttonRect?.setInteractive({ useHandCursor: true });
-            } else {
-                button.buttonRect?.disableInteractive();
-            }
-        });
     }
 
     setButtonDisabled(button, disabled) {
