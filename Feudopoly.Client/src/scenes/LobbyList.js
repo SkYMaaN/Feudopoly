@@ -69,7 +69,7 @@ export class LobbyList extends Phaser.Scene {
         });
 
         this.add.rectangle(width / 2, height / 2, width, height, 0x4682b4, 1).setOrigin(0.5).setStrokeStyle(10, 0x2b5e8a, 1);
-        this.add.text(width / 2, 60, 'Lobby List', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
+        this.lobbyTitle = this.add.text(width / 2, 60, 'Lobby List', { fontFamily: 'Georgia, serif', fontSize: '62px', color: TEXT_COLOR }).setOrigin(0.5);
 
         /*this.add.text(200, 130, 'Search', {
             fontFamily: 'Georgia, serif',
@@ -222,7 +222,7 @@ export class LobbyList extends Phaser.Scene {
         }
 
         this.modalOpen = true;
-        this.setLobbyNavigationVisible(false);
+        this.setLobbyListContentVisible(false);
         this.createLobbyState = this.getDefaultCreateLobbyState();
         this.showMessage('');
 
@@ -1069,10 +1069,25 @@ export class LobbyList extends Phaser.Scene {
         this.createModalButtonControl = null;
         this.createLobbyState = this.getDefaultCreateLobbyState();
         this.modalOpen = false;
-        this.setLobbyNavigationVisible(true);
+        this.setLobbyListContentVisible(true);
     }
 
-    setLobbyNavigationVisible(visible) {
+    setLobbyListContentVisible(visible) {
+        this.lobbyTitle?.setVisible(visible);
+        this.messageText?.setVisible(visible);
+        this.listContainer?.setVisible(visible);
+
+        if (this.searchField) {
+            this.searchField.container?.setVisible(visible);
+            this.searchField.dom?.setVisible(visible);
+            if (this.searchField.input) {
+                this.searchField.input.disabled = !visible;
+                if (!visible) {
+                    this.searchField.input.blur();
+                }
+            }
+        }
+
         [this.backButton, this.refreshButton].forEach(button => {
             if (!button) {
                 return;
