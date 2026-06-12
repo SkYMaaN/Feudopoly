@@ -1,6 +1,7 @@
 import { lobbyApi } from '../network/lobbyApi.js';
 import { lobbyHubClient } from '../network/lobbyHubClient.js';
 import { getOrCreateProfile } from '../network/profileStorage.js';
+import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
 
 const PANEL_COLOR = 0x4682b4;
 const PANEL_STROKE = 0x2b5e8a;
@@ -29,6 +30,7 @@ export class LobbyRoom extends Phaser.Scene {
     }
 
     preload() {
+        preloadButtonClick(this);
         this.load.scenePlugin({
             key: 'rexuiplugin',
             url: 'plugins/rexuiplugin.min.js',
@@ -406,6 +408,7 @@ export class LobbyRoom extends Phaser.Scene {
         });
         button.on('pointerdown', () => {
             if (button.input?.enabled) {
+                playButtonClick(this);
                 onClick();
             }
         });

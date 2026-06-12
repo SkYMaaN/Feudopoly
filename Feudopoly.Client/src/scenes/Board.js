@@ -1,6 +1,7 @@
 import { gameHubClient } from '../network/gameHubClient.js';
 import { getOrCreateProfile } from '../network/profileStorage.js';
 import { AUTO_TURN_TIMEOUT_MS, videoBaseUrl } from '../config.js';
+import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
 
 export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
@@ -52,6 +53,7 @@ export class Board extends Phaser.Scene {
 
     preload() {
         this.load.image('board', 'assets/boards/board1.jpg');
+        preloadButtonClick(this);
         this.load.audio('stepSfx', 'assets/sfx/token_step.mp3');
         this.load.audio('diceRollSfx', 'assets/sfx/dice_roll.mp3');
 
@@ -154,8 +156,8 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox = this.createTextBox(this, width / 2, height / 2 - 50,
             {
-                width: 800,
-                height: 400,
+                width: Math.min(width - 80, 800),
+                height: 320,
                 title: ''
             }
         )
@@ -219,6 +221,7 @@ export class Board extends Phaser.Scene {
 
         this.menuToggleButton.on('pointerdown', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             this.toggleInGameMenu();
         });
 
@@ -271,6 +274,7 @@ export class Board extends Phaser.Scene {
 
         this.leaveMatchMenuButton.on('pointerdown', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             this.leaveCurrentMatch();
         });
 
@@ -333,7 +337,7 @@ export class Board extends Phaser.Scene {
         this.hasShownStartGameIntro = true;
         this.showNotification({
             title: 'Introduction',
-            text: 'Listen to the narrator before your first move.',
+            text: 'Listen carefully, stranger. This is not a story of glory and honor. It is called the Dark Middle Ages. Not because there was no light. This is life in the Middle Ages: hard and unforgiving. Wars, disease, and brutal rulers decide your path. They show no mercy. The dice decide your fate. I will guide you through the Middle Ages as long as live. Be careful, it will improve your chances to survive.',
             videoKey: 'v0',
             typingSpeed: 25
         });
@@ -855,29 +859,32 @@ export class Board extends Phaser.Scene {
         }
 
         this.turnTitleText.setColor(current ? `#${this.getPlayerColor(current.playerId).toString(16).padStart(6, '0')}` : '#ffe066');
-        this.turnTitleText.setText(this.isEventRollPhase
+
+        let turnPromptText = this.isEventRollPhase
             ? (this.pendingEventRollPlayerIds.length === 1 ? 'Roll phase' : 'Event roll phase')
-            : `${current?.displayName ?? 'Player'} turn`);
+            : `${current?.displayName ?? 'Player'} turn`;
 
         if (mustRollForEvent) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Throw the dice for event!');
+            turnPromptText = 'Roll the dice to determine your fate in event!';
         } else if (this.pendingRepeatRoll) {
             this.hideNotification();
-            this.turnSubtitleText.setText('You got a repeat roll. Throw again!');
+            turnPromptText = 'Throw again!';
         } else if (isSkippingTurn) {
             this.hideNotification();
-            this.turnSubtitleText.setText(`You are skipping this turn (${this.localPlayerTurnsToSkip} remaining).`);
+            turnPromptText = `You are skipping this turn (${this.localPlayerTurnsToSkip} remaining).`;
         } else if (this.isEventRollPhase) {
-            this.turnSubtitleText.setText('Waiting for other players to finish event rolls...');
+            turnPromptText = 'Waiting for other players to finish event rolls...';
         } else if (!activeTurnPlayerId) {
-            this.turnSubtitleText.setText('Waiting for turn state to sync...');
+            turnPromptText = 'Waiting for turn state to sync...';
         } else if (isLocalTurn) {
             this.hideNotification();
-            this.turnSubtitleText.setText('Throw the dice!');
+            turnPromptText = 'Roll the dice to determine your fate!';
         } else {
-            this.turnSubtitleText.setText("Waiting for opponent's move...");
+            turnPromptText = `${current?.displayName ?? 'Opponent'} turn`;
         }
+
+        this.turnTitleText.setText(turnPromptText);
 
         if (canRoll) {
             this.ensureRollRequestCountdown(rollState);
@@ -1013,9 +1020,10 @@ export class Board extends Phaser.Scene {
     }
 
     updateRollButtonText(mustRollForEvent, secondsLeft = null) {
-        const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again!' : 'Roll!';
-        const suffix = Number.isInteger(secondsLeft) ? ` (${secondsLeft})` : '';
-        this.rollButtonText.setText(`${label}${suffix}`);
+        const label = this.pendingRepeatRoll || mustRollForEvent ? 'Roll again' : 'Time for turn';
+        const suffix = Number.isInteger(secondsLeft) ? `\n${secondsLeft}` : '';
+        this.rollButtonText.setText(`${label}: ${suffix}`);
+        this.rollButton?.layout?.();
     }
 
     turnBegan(payload) {
@@ -1168,6 +1176,7 @@ export class Board extends Phaser.Scene {
         });
         rect.on('pointerup', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             onClick();
         });
 
@@ -1178,6 +1187,7 @@ export class Board extends Phaser.Scene {
         });
         text.on('pointerup', (_pointer, _localX, _localY, event) => {
             event?.stopPropagation?.();
+            playButtonClick(this);
             onClick();
         });
 
@@ -1257,7 +1267,7 @@ export class Board extends Phaser.Scene {
         this.isSubmittingChosenPlayerChoice = this.turnRequiresChosenPlayer;
         this.stopTurnBeganCountdown();
         this.hideChosenPlayerChooser();
-        this.hideNotification();
+        this.hideNotification({ refreshTurnUI: true });
         this.isAwaitingLocalTurnEndResolution = true;
 
         if (this.turnBeganClickHandler) {
@@ -1388,12 +1398,28 @@ export class Board extends Phaser.Scene {
             this.turnBeganClickHandler = null;
         }
 
-        if (this.isRolling || this.animatingPlayerId) {
+        this.presentGameCompletedIfReady();
+    }
+
+    shouldDeferGameCompletedPresentation() {
+        return this.isRolling
+            || Boolean(this.animatingPlayerId)
+            || this.isTurnResultNotificationActive
+            || this.shouldTransitionDeathScreenAfterNotification;
+    }
+
+    presentGameCompletedIfReady() {
+        if (!this.hasGameCompleted && !this.hasDeferredGameCompletedPresentation) {
+            return false;
+        }
+
+        if (this.shouldDeferGameCompletedPresentation()) {
             this.hasDeferredGameCompletedPresentation = true;
-            return;
+            return false;
         }
 
         this.presentGameCompleted();
+        return true;
     }
 
     presentGameCompleted() {
@@ -1516,6 +1542,11 @@ export class Board extends Phaser.Scene {
             this.turnResultDismissHandler = null;
         }
 
+        if (this.hasDeferredGameCompletedPresentation && !this.shouldDeferGameCompletedPresentation()) {
+            this.presentGameCompleted();
+            return;
+        }
+
         if (shouldRefreshTurnUI) {
             this.refreshTurnUI({ force: true });
         }
@@ -1574,22 +1605,29 @@ export class Board extends Phaser.Scene {
         const isPortrait = this.isNarratorVideo(videoKey);
         const baseWidth = isPortrait ? 360 : 900;
         const baseHeight = isPortrait ? 640 : Math.round(baseWidth * 9 / 16);
-        const textBoxTop = height - 260 - 200;
-        const safeTop = 36;
-        const safeBottom = Math.max(safeTop + 260, textBoxTop - 24);
+        const textBoxTop = this.getNotificationTextBoxY(true) - 160;
+        const safeTop = 24;
+        const safeBottom = Math.max(safeTop + 300, textBoxTop - 20);
         const maxWidth = isPortrait
-            ? Math.min(width * 0.32, 400)
-            : Math.min(width * 0.54, 960);
+            ? Math.min(width * 0.42, 520)
+            : Math.min(width * 0.96, 1800);
         const maxHeight = safeBottom - safeTop;
-        const scale = Math.min(maxWidth / baseWidth, maxHeight / baseHeight, 1);
+        const maxScale = isPortrait ? 1 : 1.8;
+        const scale = Math.min(maxWidth / baseWidth, maxHeight / baseHeight, maxScale);
         const displayWidth = Math.round(baseWidth * scale);
         const displayHeight = Math.round(baseHeight * scale);
+        const videoYOffset = isPortrait ? 60 : 10;
 
         return {
             width: displayWidth,
             height: displayHeight,
-            y: safeTop + displayHeight / 2
+            y: safeTop + displayHeight / 2 + videoYOffset 
         };
+    }
+
+    getNotificationTextBoxY(hasVideo) {
+        const { height } = this.scale.gameSize;
+        return hasVideo ? height - 190 : height / 2;
     }
 
     applyNotificationVideoDisplay(videoKey) {
@@ -1824,6 +1862,10 @@ export class Board extends Phaser.Scene {
         const notificationVideoKey = this.normalizeVideoKey(videoKey);
         const hasVideo = Boolean(notificationVideoKey);
 
+        if (hasVideo) {
+            this.turnOverlay?.setVisible(false);
+        }
+
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
 
@@ -1840,7 +1882,7 @@ export class Board extends Phaser.Scene {
 
         if (dismissOnPointerDown) {
             this.notificationDismissHandler = () => {
-                this.hideNotification();
+                this.hideNotification({ refreshTurnUI: hasVideo });
             };
 
             this.input.once('pointerdown', this.notificationDismissHandler);
@@ -1848,7 +1890,7 @@ export class Board extends Phaser.Scene {
 
         this.notificationTextBox
             .setAlpha(1)
-            .setPosition(width / 2, hasVideo ? height - 260 : height / 2)
+            .setPosition(width / 2, this.getNotificationTextBoxY(hasVideo))
             .setVisible(true);
 
         this.notificationTextBox.getElement('header')?.setText(title);
@@ -1878,7 +1920,7 @@ export class Board extends Phaser.Scene {
         this.clearNotificationVideoElement();
     }
 
-    hideNotification() {
+    hideNotification({ refreshTurnUI = false } = {}) {
         this.clearNotificationVideoCompleteHandler();
         this.clearNotificationVideoLayoutHandler();
         this.hideBloodRainEffect();
@@ -1893,6 +1935,10 @@ export class Board extends Phaser.Scene {
 
         if (this.notificationVideo) {
             this.clearNotificationVideoElement();
+        }
+
+        if (refreshTurnUI) {
+            this.refreshTurnUI({ force: true });
         }
     }
 
@@ -2073,7 +2119,7 @@ export class Board extends Phaser.Scene {
             key: 'death',
             backgroundKey: 'deathScreen',
             title: 'YOU DIED',
-            subtitle: 'The darkness has consumed your fate.',
+            subtitle: 'The Middle Ages were harder than you',
             backgroundTint: 0xaa2222,
             shadeColor: 0x000000,
             shadeAlpha: 0.45,
@@ -2430,6 +2476,7 @@ export class Board extends Phaser.Scene {
                 return;
             }
 
+            playButtonClick(this);
             applyStyle(hoverStyle);
             onClick();
         });
@@ -2564,7 +2611,7 @@ export class Board extends Phaser.Scene {
     showDeathScreen() {
         this.showEndgameScreen(this.deathScreen, {
             title: 'YOU DIED',
-            subtitle: 'The darkness has consumed your fate.'
+            subtitle: 'The Middle Ages were harder than you'
         });
     }
 
@@ -2675,7 +2722,7 @@ export class Board extends Phaser.Scene {
                 }
 
                 if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
-                    this.presentGameCompleted();
+                    this.presentGameCompletedIfReady();
                 } else {
                     this.refreshTurnUI();
                 }
@@ -3130,30 +3177,25 @@ export class Board extends Phaser.Scene {
             align: 'center'
         }).setOrigin(0.5);
 
-        this.turnSubtitleText = this.add.text(0, -15, 'Waiting for players...', {
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '38px',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 8,
-            align: 'center'
-        }).setOrigin(0.5);
-
         this.rollButtonBackground = this.rexUI.add.roundRectangle(0, 0, 460, 110, 18, 0x6f4b23, 1)
             .setStrokeStyle(7, 0xc89b58, 1);
 
-        this.rollButtonText = this.add.text(0, 0, 'Roll!', {
+       this.rollButtonText = this.add.text(0, 0, 'Roll!', {
             fontFamily: 'Arial, sans-serif',
-            fontSize: '42px',
+            fontSize: '36px',
             color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
+            fontStyle: 'bold',
+            align: 'center'
+        })
+            .setOrigin(0.5)
+            .setLineSpacing(8)
+            .setFixedSize(420, 92);
 
         this.rollButton = this.rexUI.add.label({
             x: 0,
             y: 120,
             width: 460,
-            height: 110,
+            height: 120,
             background: this.rollButtonBackground,
             text: this.rollButtonText,
             align: 'center'
@@ -3171,10 +3213,11 @@ export class Board extends Phaser.Scene {
         });
 
         this.rollButton.on('pointerdown', () => {
+            playButtonClick(this);
             this.requestRoll();
         });
 
-        this.turnOverlay.add([dim, this.turnTitleText, this.turnSubtitleText, this.rollButton]);
+        this.turnOverlay.add([dim, this.turnTitleText, this.rollButton]);
     }
 
     addBoard() {
@@ -3454,8 +3497,14 @@ export class Board extends Phaser.Scene {
             }),
             text: this.getBBcodeText(scene, wrapWidth, fixedWidth, 0, 0),
             textMask: true,
-            slider: false,
-            mouseWheelScroller: false,
+            slider: {
+                track: scene.rexUI.add.roundRectangle(0, 0, 8, 10, 4, this.COLOR_DARK, 0.45),
+                thumb: scene.rexUI.add.roundRectangle(0, 0, 8, 56, 4, this.COLOR_LIGHT, 0.95),
+                adaptThumbSize: true,
+                minThumbSize: 36
+            },
+            hideUnscrollableSlider: true,
+            mouseWheelScroller: true,
 
             header: scene.add.text(0, 0, titleText, {
                 fontFamily: 'Arial, sans-serif',
@@ -3473,7 +3522,7 @@ export class Board extends Phaser.Scene {
 
             space: {
                 left: 20,
-                right: 20,
+                right: 28,
                 top: 20,
                 bottom: 20,
                 text: 14,

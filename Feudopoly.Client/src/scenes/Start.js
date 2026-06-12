@@ -1,3 +1,5 @@
+import { playButtonClick, preloadButtonClick } from '../audio/buttonClick.js';
+
 const PANEL_STROKE = 0x2b5e8a;
 const TEXT_COLOR = '#FF0000';
 const INPUT_TEXT_COLOR = '#1d3557';
@@ -12,6 +14,7 @@ export class Start extends Phaser.Scene {
     }
 
     preload() {
+        preloadButtonClick(this);
         this.load.scenePlugin({
             key: 'rexuiplugin',
             url: "plugins/rexuiplugin.min.js",
@@ -193,7 +196,10 @@ export class Start extends Phaser.Scene {
 
         button.on('pointerover', () => background.setFillStyle(0x8FA9BF, 1));
         button.on('pointerout', () => background.setFillStyle(0x9cbfd9, 1));
-        button.on('pointerdown', onClick);
+        button.on('pointerdown', () => {
+            playButtonClick(this);
+            onClick();
+        });
 
         this.tweens.add({
             targets: button,
@@ -280,6 +286,7 @@ export class Start extends Phaser.Scene {
                     optionButton.value = option.value;
                     optionButton.setInteractive({ useHandCursor: true });
                     optionButton.on('pointerdown', () => {
+                        playButtonClick(this);
                         console.log('Selected: ' + option.value);
                         dropdown.setValue(option.value);
                         dropdown.closeListPanel();
@@ -296,6 +303,10 @@ export class Start extends Phaser.Scene {
                 easeOut: 0
             }
         }).layout();
+
+        dropdown.on('pointerdown', () => {
+            playButtonClick(this);
+        });
 
         dropdown.on('list.open', (dropDownList, listPanel) => {
             listPanel.setDepth(1000);
