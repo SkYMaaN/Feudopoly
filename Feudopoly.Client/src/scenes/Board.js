@@ -7,9 +7,20 @@ export class Board extends Phaser.Scene {
     COLOR_MAIN = 0x4e342e;
     COLOR_LIGHT = 0x7b5e57;
     COLOR_DARK = 0x260e04;
+    COLOR_BOARD_PAPER = 0xd1b982;
     BLOOD_RAIN_DEPTH = 1790;
     BLOOD_RAIN_DURATION_MS = 5000;
     DEATH_SCREEN_TRANSITION_MS = 900;
+    GAME_CONCLUSION_TEXT = {
+        title: 'Ready',
+        paragraphs: [
+            'What looks like a game board is a chronological journey through the events of the Middle\nAges.',
+            'A thousand years of history \u2013 formed by religion, famine, disease, wars, but also by discovery,\ninvention, and progress.',
+            'The Middle Ages were neither completely dark nor completely glorious. They were a time of\nchange. Innovations, conflicts, and social developments eventually led to the beginning of\nthe modern era and still influence our world today.',
+            'Not everyone survived the challenges of the Middle Ages.'
+        ],
+        closing: 'Thank you for taking this journey.'
+    };
     PLAYER_TOKEN_COLORS = [
         0xff4d4f,
         0xb8ff3b,
@@ -135,6 +146,7 @@ export class Board extends Phaser.Scene {
         this.isProcessingDeathChoice = false;
         this.isVictoryChoicePending = false;
         this.isProcessingVictoryChoice = false;
+        this.gameConclusionSource = null;
         this.hasExitedMatch = false;
         this.hasGameCompleted = false;
         this.hasDeferredGameCompletedPresentation = false;
@@ -156,6 +168,7 @@ export class Board extends Phaser.Scene {
         this.createInGameMenuUI();
         this.createDeathScreenUI();
         this.createVictoryScreenUI();
+        this.createGameConclusionScreenUI();
 
         this.registerHubEvents();
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanupHubEvents());
@@ -323,6 +336,7 @@ export class Board extends Phaser.Scene {
 
         this.isLeavingMatch = true;
         this.toggleInGameMenu(false);
+        this.updateGameConclusionExitButton();
 
         try {
             await gameHubClient.leaveGame(this.sessionId);
@@ -331,6 +345,7 @@ export class Board extends Phaser.Scene {
             this.scene.start('LobbyList', getOrCreateProfile());
         } catch (error) {
             this.isLeavingMatch = false;
+            this.updateGameConclusionExitButton();
             this.setStatus(error?.message ?? 'Failed to leave the match.');
         }
     }
@@ -540,13 +555,26 @@ export class Board extends Phaser.Scene {
             && this.isDeathChoicePending;
         const shouldDelayDeathScreen = localPlayerJustDied
             && this.isAwaitingLocalTurnEndResolution;
+        const isDeathConclusionVisible = this.isGameConclusionScreenVisibleFor('death');
+        const isVictoryConclusionVisible = this.isGameConclusionScreenVisibleFor('victory');
+
+        if (!isDeathConclusionVisible && !isVictoryConclusionVisible) {
+            this.hideGameConclusionScreen();
+        } else if ((isDeathConclusionVisible && !this.isDeathChoicePending)
+            || (isVictoryConclusionVisible && !this.isVictoryChoicePending)) {
+            this.hideGameConclusionScreen();
+        }
 
         if (this.isVictoryChoicePending && !shouldDelayVictoryScreen) {
             this.hideDeathScreen();
-            this.showVictoryScreen();
+            if (!isVictoryConclusionVisible) {
+                this.showVictoryScreen();
+            }
         } else if (this.isDeathChoicePending) {
             this.hideVictoryScreen();
-            if (this.isDeathScreenTransitionActive) {
+            if (isDeathConclusionVisible) {
+                this.hideDeathScreen();
+            } else if (this.isDeathScreenTransitionActive) {
                 // Keep the in-progress blood-rain-to-death-screen crossfade untouched.
             } else if (shouldDelayDeathScreen
                 || this.shouldTransitionDeathScreenAfterNotification
@@ -562,6 +590,7 @@ export class Board extends Phaser.Scene {
 
         this.updateDeathChoiceButtons();
         this.updateVictoryChoiceButtons();
+        this.updateGameConclusionExitButton();
 
         if (!this.isRolling) {
             this.refreshTurnUI();
@@ -2281,8 +2310,8 @@ export class Board extends Phaser.Scene {
                 onClick: () => this.chooseStayAsSpectator()
             },
             secondaryAction: {
-                label: 'Leave match',
-                onClick: () => this.chooseLeaveAfterDeath()
+                label: 'Game conclusion',
+                onClick: () => this.showGameConclusionScreen('death')
             }
         });
     }
@@ -2368,10 +2397,151 @@ export class Board extends Phaser.Scene {
                 onClick: () => this.chooseStayAfterVictory()
             },
             secondaryAction: {
-                label: 'Leave match',
-                onClick: () => this.chooseLeaveAfterVictory()
+                label: 'Game conclusion',
+                onClick: () => this.showGameConclusionScreen('victory')
             }
         });
+    }
+
+    createGameConclusionScreenUI() {
+        const { width, height } = this.scale.gameSize;
+        const container = this.add.container(width / 2, height / 2)
+            .setDepth(1810)
+            .setVisible(false)
+            .setAlpha(0);
+
+        const background = this.add.rectangle(0, 0, width, height, this.COLOR_BOARD_PAPER, 1)
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: false });
+        background.on('pointerdown', (_pointer, _localX, _localY, event) => {
+            event?.stopPropagation?.();
+        });
+
+        const paperGrain = this.add.graphics();
+        paperGrain.fillStyle(0x6d4a23, 0.06);
+        for (let i = 0; i < 76; i++) {
+            const x = Phaser.Math.Between(-width / 2, width / 2);
+            const y = Phaser.Math.Between(-height / 2, height / 2);
+            const radius = Phaser.Math.Between(2, 14);
+            paperGrain.fillCircle(x, y, radius);
+        }
+
+        const border = this.add.rectangle(0, 0, width - 100, height - 72, 0x000000, 0)
+            .setStrokeStyle(2, 0x4d331b, 0.38);
+
+        const textColor = '#111111';
+        const textShadow = '#80643a';
+        const title = this.add.text(0, -height / 2 + 96, this.GAME_CONCLUSION_TEXT.title, {
+            fontFamily: 'Times New Roman, Times, serif',
+            fontSize: '44px',
+            color: textColor,
+            fontStyle: 'bold'
+        })
+            .setOrigin(0.5)
+            .setShadow(1, 1, textShadow, 1, false, true);
+
+        const paragraphStyle = {
+            fontFamily: 'Times New Roman, Times, serif',
+            fontSize: '42px',
+            color: textColor,
+            fontStyle: 'bold',
+            lineSpacing: 22
+        };
+
+        const paragraphPositions = [
+            { x: -width / 2 + 154, y: -height / 2 + 216 },
+            { x: -width / 2 + 174, y: -height / 2 + 424 },
+            { x: -width / 2 + 188, y: -height / 2 + 622 },
+            { x: -width / 2 + 208, y: -height / 2 + 874 }
+        ];
+
+        const paragraphs = this.GAME_CONCLUSION_TEXT.paragraphs.map((text, index) => {
+            const position = paragraphPositions[index];
+            return this.add.text(position.x, position.y, text, paragraphStyle)
+                .setOrigin(0, 0)
+                .setShadow(1, 1, textShadow, 1, false, true);
+        });
+
+        const closing = this.add.text(0, height / 2 - 80, this.GAME_CONCLUSION_TEXT.closing, {
+            fontFamily: 'Times New Roman, Times, serif',
+            fontSize: '38px',
+            color: textColor,
+            fontStyle: 'bold'
+        })
+            .setOrigin(0.5)
+            .setShadow(1, 1, textShadow, 1, false, true);
+
+        const buttonTheme = {
+            baseStyle: {
+                fill: 0x6f4b23,
+                fillAlpha: 0.95,
+                stroke: 0xc89b58,
+                strokeAlpha: 1,
+                textColor: '#fff4df',
+                textAlpha: 1,
+                glow: 0.22,
+                textStroke: '#2a1607',
+                textShadow: '#2a1607'
+            },
+            hoverStyle: {
+                fill: 0x83592b,
+                fillAlpha: 1,
+                stroke: 0xf2c57a,
+                strokeAlpha: 1,
+                textColor: '#ffffff',
+                textAlpha: 1,
+                glow: 0.42,
+                textStroke: '#2a1607',
+                textShadow: '#4a2508'
+            },
+            activeStyle: {
+                fill: 0x4e342e,
+                fillAlpha: 1,
+                stroke: 0xa9783e,
+                strokeAlpha: 1,
+                textColor: '#ffe8bd',
+                textAlpha: 1,
+                glow: 0.18,
+                textStroke: '#1d0d04',
+                textShadow: '#1d0d04'
+            },
+            disabledStyle: {
+                fill: 0x49392b,
+                fillAlpha: 0.72,
+                stroke: 0x715f49,
+                strokeAlpha: 0.8,
+                textColor: '#a08f78',
+                textAlpha: 0.75,
+                glow: 0,
+                textStroke: '#1d0d04',
+                textShadow: '#1d0d04'
+            }
+        };
+
+        const exitButton = this.createEndgameActionButton(
+            width / 2 - 280,
+            height / 2 - 94,
+            340,
+            72,
+            'Leave match',
+            () => this.chooseLeaveFromGameConclusion(),
+            buttonTheme
+        );
+
+        container.add([
+            background,
+            paperGrain,
+            border,
+            title,
+            ...paragraphs,
+            closing,
+            exitButton
+        ]);
+
+        this.gameConclusionScreen = {
+            container,
+            exitButton
+        };
     }
 
     createEndgameScreenUI(config) {
@@ -2606,6 +2776,7 @@ export class Board extends Phaser.Scene {
             !showActions || !canStayAsSpectator || this.isProcessingDeathChoice
         );
         this.setEndgameActionButtonDisabled(this.deathScreen?.secondaryButton, disableActions);
+        this.updateGameConclusionExitButton();
     }
 
     updateVictoryChoiceButtons() {
@@ -2623,6 +2794,7 @@ export class Board extends Phaser.Scene {
             this.victoryScreen?.secondaryButton,
             !showActions || this.isProcessingVictoryChoice
         );
+        this.updateGameConclusionExitButton();
     }
 
     hasOtherLivingPlayers() {
@@ -2718,6 +2890,84 @@ export class Board extends Phaser.Scene {
 
     hideVictoryScreen() {
         this.hideEndgameScreen(this.victoryScreen);
+    }
+
+    showGameConclusionScreen(source) {
+        if (!this.gameConclusionScreen?.container) {
+            return;
+        }
+
+        this.gameConclusionSource = source;
+        this.hideDeathScreen();
+        this.hideVictoryScreen();
+        this.updateGameConclusionExitButton();
+
+        const { width, height } = this.scale.gameSize;
+        const container = this.gameConclusionScreen.container;
+        const isAlreadyVisible = container.visible && container.alpha >= 0.99;
+        container.setVisible(true);
+        container.setPosition(width / 2, height / 2);
+
+        if (!isAlreadyVisible) {
+            this.tweens.killTweensOf(container);
+            container.setAlpha(0);
+            this.tweens.add({
+                targets: container,
+                alpha: 1,
+                duration: 260,
+                ease: 'Quad.Out'
+            });
+        }
+    }
+
+    hideGameConclusionScreen() {
+        this.gameConclusionSource = null;
+
+        const container = this.gameConclusionScreen?.container;
+        if (!container || !container.visible) {
+            return;
+        }
+
+        this.tweens.killTweensOf(container);
+        this.tweens.add({
+            targets: container,
+            alpha: 0,
+            duration: 180,
+            onComplete: () => {
+                container.setVisible(false);
+                container.setPosition(this.scale.gameSize.width / 2, this.scale.gameSize.height / 2);
+            }
+        });
+    }
+
+    isGameConclusionScreenVisibleFor(source) {
+        return this.gameConclusionSource === source
+            && Boolean(this.gameConclusionScreen?.container?.visible);
+    }
+
+    updateGameConclusionExitButton() {
+        const source = this.gameConclusionSource;
+        const isProcessingSourceChoice = (source === 'death' && this.isProcessingDeathChoice)
+            || (source === 'victory' && this.isProcessingVictoryChoice);
+
+        this.setEndgameActionButtonDisabled(
+            this.gameConclusionScreen?.exitButton,
+            this.isLeavingMatch || isProcessingSourceChoice
+        );
+    }
+
+    async chooseLeaveFromGameConclusion() {
+        if (this.gameConclusionSource === 'death' && this.isDeathChoicePending) {
+            await this.chooseLeaveAfterDeath();
+            return;
+        }
+
+        if (this.gameConclusionSource === 'victory' && this.isVictoryChoicePending) {
+            await this.chooseLeaveAfterVictory();
+            return;
+        }
+
+        await this.leaveCurrentMatch();
     }
 
     showEndgameScreen(screen, { title, subtitle, duration = 260 }) {

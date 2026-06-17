@@ -25,7 +25,7 @@ namespace Feudopoly.Server
             {
                 options.SwaggerDoc("v1", new OpenApiInfo
                 {
-                    Title = "Feudopoly Admin API",
+                    Title = "Survive the Middle Ages Admin API",
                     Version = "v1",
                     Description = "Internal lobby administration endpoints."
                 });
@@ -78,8 +78,8 @@ namespace Feudopoly.Server
                 app.UseSwaggerUI(options =>
                 {
                     options.RoutePrefix = SwaggerAdminOptions.UiRoutePrefix;
-                    options.SwaggerEndpoint(SwaggerAdminOptions.JsonEndpoint, "Feudopoly Admin API v1");
-                    options.DocumentTitle = "Feudopoly Admin";
+                    options.SwaggerEndpoint(SwaggerAdminOptions.JsonEndpoint, "Survive the Middle Ages Admin API v1");
+                    options.DocumentTitle = "Survive the Middle Ages Admin";
                 });
             }
             else

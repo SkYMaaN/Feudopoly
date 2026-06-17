@@ -34,9 +34,9 @@ export class Start extends Phaser.Scene {
         this.add.rectangle(width / 2, height / 2, width, height, 0x9cbfd9, 1).setOrigin(0.5);
         this.add.rectangle(width / 2, height / 2, 980, 920, 0x4682b4, 1).setStrokeStyle(10, 0x2b5e8a, 1);
 
-        this.add.text(width / 2, height / 2 - 360, 'FEUDOPOLY', {
+        this.add.text(width / 2, height / 2 - 360, 'Survive the Middle Ages', {
             fontFamily: 'Georgia, serif',
-            fontSize: '120px',
+            fontSize: '72px',
             color: '#FF0000',
             fontStyle: 'bold'
         }).setOrigin(0.5);
