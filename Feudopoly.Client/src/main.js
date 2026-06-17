@@ -5,7 +5,7 @@ import { LobbyRoom } from './scenes/LobbyRoom.js';
 
 const config = {
     type: Phaser.AUTO,
-    title: 'Feudopoly',
+    title: 'Survive the Middle Ages',
     description: '',
     parent: 'game-container',
     width: 1920,
