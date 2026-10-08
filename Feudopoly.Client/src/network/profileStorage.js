@@ -2,12 +2,14 @@ const KEY = 'feudopoly.playerProfile';
 
 export function getOrCreateProfile() {
     const raw = localStorage.getItem(KEY);
-    if (raw) {
-        return JSON.parse(raw);
+    const profile = raw ? JSON.parse(raw) : { playerId: crypto.randomUUID() };
+
+    // Secret proving to the server that requests for this playerId come from this browser.
+    if (!profile.playerKey) {
+        profile.playerKey = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
+        localStorage.setItem(KEY, JSON.stringify(profile));
     }
 
-    const profile = { playerId: crypto.randomUUID() };
-    localStorage.setItem(KEY, JSON.stringify(profile));
     return profile;
 }
 

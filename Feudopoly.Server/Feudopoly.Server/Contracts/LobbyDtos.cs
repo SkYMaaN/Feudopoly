@@ -13,6 +13,8 @@ public sealed class CreateLobbyRequest
     [Range(1, 4)]
     public int MaxPlayers { get; set; }
     public Guid CreatorId { get; set; }
+    [Required, MinLength(16), MaxLength(64)]
+    public string CreatorKey { get; set; } = string.Empty;
     [Required, MinLength(2), MaxLength(28)]
     public string CreatorName { get; set; } = string.Empty;
     public bool IsWomen { get; set; }
@@ -22,6 +24,8 @@ public sealed class CreateLobbyRequest
 public sealed class JoinLobbyRequest
 {
     public Guid PlayerId { get; set; }
+    [Required, MinLength(16), MaxLength(64)]
+    public string PlayerKey { get; set; } = string.Empty;
     [Required, MinLength(2), MaxLength(28)]
     public string DisplayName { get; set; } = string.Empty;
     public bool IsWomen { get; set; }
@@ -32,11 +36,15 @@ public sealed class JoinLobbyRequest
 public sealed class LeaveLobbyRequest
 {
     public Guid PlayerId { get; set; }
+    [Required]
+    public string PlayerKey { get; set; } = string.Empty;
 }
 
 public sealed class StartLobbyRequest
 {
     public Guid PlayerId { get; set; }
+    [Required]
+    public string PlayerKey { get; set; } = string.Empty;
 }
 
 

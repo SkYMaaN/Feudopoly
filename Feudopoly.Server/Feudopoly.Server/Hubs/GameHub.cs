@@ -3,9 +3,8 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Feudopoly.Server.Hubs;
 
-public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventStorage, IHubContext<LobbyHub> lobbyHub, ILogger<GameHub> logger) : Hub
+public sealed class GameHub(SessionStorage _sessionStore, GameEngine _engine, GameNotifier _notifier, ILogger<GameHub> logger) : Hub
 {
-    private const int BoardCellsCount = 30;
     private const string SessionIdContextKey = "sessionId";
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -24,17 +23,18 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             return;
         }
 
+        // A disconnect is final by design: the player leaves the match and there is no reconnect.
         PlayerState? removedPlayer;
+        RemovePlayerResult? result = null;
         GameStateDto? state = null;
-        var removedSession = false;
 
         lock (session)
         {
             removedPlayer = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId);
             if (removedPlayer is not null)
             {
-                removedSession = RemovePlayerFromActiveGame(session, removedPlayer);
-                if (!removedSession)
+                result = _engine.RemovePlayer(session, removedPlayer);
+                if (!result.SessionRemoved)
                 {
                     SessionStorage.TouchSession(session);
                     state = SessionStorage.ToDto(session);
@@ -42,31 +42,18 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             }
         }
 
-        string groupName = sessionId.ToString();
-
-        if (removedPlayer is not null)
+        if (removedPlayer is not null && result is not null)
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, sessionId.ToString());
+            await _notifier.PlayerRemovedAsync(sessionId, removedPlayer.PlayerId, result, state);
 
-            if (removedSession)
-            {
-                await Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
-                await lobbyHub.Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
-                await lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListDeleted", sessionId);
-            }
-            else if (state is not null)
-            {
-                await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayer.PlayerId);
-                await Clients.Group(groupName).SendAsync("StateUpdated", state);
-            }
-
-            logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}. SessionRemoved: {SessionRemoved}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId, removedSession);
+            logger.LogInformation("Player {PlayerName}:{PlayerId} disconnected session {SessionId}. SessionRemoved: {SessionRemoved}", removedPlayer.DisplayName, removedPlayer.PlayerId, sessionId, result.SessionRemoved);
         }
 
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task JoinGame(Guid? sessionId, Guid playerId)
+    public async Task JoinGame(Guid? sessionId, Guid playerId, string? playerKey)
     {
         logger.LogInformation(
             "JoinGame requested by connection {ConnectionId} for session {SessionId} and player {PlayerId}",
@@ -92,9 +79,12 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
             joinedPlayer = session.Players.FirstOrDefault(p => p.PlayerId == playerId)
                 ?? throw new HubException("Player is not part of lobby.");
 
-            joinedPlayer.ConnectionId = Context.ConnectionId;
-            joinedPlayer.IsConnected = true;
-            _sessionStore.MarkInProgress(session);
+            if (!SessionStorage.IsPlayerKeyValid(joinedPlayer, playerKey))
+            {
+                throw new HubException("Invalid player credentials.");
+            }
+
+            _engine.JoinPlayer(session, joinedPlayer, Context.ConnectionId);
             SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
@@ -104,7 +94,7 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         string groupName = sessionId.Value.ToString();
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
         await Clients.Caller.SendAsync("Joined", joinedPlayer.PlayerId, state);
-        await Clients.OthersInGroup(groupName).SendAsync("PlayerJoined", SessionStorage.ToDto(session));
+        await Clients.OthersInGroup(groupName).SendAsync("PlayerJoined", state);
         await Clients.Group(groupName).SendAsync("StateUpdated", state);
 
         logger.LogInformation(
@@ -119,157 +109,40 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
     {
         logger.LogDebug("RollDice requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
 
-        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
-        {
-            throw new HubException("Session not found.");
-        }
-
-        PlayerState caller;
-        int rolled;
-        int newPosition;
-        bool isEventPhaseRoll;
-        bool completedWinningLap = false;
-        bool gameCompleted = false;
-        TurnResolutionPayload? phaseResolution = null;
+        var session = GetSession(sessionId);
+        RollResult result;
         GameStateDto state;
 
         lock (session)
         {
-            caller = ValidateCallerAndGetCurrent(session);
-            rolled = Random.Shared.Next(1, 7);
-            session.LastRollValue = rolled;
-
-            if (session.IsEventRollPhase)
-            {
-                if (!session.PendingEventRollPlayerIds.Contains(caller.PlayerId))
-                {
-                    throw new HubException("You are not waiting for an event roll.");
-                }
-
-                var gameEvent = session.PendingEventRollEvent ?? throw new HubException("No pending roll event.");
-                var outcome = gameEvent.RollOutcomes.FirstOrDefault(r => r.Range.InRange(rolled))?.Outcome
-                              ?? throw new HubException("No roll range matched outcome.");
-
-                var entries = new List<ResolvedOutcomeEntry>();
-                var repeatTurn = false;
-                ApplyOutcome(caller, outcome, ref repeatTurn);
-                entries.Add(new ResolvedOutcomeEntry(caller.PlayerId, rolled, outcome));
-
-                session.PendingEventRollPlayerIds.Remove(caller.PlayerId);
-                if (session.PendingEventRollPlayerIds.Count == 0)
-                {
-                    EndEventRollPhase(session);
-                    gameCompleted = CompleteGameIfNoActivePlayers(session);
-                    if (!gameCompleted && !repeatTurn)
-                    {
-                        AdvanceTurn(session);
-                    }
-                }
-
-                newPosition = caller.Position;
-                isEventPhaseRoll = true;
-                phaseResolution = new TurnResolutionPayload
-                {
-                    Event = gameEvent,
-                    Entries = entries,
-                    RepeatTurn = repeatTurn,
-                    IsEventRollPhase = true,
-                    EventRollCompleted = !session.IsEventRollPhase
-                };
-            }
-            else
-            {
-                if (session.IsTurnInProgress)
-                {
-                    throw new HubException("Turn is not finished yet.");
-                }
-
-                if (caller.TurnsToSkip > 0 && !TryConsumeSoloSkipPenalty(session, caller))
-                {
-                    throw new HubException($"You must skip {caller.TurnsToSkip} more turn(s).");
-                }
-
-                completedWinningLap = MovePlayerByOffset(caller, rolled);
-
-                if (completedWinningLap)
-                {
-                    gameCompleted = CompleteGameIfNoActivePlayers(session);
-                    if (!gameCompleted)
-                    {
-                        AdvanceTurn(session);
-                    }
-
-                    newPosition = caller.Position;
-                }
-                else
-                {
-                    session.IsTurnInProgress = true;
-                    newPosition = caller.Position;
-                }
-
-                isEventPhaseRoll = false;
-            }
-
+            var caller = GetCaller(session);
+            result = _engine.Roll(session, caller);
             SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
-        string groupName = sessionId.ToString();
-        var rollPayload = new { playerId = caller.PlayerId, rollValue = rolled, newPosition, completedWinningLap };
-        if (isEventPhaseRoll)
-        {
-            await Clients.Caller.SendAsync("EventDiceRolled", rollPayload);
-        }
-        else
-        {
-            await Clients.Caller.SendAsync("DiceRolled", rollPayload);
-        }
-
-        if (phaseResolution is not null)
-        {
-            await Clients.Caller.SendAsync("TurnEnded", phaseResolution);
-        }
-
-        await Clients.Group(groupName).SendAsync("StateUpdated", state);
-        if (gameCompleted)
-        {
-            await Clients.Group(groupName).SendAsync("GameCompleted", CreateGameCompletionPayload(state));
-        }
+        await _notifier.RolledAsync(sessionId, Context.ConnectionId, result, state);
 
         logger.LogInformation(
             "Player {PlayerId} rolled {RollValue} in session {SessionId}. EventPhase: {IsEventPhase}. NewPosition: {NewPosition}",
-            caller.PlayerId,
-            rolled,
+            result.PlayerId,
+            result.Rolled,
             sessionId,
-            isEventPhaseRoll,
-            newPosition);
+            result.IsEventPhaseRoll,
+            result.NewPosition);
     }
 
     public async Task BeginTurn(Guid sessionId)
     {
         logger.LogDebug("BeginTurn requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
 
-        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
-        {
-            throw new HubException("Session not found.");
-        }
-
+        var session = GetSession(sessionId);
         GameStateDto state;
         GameCellEvent cellEvent;
 
         lock (session)
         {
-            var caller = ValidateCallerAndGetCurrent(session);
-            if (!session.IsTurnInProgress)
-            {
-                throw new HubException("Turn is already completed.");
-            }
-
-            if (!_eventStorage.Events.TryGetValue(caller.Position, out cellEvent!))
-            {
-                throw new HubException($"Event for {caller.Position} position does not exist!");
-            }
-
+            cellEvent = _engine.BeginTurn(session, GetCaller(session));
             SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
@@ -289,89 +162,35 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
     {
         logger.LogDebug("FinishTurn requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
 
-        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
-        {
-            throw new HubException("Session not found.");
-        }
-
+        var session = GetSession(sessionId);
         GameStateDto state;
-        GameCellEvent cellEvent;
-        TurnResolutionPayload resolution;
-        bool gameCompleted = false;
+        FinishTurnResult result;
 
         lock (session)
         {
-            var caller = ValidateCallerAndGetCurrent(session);
-            if (!session.IsTurnInProgress)
-            {
-                throw new HubException("Turn isn't started.");
-            }
-
-            if (!_eventStorage.Events.TryGetValue(caller.Position, out cellEvent!))
-            {
-                throw new HubException($"Event for {caller.Position} position does not exist!");
-            }
-
-            if (TryStartEventRollPhase(session, caller, cellEvent))
-            {
-                session.IsTurnInProgress = false;
-
-                resolution = new TurnResolutionPayload
-                {
-                    Event = cellEvent,
-                    Entries = [],
-                    RepeatTurn = false,
-                    IsEventRollPhase = true,
-                    EventRollCompleted = false
-                };
-            }
-            else
-            {
-                resolution = ResolveEvent(session, caller, cellEvent, chosenPlayerId);
-                session.IsTurnInProgress = false;
-
-                gameCompleted = CompleteGameIfNoActivePlayers(session);
-                if (!gameCompleted && !resolution.RepeatTurn)
-                {
-                    AdvanceTurn(session);
-                }
-            }
-
+            result = _engine.FinishTurn(session, GetCaller(session), chosenPlayerId);
             SessionStorage.TouchSession(session);
             state = SessionStorage.ToDto(session);
         }
 
-        string groupName = sessionId.ToString();
-        await Clients.Group(groupName).SendAsync("StateUpdated", state);
-        await Clients.Caller.SendAsync("TurnEnded", resolution);
-        if (gameCompleted)
-        {
-            await Clients.Group(groupName).SendAsync("GameCompleted", CreateGameCompletionPayload(state));
-        }
+        await _notifier.TurnFinishedAsync(sessionId, Context.ConnectionId, result, state);
 
         logger.LogInformation(
             "Turn finished in session {SessionId}. Event '{EventTitle}', entries: {EntriesCount}, repeat turn: {RepeatTurn}, event roll phase: {IsEventRollPhase}",
             sessionId,
-            resolution.Event.Title,
-            resolution.Entries.Count,
-            resolution.RepeatTurn,
-            resolution.IsEventRollPhase);
+            result.Resolution.Event.Title,
+            result.Resolution.Entries.Count,
+            result.Resolution.RepeatTurn,
+            result.Resolution.IsEventRollPhase);
     }
-
 
     public async Task BecomeSpectator(Guid sessionId)
     {
-        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
-        {
-            throw new HubException("Session not found.");
-        }
-
+        var session = GetSession(sessionId);
         GameStateDto state;
         lock (session)
         {
-            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
-                ?? throw new HubException("Player is not part of this session.");
-
+            var caller = GetCaller(session);
             if (!caller.IsDead && !caller.IsWinner)
             {
                 throw new HubException("Only dead or victorious players can become spectators.");
@@ -387,54 +206,33 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
     public async Task LeaveGame(Guid sessionId)
     {
-        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
-        {
-            throw new HubException("Session not found.");
-        }
-
+        var session = GetSession(sessionId);
         Guid removedPlayerId;
-        bool removedSession;
+        RemovePlayerResult result;
         GameStateDto? state = null;
 
         lock (session)
         {
-            var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
-                ?? throw new HubException("Player is not part of this session.");
-
+            var caller = GetCaller(session);
             removedPlayerId = caller.PlayerId;
-            removedSession = RemovePlayerFromActiveGame(session, caller);
+            result = _engine.RemovePlayer(session, caller);
 
-            if (!removedSession)
+            if (!result.SessionRemoved)
             {
                 SessionStorage.TouchSession(session);
                 state = SessionStorage.ToDto(session);
             }
         }
 
-        var groupName = sessionId.ToString();
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
-
-        if (removedSession)
-        {
-            await Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
-            await lobbyHub.Clients.Group(groupName).SendAsync("LobbyDeleted", sessionId);
-            await lobbyHub.Clients.Group(LobbyHub.LobbyListGroup).SendAsync("LobbyListDeleted", sessionId);
-            return;
-        }
-
-        await Clients.Group(groupName).SendAsync("PlayerLeft", removedPlayerId);
-        await Clients.Group(groupName).SendAsync("StateUpdated", state);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, sessionId.ToString());
+        await _notifier.PlayerRemovedAsync(sessionId, removedPlayerId, result, state);
     }
 
     public async Task SyncState(Guid sessionId)
     {
         logger.LogDebug("SyncState requested by connection {ConnectionId} for session {SessionId}", Context.ConnectionId, sessionId);
 
-        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
-        {
-            throw new HubException("Session not found.");
-        }
-
+        var session = GetSession(sessionId);
         GameStateDto state;
         lock (session)
         {
@@ -444,405 +242,19 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
         await Clients.Caller.SendAsync("StateUpdated", state);
     }
 
-    private bool TryStartEventRollPhase(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
+    private GameSession GetSession(Guid sessionId)
     {
-        var participants = GetSelfResolvedEventRollParticipants(session, currentPlayer, gameEvent);
-        if (participants.Count == 0)
+        if (!_sessionStore.TryGetSession(sessionId, out var session) || session is null)
         {
-            return false;
+            throw new HubException("Session not found.");
         }
 
-        session.IsEventRollPhase = true;
-        session.EventRollOwnerPlayerId = currentPlayer.PlayerId;
-        session.PendingEventRollEvent = gameEvent;
-        session.PendingEventRollPlayerIds.Clear();
-        session.PendingEventRollPlayerIds.AddRange(participants);
-        return true;
+        return session;
     }
 
-    private IReadOnlyList<Guid> GetSelfResolvedEventRollParticipants(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent)
-    {
-        if (gameEvent.ResolutionMode != EventResolutionMode.Roll || gameEvent.RollOutcomes.Count == 0)
-        {
-            return [];
-        }
-
-        var targetScopes = gameEvent.RollOutcomes
-            .Select(item => item.Outcome.Target)
-            .Distinct()
-            .ToList();
-
-        if (targetScopes.Count != 1)
-        {
-            return [];
-        }
-
-        return targetScopes[0] switch
-        {
-            OutcomeTarget.CurrentPlayer => [currentPlayer.PlayerId],
-            OutcomeTarget.AllPlayers => session.Players
-                .Where(IsActiveParticipant)
-                .Select(player => player.PlayerId)
-                .ToArray(),
-            OutcomeTarget.Women => session.Players
-                .Where(player => player.IsWomen && IsActiveParticipant(player))
-                .Select(player => player.PlayerId)
-                .ToArray(),
-            OutcomeTarget.Muslims => session.Players
-                .Where(player => player.IsMuslim && IsActiveParticipant(player))
-                .Select(player => player.PlayerId)
-                .ToArray(),
-            OutcomeTarget.NonMuslims => session.Players
-                .Where(player => !player.IsMuslim && IsActiveParticipant(player))
-                .Select(player => player.PlayerId)
-                .ToArray(),
-            _ => []
-        };
-    }
-
-    private static void EndEventRollPhase(GameSession session)
-    {
-        session.IsEventRollPhase = false;
-        session.PendingEventRollEvent = null;
-        session.PendingEventRollPlayerIds.Clear();
-        session.EventRollOwnerPlayerId = Guid.Empty;
-    }
-
-    private static bool CompleteGameIfNoActivePlayers(GameSession session)
-    {
-        if (session.Players.Any(IsActiveParticipant))
-        {
-            return false;
-        }
-
-        session.Status = LobbyStatus.Completed;
-        session.ActiveTurnPlayerId = Guid.Empty;
-        session.IsTurnInProgress = false;
-        EndEventRollPhase(session);
-        return true;
-    }
-
-    private bool RemovePlayerFromActiveGame(GameSession session, PlayerState player)
-    {
-        var removedPlayerIndex = session.Players.FindIndex(item => item.PlayerId == player.PlayerId);
-        var wasActiveTurnPlayer = player.PlayerId == session.ActiveTurnPlayerId;
-        var wasEventRollPhase = session.IsEventRollPhase;
-
-        var removedSession = _sessionStore.RemovePlayerFromSession(session, player.PlayerId);
-        if (removedSession)
-        {
-            return true;
-        }
-
-        if (wasActiveTurnPlayer)
-        {
-            SetTurnCursorBeforeRemovedPlayer(session, removedPlayerIndex);
-        }
-
-        if (wasEventRollPhase)
-        {
-            if (session.PendingEventRollPlayerIds.Count == 0)
-            {
-                EndEventRollPhase(session);
-                AdvanceTurn(session);
-            }
-        }
-        else if (wasActiveTurnPlayer || !HasReadyActiveTurnPlayer(session))
-        {
-            AdvanceTurn(session);
-        }
-
-        return false;
-    }
-
-    private static void SetTurnCursorBeforeRemovedPlayer(GameSession session, int removedPlayerIndex)
-    {
-        if (session.Players.Count == 0)
-        {
-            session.ActiveTurnPlayerId = Guid.Empty;
-            return;
-        }
-
-        var cursorIndex = removedPlayerIndex <= 0
-            ? session.Players.Count - 1
-            : Math.Min(removedPlayerIndex - 1, session.Players.Count - 1);
-
-        session.ActiveTurnPlayerId = session.Players[cursorIndex].PlayerId;
-    }
-
-    private static bool HasReadyActiveTurnPlayer(GameSession session)
-    {
-        var activePlayer = session.Players.FirstOrDefault(player => player.PlayerId == session.ActiveTurnPlayerId);
-        return activePlayer is not null && IsActiveParticipant(activePlayer) && activePlayer.TurnsToSkip == 0;
-    }
-
-    private static int NormalizePosition(int position)
-    {
-        var normalized = position % BoardCellsCount;
-        return normalized < 0 ? normalized + BoardCellsCount : normalized;
-    }
-
-    private static bool HasCompletedWinningLap(int startPosition, int rolled)
-        => rolled > 0 && startPosition + rolled >= BoardCellsCount;
-
-    private static bool MovePlayerByOffset(PlayerState player, int moveOffset)
-    {
-        if (HasCompletedWinningLap(player.Position, moveOffset))
-        {
-            MarkPlayerAsWinner(player);
-            return true;
-        }
-
-        player.Position = NormalizePosition(player.Position + moveOffset);
-        return false;
-    }
-
-    private static void MarkPlayerAsWinner(PlayerState player)
-    {
-        player.Position = 0;
-        player.IsWinner = true;
-        player.TurnsToSkip = 0;
-    }
-
-    private static void AdvanceTurn(GameSession session)
-    {
-        var activePlayers = session.Players.Where(IsActiveParticipant).ToList();
-        if (activePlayers.Count == 0)
-        {
-            session.ActiveTurnPlayerId = Guid.Empty;
-            return;
-        }
-
-        var currentIndex = session.Players.FindIndex(p => p.PlayerId == session.ActiveTurnPlayerId);
-        if (currentIndex < 0)
-        {
-            currentIndex = -1;
-        }
-
-        var maxSkips = activePlayers.Max(player => player.TurnsToSkip);
-        var maxAttempts = session.Players.Count * (maxSkips + 1);
-
-        for (var offset = 1; offset <= maxAttempts; offset++)
-        {
-            var next = session.Players[(currentIndex + offset) % session.Players.Count];
-            if (!IsActiveParticipant(next))
-            {
-                continue;
-            }
-
-            if (next.TurnsToSkip > 0)
-            {
-                next.TurnsToSkip--;
-                continue;
-            }
-
-            session.ActiveTurnPlayerId = next.PlayerId;
-            return;
-        }
-
-        var fallback = activePlayers[0];
-        fallback.TurnsToSkip = 0;
-        session.ActiveTurnPlayerId = fallback.PlayerId;
-    }
-
-    private static bool TryConsumeSoloSkipPenalty(GameSession session, PlayerState player)
-    {
-        if (player.TurnsToSkip <= 0)
-        {
-            return false;
-        }
-
-        var activeParticipantsCount = session.Players.Count(IsActiveParticipant);
-        if (activeParticipantsCount != 1)
-        {
-            return false;
-        }
-
-        player.TurnsToSkip = 0;
-        session.ActiveTurnPlayerId = player.PlayerId;
-        return true;
-    }
-
-    private PlayerState ValidateCallerAndGetCurrent(GameSession session)
-    {
-        if (session.Players.Count == 0)
-        {
-            throw new HubException("No players in session.");
-        }
-
-        var caller = session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
-                     ?? throw new HubException("Player is not part of this session.");
-
-        if (session.IsEventRollPhase)
-        {
-            if (!IsActiveParticipant(caller))
-            {
-                throw new HubException("Dead or spectator players can't make turns.");
-            }
-
-            if (!session.PendingEventRollPlayerIds.Contains(caller.PlayerId))
-            {
-                throw new HubException("Waiting for other players to roll.");
-            }
-
-            return caller;
-        }
-
-        if (session.ActiveTurnPlayerId == Guid.Empty)
-        {
-            var nextActive = session.Players.FirstOrDefault(IsActiveParticipant);
-            if (nextActive is null)
-            {
-                throw new HubException("No active players left in session.");
-            }
-
-            session.ActiveTurnPlayerId = nextActive.PlayerId;
-        }
-
-        if (caller.PlayerId != session.ActiveTurnPlayerId)
-        {
-            throw new HubException("Not your turn.");
-        }
-
-        if (!IsActiveParticipant(caller))
-        {
-            throw new HubException("Dead or spectator players can't make turns.");
-        }
-
-        return caller;
-    }
-
-    private TurnResolutionPayload ResolveEvent(GameSession session, PlayerState currentPlayer, GameCellEvent gameEvent, Guid? chosenPlayerId)
-    {
-        var entries = new List<ResolvedOutcomeEntry>();
-        var repeatTurn = false;
-
-        if (gameEvent.ResolutionMode == EventResolutionMode.Fixed)
-        {
-            foreach (var outcome in gameEvent.FixedOutcomes)
-            {
-                var targets = ResolveTargets(session, currentPlayer, outcome.Target, chosenPlayerId);
-                foreach (var target in targets)
-                {
-                    ApplyOutcome(target, outcome, ref repeatTurn);
-                    entries.Add(new ResolvedOutcomeEntry(target.PlayerId, 0, outcome));
-                }
-            }
-        }
-        else
-        {
-            var targetScopes = gameEvent.RollOutcomes.Select(r => r.Outcome.Target).Distinct().ToList();
-            if (targetScopes.Count == 0)
-            {
-                throw new HubException("Roll event has no outcomes.");
-            }
-
-            var allTargets = targetScopes
-                .SelectMany(scope => ResolveTargets(session, currentPlayer, scope, chosenPlayerId))
-                .DistinctBy(p => p.PlayerId)
-                .ToList();
-
-            foreach (var target in allTargets)
-            {
-                var roll = Random.Shared.Next(1, 7);
-                var outcome = gameEvent.RollOutcomes.FirstOrDefault(r => r.Range.InRange(roll))?.Outcome
-                              ?? throw new HubException("No roll range matched outcome.");
-
-                ApplyOutcome(target, outcome, ref repeatTurn);
-                entries.Add(new ResolvedOutcomeEntry(target.PlayerId, roll, outcome));
-            }
-        }
-
-        return new TurnResolutionPayload
-        {
-            Event = gameEvent,
-            Entries = entries,
-            RepeatTurn = repeatTurn,
-            IsEventRollPhase = false,
-            EventRollCompleted = false
-        };
-    }
-
-    private static void ApplyOutcome(PlayerState player, EventOutcome outcome, ref bool repeatTurn)
-    {
-        if (!IsActiveParticipant(player))
-        {
-            return;
-        }
-
-        switch (outcome.Kind)
-        {
-            case OutcomeKind.None:
-                return;
-            case OutcomeKind.MoveByOffset:
-                MovePlayerByOffset(player, outcome.MoveOffset);
-                return;
-            case OutcomeKind.MoveToCell:
-                if (outcome.MoveToCell is int cell)
-                {
-                    player.Position = NormalizePosition(cell);
-                }
-                return;
-            case OutcomeKind.RepeatRoll:
-                repeatTurn = true;
-                return;
-            case OutcomeKind.SkipTurns:
-                player.TurnsToSkip += Math.Max(0, outcome.SkipTurns);
-                return;
-            case OutcomeKind.Eliminate:
-                player.IsDead = true;
-                player.TurnsToSkip = 0;
-                return;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-    }
-
-    private static IEnumerable<PlayerState> ResolveTargets(GameSession session, PlayerState currentPlayer, OutcomeTarget target, Guid? chosenPlayerId)
-    {
-        return target switch
-        {
-            OutcomeTarget.CurrentPlayer => [currentPlayer],
-            OutcomeTarget.ChosenPlayer => ResolveChosenPlayerTargets(session, currentPlayer, chosenPlayerId),
-            OutcomeTarget.AllPlayers => session.Players.Where(IsActiveParticipant),
-            OutcomeTarget.Women => session.Players.Where(p => p.IsWomen && IsActiveParticipant(p)),
-            OutcomeTarget.Muslims => session.Players.Where(p => p.IsMuslim && IsActiveParticipant(p)),
-            OutcomeTarget.NonMuslims => session.Players.Where(p => !p.IsMuslim && IsActiveParticipant(p)),
-            _ => throw new ArgumentOutOfRangeException(nameof(target), target, null)
-        };
-    }
-
-    private static IEnumerable<PlayerState> ResolveChosenPlayerTargets(GameSession session, PlayerState currentPlayer, Guid? chosenPlayerId)
-    {
-        var candidates = session.Players
-            .Where(p => p.PlayerId != currentPlayer.PlayerId && IsActiveParticipant(p))
-            .ToList();
-
-        if (candidates.Count == 0)
-        {
-            return [];
-        }
-
-        if (chosenPlayerId.HasValue)
-        {
-            var chosen = candidates.FirstOrDefault(p => p.PlayerId == chosenPlayerId.Value);
-            if (chosen is not null)
-            {
-                return [chosen];
-            }
-
-            throw new HubException("Chosen player is not a valid target.");
-        }
-
-        if (candidates.Count == 1)
-        {
-            return [candidates[0]];
-        }
-
-        throw new HubException("Choose a player.");
-    }
-
-    private static bool IsActiveParticipant(PlayerState player) => !player.IsDead && !player.IsSpectator && !player.IsWinner;
+    private PlayerState GetCaller(GameSession session) =>
+        session.Players.FirstOrDefault(player => player.ConnectionId == Context.ConnectionId)
+        ?? throw new HubException("Player is not part of this session.");
 
     private bool TryGetSessionId(out Guid sessionId)
     {
@@ -854,54 +266,5 @@ public sealed class GameHub(SessionStorage _sessionStore, EventStorage _eventSto
 
         sessionId = Guid.Empty;
         return false;
-    }
-
-    private sealed record TurnResolutionPayload
-    {
-        public required GameCellEvent Event { get; init; }
-        public required IReadOnlyList<ResolvedOutcomeEntry> Entries { get; init; }
-        public required bool RepeatTurn { get; init; }
-        public required bool IsEventRollPhase { get; init; }
-        public required bool EventRollCompleted { get; init; }
-    }
-
-    private static GameCompletionPayload CreateGameCompletionPayload(GameStateDto state)
-    {
-        var winnerPlayerIds = state.Players
-            .Where(player => player.IsWinner)
-            .Select(player => player.PlayerId)
-            .ToArray();
-
-        return new GameCompletionPayload
-        {
-            State = state,
-            Reason = "NoActivePlayers",
-            WinnerPlayerIds = winnerPlayerIds,
-            Message = winnerPlayerIds.Length > 0
-                ? "The game has ended."
-                : "The game has ended. No active players remain."
-        };
-    }
-
-    private sealed record GameCompletionPayload
-    {
-        public required GameStateDto State { get; init; }
-        public required string Reason { get; init; }
-        public required IReadOnlyList<Guid> WinnerPlayerIds { get; init; }
-        public required string Message { get; init; }
-    }
-
-    private sealed class ResolvedOutcomeEntry
-    {
-        public ResolvedOutcomeEntry(Guid playerId, int roll, EventOutcome outcome)
-        {
-            PlayerId = playerId;
-            Roll = roll;
-            Outcome = outcome;
-        }
-
-        public Guid PlayerId { get; }
-        public int Roll { get; }
-        public EventOutcome Outcome { get; }
     }
 }

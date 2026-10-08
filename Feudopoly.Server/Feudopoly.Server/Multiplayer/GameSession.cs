@@ -19,4 +19,9 @@ public sealed class GameSession
     public required Guid EventRollOwnerPlayerId { get; set; }
     public required List<Guid> PendingEventRollPlayerIds { get; init; }
     public GameCellEvent? PendingEventRollEvent { get; set; }
+    public DateTime? LaunchedAtUtc { get; set; }
+    /// <summary>When the player(s) expected to act next get auto-played by <see cref="TurnTimeoutService"/>.</summary>
+    public DateTime? ActionDeadlineUtc { get; set; }
+    /// <summary>Incremented for every state snapshot so clients can drop snapshots that arrive out of order.</summary>
+    public long StateVersion { get; set; }
 }

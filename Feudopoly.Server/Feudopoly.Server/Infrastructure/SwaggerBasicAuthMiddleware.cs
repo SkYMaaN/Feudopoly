@@ -34,7 +34,7 @@ public sealed class SwaggerBasicAuthMiddleware(RequestDelegate next, IOptions<Sw
             || path.StartsWithSegments("/internal/ops/schema-a7f3c9", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool TryValidatePassword(HttpRequest request, string expectedPassword, out string challenge)
+    public static bool TryValidatePassword(HttpRequest request, string expectedPassword, out string challenge)
     {
         challenge = "Basic realm=\"Swagger Admin\"";
 

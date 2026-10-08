@@ -137,7 +137,11 @@ export class LobbyRoom extends Phaser.Scene {
         ];
 
         await lobbyHubClient.connect();
-        await lobbyHubClient.subscribeLobby(this.lobbyId);
+        await this.subscribeAsMember();
+    }
+
+    subscribeAsMember() {
+        return lobbyHubClient.subscribeLobby(this.lobbyId, this.profile.playerId, this.profile.playerKey);
     }
 
     applyLobby(lobby) {
@@ -265,7 +269,7 @@ export class LobbyRoom extends Phaser.Scene {
 
     async startLobby() {
         try {
-            await lobbyApi.start(this.lobbyId, { playerId: this.profile.playerId });
+            await lobbyApi.start(this.lobbyId, { playerId: this.profile.playerId, playerKey: this.profile.playerKey });
         } catch (e) {
             this.showMessage(e.message);
         }
@@ -273,7 +277,7 @@ export class LobbyRoom extends Phaser.Scene {
 
     async leaveLobby() {
         try {
-            await lobbyApi.leave(this.lobbyId, { playerId: this.profile.playerId });
+            await lobbyApi.leave(this.lobbyId, { playerId: this.profile.playerId, playerKey: this.profile.playerKey });
             this.goBack();
         } catch (e) {
             this.showMessage(e.message);
@@ -290,11 +294,13 @@ export class LobbyRoom extends Phaser.Scene {
             const password = this.lobby.accessType === 1 ? window.prompt('Password:') : null;
             await lobbyApi.join(this.lobbyId, {
                 playerId: this.profile.playerId,
+                playerKey: this.profile.playerKey,
                 displayName: this.profile.displayName,
                 isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim,
                 password
             });
+            await this.subscribeAsMember();
         } catch (e) {
             if (e.code === 'lobby_full') {
                 try {

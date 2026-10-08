@@ -3,6 +3,7 @@ namespace Feudopoly.Server.Multiplayer;
 public sealed class GameStateDto
 {
     public required Guid SessionId { get; init; }
+    public required long StateVersion { get; init; }
     public required LobbyStatus Status { get; init; }
     public required IReadOnlyList<PlayerDto> Players { get; init; }
     public required Guid? ActiveTurnPlayerId { get; init; }

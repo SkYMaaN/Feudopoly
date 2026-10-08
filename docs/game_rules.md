@@ -28,8 +28,8 @@ You have appendicitis. Believe me – you wouldn't want that in the year 1200!
 ## 4. Appendicitis Outcome
 Roll again.
 
-- **1–4** — You survived. Move forward **1 space**.
-- **5–6** — You'll die from the infection.
+- **1–2** — You survived.
+- **3–6** — You'll die from the infection.
 
 ---
 
@@ -132,8 +132,8 @@ The plague hit hard.
 
 Roll again.
 
-- **1–4** — You were lucky. Life goes on.
-- **5–6** — You had the plague.
+- **1–3** — You were lucky. Life goes on.
+- **4–6** — You had the plague.
 
 ---
 
@@ -243,7 +243,5 @@ You smiled and were happy. Then things got worse.
 
 Roll again.
 
-- **1–3** — You prefer manual labor in the field.
-- **4–6** — Rejoice! Life will be much better in **200 years**.
-
-**Effect:** Skip **2 turns**.
+- **1–3** — Rejoice! Life will be much better in **200 years**.
+- **4–6** — You prefer manual labor in the field. Skip **2 turns**.

@@ -40,7 +40,11 @@ namespace Feudopoly.Server
             builder.Services.AddSingleton<R2ObjectClient>();
             builder.Services.AddSingleton<SessionStorage>();
             builder.Services.AddSingleton<EventStorage>();
+            builder.Services.AddSingleton<IDiceRoller, RandomDiceRoller>();
+            builder.Services.AddSingleton<GameEngine>();
+            builder.Services.AddSingleton<GameNotifier>();
             builder.Services.AddHostedService<LobbyCleanupService>();
+            builder.Services.AddHostedService<TurnTimeoutService>();
 
             var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 

@@ -78,7 +78,7 @@ public sealed class SessionStorage
         }
     }
 
-    public void JoinLobby(GameSession session, Guid playerId, string displayName, bool isWomen, bool isMuslim, string? password)
+    public void JoinLobby(GameSession session, Guid playerId, string playerKey, string displayName, bool isWomen, bool isMuslim, string? password)
     {
         lock (session)
         {
@@ -105,6 +105,7 @@ public sealed class SessionStorage
             session.Players.Add(new PlayerState
             {
                 PlayerId = playerId,
+                PlayerKey = playerKey,
                 DisplayName = displayName.Trim(),
                 IsWomen = isWomen,
                 IsMuslim = isMuslim,
@@ -123,12 +124,14 @@ public sealed class SessionStorage
         }
     }
 
-    public bool LeaveLobby(GameSession session, Guid playerId)
+    public bool LeaveLobby(GameSession session, Guid playerId, string playerKey)
     {
         lock (session)
         {
             var player = session.Players.FirstOrDefault(p => p.PlayerId == playerId)
                 ?? throw new InvalidDataException("Player not in lobby.");
+
+            EnsurePlayerKey(player, playerKey);
 
             if (session.Status is LobbyStatus.InProgress or LobbyStatus.Completed)
             {
@@ -169,7 +172,7 @@ public sealed class SessionStorage
         }
     }
 
-    public void StartLobby(GameSession session, Guid callerId)
+    public void StartLobby(GameSession session, Guid callerId, string playerKey)
     {
         lock (session)
         {
@@ -177,6 +180,8 @@ public sealed class SessionStorage
             {
                 throw new InvalidDataException("Only owner can start.");
             }
+
+            EnsurePlayerKey(session.Players.First(p => p.PlayerId == callerId), playerKey);
 
             UpdateStatus(session);
             if (session.Status != LobbyStatus.Ready)
@@ -186,6 +191,7 @@ public sealed class SessionStorage
 
             EnsureActiveTurnPlayer(session);
             session.Status = LobbyStatus.Launching;
+            session.LaunchedAtUtc = DateTime.UtcNow;
             TouchSession(session);
         }
     }
@@ -290,6 +296,17 @@ public sealed class SessionStorage
         session.LastActivityAtUtc = DateTime.UtcNow;
     }
 
+    public static bool IsPlayerKeyValid(PlayerState player, string? playerKey) =>
+        !string.IsNullOrEmpty(playerKey) && string.Equals(player.PlayerKey, playerKey, StringComparison.Ordinal);
+
+    private static void EnsurePlayerKey(PlayerState player, string? playerKey)
+    {
+        if (!IsPlayerKeyValid(player, playerKey))
+        {
+            throw new UnauthorizedAccessException("Invalid player credentials.");
+        }
+    }
+
     private static void EnsureActiveTurnPlayer(GameSession session)
     {
         if (session.Players.Count == 0)
@@ -324,6 +341,7 @@ public sealed class SessionStorage
         return new GameStateDto
         {
             SessionId = session.SessionId,
+            StateVersion = ++session.StateVersion,
             Status = session.Status,
             ActiveTurnPlayerId = session.Players.Count > 0
                 ? session.Players.FirstOrDefault(p => p.PlayerId == session.ActiveTurnPlayerId)?.PlayerId

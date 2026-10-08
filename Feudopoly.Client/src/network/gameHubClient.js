@@ -16,6 +16,7 @@ export class GameHubClient {
             eventDiceRolled: [],
             turnBegan: [],
             turnEnded: [],
+            eventResolved: [],
             gameCompleted: [],
             lobbyDeleted: [],
             error: []
@@ -36,11 +37,12 @@ export class GameHubClient {
 
         console.log("Hub Url: " + hubUrl);
 
-        this.connection = new signalR.HubConnectionBuilder()
+        const connection = new signalR.HubConnectionBuilder()
             .withUrl(hubUrl)
             .configureLogging(signalR.LogLevel.Warning)
             .build();
 
+        this.connection = connection;
         this.connection.serverTimeoutInMilliseconds = ServerTimeoutInMilliseconds;
         this.connection.keepAliveIntervalInMilliseconds = KeepAliveIntervalInMilliseconds;
 
@@ -76,6 +78,10 @@ export class GameHubClient {
             this.emit('turnEnded', payload);
         });
 
+        this.connection.on('EventResolved', (payload) => {
+            this.emit('eventResolved', payload);
+        });
+
         this.connection.on('GameCompleted', (payload) => {
             this.emit('gameCompleted', payload);
         });
@@ -85,14 +91,20 @@ export class GameHubClient {
         });
 
         this.connection.onclose((error) => {
+            // Intentional disconnects clear this.connection first; only report unexpected drops.
+            if (this.connection !== connection) {
+                return;
+            }
+
+            this.connection = null;
             this.emit('error', error ?? new Error('Connection closed.'));
         });
 
         await this.connection.start();
     }
 
-    async joinGame(sessionId, playerId) {
-        await this.connection.invoke('JoinGame', sessionId, playerId);
+    async joinGame(sessionId, playerId, playerKey) {
+        await this.connection.invoke('JoinGame', sessionId, playerId, playerKey);
     }
 
     async rollDice(sessionId) {
@@ -120,12 +132,13 @@ export class GameHubClient {
     }
 
     async disconnect() {
-        if (!this.connection) {
+        const connection = this.connection;
+        if (!connection) {
             return;
         }
 
-        await this.connection.stop();
         this.connection = null;
+        await connection.stop();
     }
 
     on(eventName, handler) {

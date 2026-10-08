@@ -97,6 +97,9 @@ export class Board extends Phaser.Scene {
         this.isTurnInProgress = false;
         this.isRolling = false;
         this.animatingPlayerId = null;
+        this.movingPlayersCount = 0;
+        this.lastStateVersion = 0;
+        this.eventToastText = null;
         this.diceRotationTween = null;
         this.diceSpinState = { x: 0, y: 0, z: 0 };
         this.diceRollDurationMs = 3200;
@@ -197,7 +200,7 @@ export class Board extends Phaser.Scene {
             const playerId = data?.playerId;
 
             await gameHubClient.connect();
-            await gameHubClient.joinGame(this.sessionId, playerId);
+            await gameHubClient.joinGame(this.sessionId, playerId, getOrCreateProfile().playerKey);
             this.showStartGameIntro();
         } catch (error) {
             console.error(error);
@@ -398,9 +401,14 @@ export class Board extends Phaser.Scene {
 
                 this.forceReturnToLobbyList('Lobby was closed. Returning to lobby list.');
             }),
+            gameHubClient.on('eventResolved', (payload) => {
+                this.eventResolvedByOtherPlayer(payload);
+            }),
             gameHubClient.on('error', (error) => {
+                // The server removes a disconnected player from the match for good, so there is nothing to resume here.
                 this.isAwaitingLocalTurnEndResolution = false;
-                this.setStatus(`Connection lost: ${error?.message ?? 'Unknown issue'}`);
+                console.warn('Game connection lost:', error);
+                this.forceReturnToLobbyList('Connection lost. You have left the match.');
             })
         ];
     }
@@ -462,6 +470,14 @@ export class Board extends Phaser.Scene {
             return;
         }
 
+        // Broadcasts from concurrent server calls can arrive out of order; never go back to an older snapshot.
+        const stateVersion = Number(state.stateVersion ?? 0);
+        if (stateVersion < this.lastStateVersion) {
+            return;
+        }
+
+        this.lastStateVersion = stateVersion;
+
         this.activeTurnPlayerId = state.activeTurnPlayerId ? String(state.activeTurnPlayerId) : null;
         this.lastRollValue = state.lastRollValue ?? 0;
         this.isTurnInProgress = Boolean(state.isTurnInProgress);
@@ -498,27 +514,12 @@ export class Board extends Phaser.Scene {
             player.turnsToSkip = Number(playerState.turnsToSkip ?? 0);
             player.tokenBody.setFillStyle(this.getPlayerColor(playerId), 1);
 
-            // To prevent double animation from two web socket events.
-            // Local player is already animated by DiceRolled/EventDiceRolled payloads.
-            if (this.localPlayerId === playerId && (this.isTurnInProgress || this.isRolling)) {
-                return;
+            // A token that is already moving (e.g. animated by DiceRolled) picks up the new target when it stops,
+            // so several tokens moved by one event (Crusades, Ottomans, Spy) all end up in sync.
+            player.targetPosition = playerState.position;
+            if (!player.isAnimating) {
+                this.animatePlayerToTarget(player);
             }
-
-            const steps = this.getStepsToPosition(player.currentPosition, playerState.position, false);
-
-            if (steps === 0) {
-                return;
-            }
-
-            this.animatingPlayerId = playerId;
-            this.isRolling = true;
-
-            this.movePlayer(playerId, steps, playerState.position, () => {
-                this.isRolling = false;
-                this.animatingPlayerId = null;
-                this.refreshTurnUI();
-            });
-
         });
 
         const localState = state.players.find(player => String(player.playerId) === String(this.localPlayerId ?? ""));
@@ -592,7 +593,7 @@ export class Board extends Phaser.Scene {
         this.updateVictoryChoiceButtons();
         this.updateGameConclusionExitButton();
 
-        if (!this.isRolling) {
+        if (!this.isRolling && this.movingPlayersCount === 0) {
             this.refreshTurnUI();
         }
 
@@ -1419,6 +1420,50 @@ export class Board extends Phaser.Scene {
         //this.refreshTurnUI();
     }
 
+    // Another player's event affected the local player (e.g. Spy for the Inquisition, Ottomans).
+    eventResolvedByOtherPlayer(payload) {
+        const localPlayerId = String(this.localPlayerId ?? '');
+        if (!localPlayerId || String(payload?.playerId ?? '') === localPlayerId || !Array.isArray(payload?.entries)) {
+            return;
+        }
+
+        const localEntries = payload.entries.filter(entry =>
+            String(entry?.playerId ?? '') === localPlayerId && entry?.outcome?.kind !== 'None' && entry?.outcome?.kind !== 0);
+        if (localEntries.length === 0) {
+            return;
+        }
+
+        const actorName = this.players.find(player => player.playerId === String(payload.playerId))?.displayName ?? 'Another player';
+        const outcomeText = localEntries.map(entry => entry.outcome?.text).filter(Boolean).join(' ');
+        this.showEventToast(`${actorName} — ${payload.event?.title ?? 'Event'}: ${outcomeText}`);
+    }
+
+    showEventToast(text) {
+        const { width } = this.scale.gameSize;
+
+        if (!this.eventToastText) {
+            this.eventToastText = this.add.text(width / 2, 90, '', {
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '26px',
+                color: '#ffe066',
+                stroke: '#000000',
+                strokeThickness: 6,
+                align: 'center',
+                wordWrap: { width: Math.min(width - 80, 1100) }
+            }).setOrigin(0.5, 0).setDepth(1150);
+        }
+
+        this.tweens.killTweensOf(this.eventToastText);
+        this.eventToastText.setText(text).setAlpha(1).setVisible(true);
+        this.tweens.add({
+            targets: this.eventToastText,
+            alpha: 0,
+            delay: 6000,
+            duration: 600,
+            onComplete: () => this.eventToastText?.setVisible(false)
+        });
+    }
+
     gameCompleted(payload) {
         this.hasGameCompleted = true;
         this.gameCompletedPayload = payload ?? {};
@@ -1449,6 +1494,7 @@ export class Board extends Phaser.Scene {
     shouldDeferGameCompletedPresentation() {
         return this.isRolling
             || Boolean(this.animatingPlayerId)
+            || this.movingPlayersCount > 0
             || this.isTurnResultNotificationActive
             || this.shouldTransitionDeathScreenAfterNotification
             || this.isDeathPresentationActive;
@@ -3033,6 +3079,7 @@ export class Board extends Phaser.Scene {
         }
 
         const steps = this.getStepsToPosition(player.currentPosition, payload.newPosition, !payload?.isEventPhaseRoll);
+        player.targetPosition = payload.newPosition;
         this.animatingPlayerId = player.playerId;
 
         this.turnOverlay.setVisible(false);
@@ -3071,6 +3118,21 @@ export class Board extends Phaser.Scene {
         });
     }
 
+
+    animatePlayerToTarget(player) {
+        const steps = this.getStepsToPosition(player.currentPosition, player.targetPosition, false);
+        if (steps === 0) {
+            return;
+        }
+
+        this.movePlayer(player.playerId, steps, player.targetPosition, () => {
+            if (this.hasGameCompleted || this.hasDeferredGameCompletedPresentation) {
+                this.presentGameCompletedIfReady();
+            } else if (this.movingPlayersCount === 0) {
+                this.refreshTurnUI();
+            }
+        });
+    }
 
     getStepsToPosition(fromPosition, toPosition, preferForward = false) {
         const total = this.cells.length;
@@ -3168,6 +3230,9 @@ export class Board extends Phaser.Scene {
         const stepDirection = steps > 0 ? 1 : -1;
         let remainingSteps = Math.abs(steps);
 
+        player.isAnimating = true;
+        this.movingPlayersCount += 1;
+
         const moveOne = () => {
             player.currentPosition = (player.currentPosition + stepDirection + total) % total;
             const point = this.cells[player.currentPosition];
@@ -3197,9 +3262,16 @@ export class Board extends Phaser.Scene {
                     }
 
                     player.currentPosition = finalPosition;
+                    player.isAnimating = false;
+                    this.movingPlayersCount = Math.max(0, this.movingPlayersCount - 1);
                     this.applyStackOffsets(player.currentPosition);
                     this.updateLocalPlayerCellHighlight();
                     onComplete?.();
+
+                    // A newer state may have moved this token again while it was walking.
+                    if (!player.isAnimating && Number.isInteger(player.targetPosition) && player.targetPosition !== player.currentPosition) {
+                        this.animatePlayerToTarget(player);
+                    }
                 }
             });
         };

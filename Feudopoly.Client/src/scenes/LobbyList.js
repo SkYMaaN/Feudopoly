@@ -1030,6 +1030,7 @@ export class LobbyList extends Phaser.Scene {
                 password: this.createLobbyState.accessType === 1 ? this.createLobbyState.password.trim() : null,
                 maxPlayers: this.createLobbyState.maxPlayers,
                 creatorId: this.profile.playerId,
+                creatorKey: this.profile.playerKey,
                 creatorName: this.profile.displayName,
                 isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim
@@ -1119,6 +1120,7 @@ export class LobbyList extends Phaser.Scene {
             const password = lobby.accessType === 1 ? window.prompt('Password:') : null;
             await lobbyApi.join(lobby.lobbyId, {
                 playerId: this.profile.playerId,
+                playerKey: this.profile.playerKey,
                 displayName: this.profile.displayName,
                 isWomen: this.profile.isWomen,
                 isMuslim: this.profile.isMuslim,
@@ -1186,7 +1188,7 @@ export class LobbyList extends Phaser.Scene {
             // ignore network teardown errors
         }
 
-        await lobbyHubClient.disconnect();
+        // The lobby connection is shared with LobbyRoom, so it stays open here.
     }
 
     createButton(x, y, width, height, label, onClick) {

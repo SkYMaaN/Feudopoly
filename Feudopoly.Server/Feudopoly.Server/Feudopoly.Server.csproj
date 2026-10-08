@@ -16,4 +16,8 @@
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Feudopoly.Server.Tests" />
+  </ItemGroup>
+
 </Project>

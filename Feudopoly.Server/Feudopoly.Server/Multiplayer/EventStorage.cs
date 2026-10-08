@@ -47,6 +47,7 @@ namespace Feudopoly.Server.Multiplayer
                 [3] = Fixed("Age of knights", "It's the age of knights and you are one of them from within. Roll the dice again.",
                     O(OutcomeKind.RepeatRoll, "Roll the dice again.")),
 
+                // Ranges confirmed by the project owner (1-2 survive / 3-6 die); the outcome videos are mapped to them.
                 [4] = Roll("Appendicitis", "Believe me – you wouldn't want that in the year 1200! Roll again.",
                     RO(RollResultKind.Win, R(1, 2), O(OutcomeKind.None, "You survived.")),
                     RO(RollResultKind.Lose, R(3, 6), O(OutcomeKind.Eliminate, "You'll die from the infection. It's not called the \"Dark Ages\" for nothing."))),
@@ -91,6 +92,7 @@ namespace Feudopoly.Server.Multiplayer
                 [15] = Fixed("Bullied kid becomes Pope", "The guy you beat up as a kid becomes Pope. You argue that a Christian must forgive. He promised to think about it. You flee on field 8.",
                     O(OutcomeKind.MoveToCell, "Move immediately to field 8.", moveToCell: 8)),
 
+                // Ranges confirmed by the project owner (1-3 lucky / 4-6 plague); the outcome videos are mapped to them.
                 [16] = Roll("Plague", "The plague hit hard. Roll again.",
                     RO(RollResultKind.Win, R(1, 3), O(OutcomeKind.None, "You were lucky, life goes on.")),
                     RO(RollResultKind.Lose, R(4, 6), O(OutcomeKind.Eliminate, "You had the plague."))),
@@ -156,6 +158,7 @@ namespace Feudopoly.Server.Multiplayer
                 [28] = Fixed("A Brief Moment of Happiness", "You smiled and you were happy. And then things got worse. Go to field 24.",
                     O(OutcomeKind.MoveToCell, "Go to field 24.", moveToCell: 24)),
 
+                // Confirmed by the project owner: the 2-turn skip belongs to 4-6 (the source PDF text is OCR-noisy here).
                 [29] = Roll("Industrialization begins", "Industrialization begins. Roll again.",
                     [
                         RO(RollResultKind.Lose, R(1, 3), O(OutcomeKind.None, "Rejoice. You will be significantly better off in just 200 years because of this")),

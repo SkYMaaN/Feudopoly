@@ -7,6 +7,7 @@ const KeepAliveIntervalInMilliseconds = 15 * 1000;
 export class LobbyHubClient {
     constructor() {
         this.connection = null;
+        this.startPromise = null;
         this.handlers = {
             lobbyUpdated: [],
             lobbyDeleted: [],
@@ -21,16 +22,20 @@ export class LobbyHubClient {
             throw new Error('SignalR script is not loaded.');
         }
 
-        if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
+        // Scenes share one connection; reuse it (or wait for it) instead of replacing it mid-start.
+        if (this.connection) {
+            await this.startPromise;
             return;
         }
 
         //console.log('SignalR BackendBaseUrl: ' + backendBaseUrl);
 
-        this.connection = new signalR.HubConnectionBuilder()
+        const connection = new signalR.HubConnectionBuilder()
             .withUrl(`${backendBaseUrl}${HUB_PATH}`)
             .configureLogging(signalR.LogLevel.Warning)
             .build();
+
+        this.connection = connection;
 
         this.connection.serverTimeoutInMilliseconds = ServerTimeoutInMilliseconds;
         this.connection.keepAliveIntervalInMilliseconds = KeepAliveIntervalInMilliseconds;
@@ -39,9 +44,26 @@ export class LobbyHubClient {
         this.connection.on('LobbyDeleted', (lobbyId) => this.emit('lobbyDeleted', lobbyId));
         this.connection.on('LobbyListChanged', (lobby) => this.emit('lobbyListChanged', lobby));
         this.connection.on('LobbyListDeleted', (lobbyId) => this.emit('lobbyListDeleted', lobbyId));
-        this.connection.onclose((error) => this.emit('error', error ?? new Error('Connection closed.')));
+        this.connection.onclose((error) => {
+            // Intentional disconnects clear this.connection first; only report unexpected drops.
+            if (this.connection !== connection) {
+                return;
+            }
 
-        await this.connection.start();
+            this.connection = null;
+            this.emit('error', error ?? new Error('Connection closed.'));
+        });
+
+        this.startPromise = connection.start();
+        try {
+            await this.startPromise;
+        } catch (error) {
+            if (this.connection === connection) {
+                this.connection = null;
+            }
+
+            throw error;
+        }
     }
 
     async subscribeLobbyList() {
@@ -56,8 +78,9 @@ export class LobbyHubClient {
         await this.connection.invoke('UnsubscribeLobbyList');
     }
 
-    async subscribeLobby(lobbyId) {
-        await this.connection.invoke('SubscribeLobby', lobbyId);
+    // Members pass their credentials so the server can drop them from a waiting lobby if this connection is lost.
+    async subscribeLobby(lobbyId, playerId = null, playerKey = null) {
+        await this.connection.invoke('SubscribeLobby', lobbyId, playerId, playerKey);
     }
 
     async unsubscribeLobby(lobbyId) {
@@ -69,12 +92,13 @@ export class LobbyHubClient {
     }
 
     async disconnect() {
-        if (!this.connection) {
+        const connection = this.connection;
+        if (!connection) {
             return;
         }
 
-        await this.connection.stop();
         this.connection = null;
+        await connection.stop();
     }
 
     on(eventName, handler) {

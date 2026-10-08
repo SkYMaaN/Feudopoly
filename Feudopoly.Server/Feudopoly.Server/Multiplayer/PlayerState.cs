@@ -4,6 +4,8 @@ public sealed class PlayerState
 {
     public string ConnectionId { get; set; } = string.Empty;
     public required Guid PlayerId { get; init; }
+    /// <summary>Secret known only to the player's client; never sent to other clients.</summary>
+    public required string PlayerKey { get; init; }
     public required string DisplayName { get; set; }
     public required bool IsWomen { get; set; }
     public required bool IsMuslim { get; set; }
